@@ -1,3 +1,6 @@
+# stupid Mac folder files
+.DS_Store
+
 # History  and data files
 .Rhistory
 .Rdata
