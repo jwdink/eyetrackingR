@@ -14,11 +14,11 @@
 
 # load dependent libraries
 cat("Loading dependencies...")
-library(psych)
-library(ggplot2)
-library(ggthemes)
-library(reshape2)
-library(lme4)
+require('psych', quietly = TRUE)
+require('ggplot2', quietly = TRUE)
+require('ggthemes', quietly = TRUE)
+require('reshape2', quietly = TRUE)
+require('lme4', quietly = TRUE)
 
 cat("Library loaded!\n")
 
