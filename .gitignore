@@ -1,9 +1,14 @@
 # stupid Mac folder files
 .DS_Store
 
-# History  and data files
+# History, project, and data files
 .Rhistory
 .Rdata
+*.Rproj
 
 # Example code in package build process
 *-Ex.R
+.Rproj.user
+
+# TODO file
+TODO-PRIVATE.md
