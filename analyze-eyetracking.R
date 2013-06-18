@@ -13,6 +13,7 @@
 # Required columns in dataset (names are configurable):
 #   * ParticipantName (participant subject code)
 #   * SceneType (active AOI)
+#   * A column for each active AOI, set to 1 or 0
 #
 # @author Brock Ferguson
 #         brock.ferguson@gmail.com
@@ -122,19 +123,8 @@ treat_outside_looks_as_trackloss <- function(data, data_options) {
 #
 # @return list(trackloss, trials_committed)
 get_trackloss_data <- function(data, data_options, window_start = NA, window_end = NA) {
-  # do we have a looking window?  if so, filter by one or both of the window parameters
-  if (!is.na(window_start) & is.na(window_end)) {
-    message('get_trackloss_data','Trimming data before window...')
-    data <- data[which(data[, data_options$time_factor] >= window_start), ]
-  }
-  else if (is.na(window_start) & !is.na(window_end)) {
-    message('get_trackloss_data','Trimming data after window window...')
-    data <- data[which(data[, data_options$time_factor] <= window_end), ]
-  }
-  else if (!is.na(window_start) & !is.na(window_end)) {
-    message('get_trackloss_data','Trimming data outside of window...')
-    data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
-  }
+  # subset data by the optional window parameters
+  data <- subset_by_window(data, data_options, window_start, window_end)
   
   # count looking frames by trials/babies
   looking <- aggregate(data[, data_options$trackloss_factor], by = list(data[, data_options$participant_factor], data[, data_options$trial_factor]), 'sum', na.rm = TRUE)
@@ -182,19 +172,8 @@ clean_by_trackloss <- function(data, data_options, window_start = NA, window_end
   # want to return the full dataset.
   raw_data <- data
   
-  # do we have a looking window?  if so, filter by one or both of the window parameters
-  if (!is.na(window_start) & is.na(window_end)) {
-    message('clean_by_trackloss','Trimming data before window...')
-    data <- data[which(data[, data_options$time_factor] >= window_start), ]
-  }
-  else if (is.na(window_start) & !is.na(window_end)) {
-    message('clean_by_trackloss','Trimming data after window window...')
-    data <- data[which(data[, data_options$time_factor] <= window_end), ]
-  }
-  else if (!is.na(window_start) & !is.na(window_end)) {
-    message('clean_by_trackloss','Trimming data outside of window...')
-    data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
-  }
+  # subset data by the optional window parameters
+  data <- subset_by_window(data, data_options, window_start, window_end)
   
   looking <- aggregate(data[, data_options$trackloss_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'sum', na.rm = TRUE)
   
@@ -233,19 +212,8 @@ clean_by_trackloss <- function(data, data_options, window_start = NA, window_end
 #
 # @return dataframe trials_committed
 final_trial_counts <- function(data, data_options, window_start = NA, window_end = NA) {
-  # do we have a looking window?  if so, filter by one or both of the window parameters
-  if (!is.na(window_start) & is.na(window_end)) {
-    message('final_trial_counts','Trimming data before window...')
-    data <- data[which(data[, data_options$time_factor] >= window_start), ]
-  }
-  else if (is.na(window_start) & !is.na(window_end)) {
-    message('final_trial_counts','Trimming data after window window...')
-    data <- data[which(data[, data_options$time_factor] <= window_end), ]
-  }
-  else if (!is.na(window_start) & !is.na(window_end)) {
-    message('final_trial_counts','Trimming data outside of window...')
-    data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
-  }
+  # subset data by the optional window parameters
+  data <- subset_by_window(data, data_options, window_start, window_end)
   
   excluding_trackloss <- data[is.na(data[, data_options$trackloss_factor]), ]
   
@@ -264,10 +232,7 @@ final_trial_counts <- function(data, data_options, window_start = NA, window_end
 #
 # Keep individual trackloss points
 #
-keep_trackloss <- function(file = 'master-clean.csv') {
-  message('keep_trackloss','Reading datafile...')
-  data = read.csv(file)
-  
+keep_trackloss <- function(data, data_options) {
   message('keep_trackloss','Get column names...')
   scenes <- levels(data$SceneType)
   
@@ -745,6 +710,34 @@ diverging_bins <- function(data, bin_size = 250, factor = 'Condition', dv = 'Ani
   }
   
   results
+}
+
+# subset_by_window ()
+#
+# Return a subset of the dataframe by the window parameters
+#
+# @param dataframe data
+# @param list data_options
+# @param integer window_start
+# @param integer window_end
+#
+# @return dataframe data
+subset_by_window <- function (data, data_options, window_start = NA, window_end = NA) {
+  # do we have a looking window?  if so, filter by one or both of the window parameters
+  if (!is.na(window_start) & is.na(window_end)) {
+    message('subset_by_window','Trimming data before window...')
+    data <- data[which(data[, data_options$time_factor] >= window_start), ]
+  }
+  else if (is.na(window_start) & !is.na(window_end)) {
+    message('subset_by_window','Trimming data after window window...')
+    data <- data[which(data[, data_options$time_factor] <= window_end), ]
+  }
+  else if (!is.na(window_start) & !is.na(window_end)) {
+    message('subset_by_window','Trimming data outside of window...')
+    data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
+  }
+  
+  data
 }
 
 # bin_data ()
