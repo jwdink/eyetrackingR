@@ -30,30 +30,42 @@ require('psych', quietly = TRUE)
 # Create a list of data options which is passed to most of these
 # methods.
 #
+# @param integer sample_rate Number of samples (per second) recorded by eyetracker
 # @param string participant_factor Set to the subject code of the participant
 # @param string active_aoi_factor Set to the name of the AOI being gazed at for this sample
 # @param string trackloss_factor Set to 1 or 0 depending on whether the sample is lost to trackloss
 # @param string time_factor The factor to use for judgments of time (ms)
+# @param string sample_factor The incrementing factor that numbers gaze samples (0,1,2,3,4,...)
 # @param string trial_factor The unique name of the current trial
+# @param string default_dv The default column for your dependent variable, used if unspecified in *_analysis() methods
+# @param character.vector default_factors The default columns for your indepdent variables, used if unspecified in *_analysis() methods
 #
 # @return list of configuration options
 set_data_options <- function(
+                        sample_rate = 60,
                         participant_factor = 'ParticipantName',
                         active_aoi_factor = 'SceneType',
                         trackloss_factor = 'TrackLoss',
                         time_factor = 'TimeFromMovieOnset',
-                        trial_factor = 'Trial'
+                        sample_factor = 'FramesFromMovieOnset',
+                        trial_factor = 'Trial',
+                        default_dv = 'ActionMatch',
+                        default_factors = c('Condition')
                     ) {
   list(
+            'sample_rate' = sample_rate,
             'participant_factor' = participant_factor,
             'active_aoi_factor' = active_aoi_factor,
             'trackloss_factor' = trackloss_factor,
             'time_factor' = time_factor,
-            'trial_factor' = trial_factor
+            'sample_factor' = sample_factor,
+            'trial_factor' = trial_factor,
+            'default_dv' = default_dv,
+            'default_factors' = default_factors
           )
 }
 
-# describe_dataset()
+# summarize_dataset()
 #
 # Output a brief summary of a dataset. This is useful before/after trimming
 # and cleaning functions, so that the user can make sure nothing disastrous
@@ -63,12 +75,78 @@ set_data_options <- function(
 # @param list data_options
 #
 # @return null
-describe_dataset <- function (data, data_options) {
+summarize_data <- function (data, data_options) {
   cat("Dataset Summary -----------------------------\n")
   cat(paste("Total Rows:\t\t",nrow(data),sep=""))
   cat(paste("Participants:\t\t",length(unique(data[, data_config$participant_factor])),sep=""))
   cat(paste("Trackloss Prop.", mean(data[, data_options$trackloss_factor])))
   cat("End Summary ---------------------------------\n")
+}
+
+# describe_data ()
+#
+# Describe a DV column in the dataset by a (group of) factor(s)
+#
+# @param dataframe data
+# @param string dv
+# @param character.vector factors
+#
+# @return null It prints to the screen
+describe_data <- function(data, dv, factors = c()) {
+  # check that factors exist
+  if (length(factors) == 0) {
+    error('describe_data','Factors argument missing.  Factors must be passed as charactero vector.')
+  }
+  
+  # get column names
+  columns <- colnames(data)
+  
+  describe_factors <- data.frame(matrix(ncol = length(factors), nrow = nrow(data)))
+  
+  for (i in 1:length(factors)) {
+    factor <- factors[i]
+    if (!1 %in% match(columns, factor)) {
+      error('describe_data',paste(factor, ' factor missing from dataset.  Each factor must have a column in the data object.',sep=""))
+    }
+    else if (!is.factor(data[, factor])) {
+      # factor it
+      data[, factor] <- factor(data[, factor])
+    }
+    
+    # add to dataframe
+    describe_factors[, i] <- data[, factor]
+  }
+  
+  cat(paste("DV: ",dv,"\n====================================================================================\n",sep=""))
+  
+  details <- by(data[, dv], describe_factors, describe_column)
+  details <- capture.output(print(details, quote = FALSE))
+  
+  # we captured the print() output above because the normal formatting of our details
+  # text is really off and I want it to look nice.  so we capture it and then manipulate
+  # it with regex.
+  details <- sub('(.*?)matrix\\.(.*?)\\:',' X1:',details)
+  details <- sub('\\[1\\]\\s+',"",details)
+  details <- sub('(-+)',"\n------------------------------------------------------------------------------------\n",details)
+  details <- sub('X([0-9]+)\\: ([[:alnum:]]+)',"X\\1: \\2\n",details)
+  details <- sub('\\n\\s+',"\n",details)
+  
+  cat(details)
+  
+  cat("\n\n")
+}
+
+# describe_column()
+#
+# Supports describe_data(), above
+describe_column <- function(data) {
+  output <- paste("[Mean]: ",round(mean(data, na.rm = TRUE),3),"      ",
+                  "[SD]:   ",round(sd(data, na.rm = TRUE),3),"      ",
+                  "[Var]:  ",round(var(data, na.rm = TRUE),3),"      ",
+                  "[Min]:  ",round(min(data, na.rm = TRUE),3),"      ",
+                  "[Max]:  ",round(max(data, na.rm = TRUE),3),"      ",sep="")
+  
+  output
 }
 
 # clean_by_factor()
@@ -272,101 +350,53 @@ remove_trackloss <- function(data, data_options) {
   data
 }
 
-# describe_dv_by_condition ()
-#
-# Describe a single column of data between conditions
-#
-describe_dv_by_condition <- function(data, dv) {
-  describe_data(data, dv, c('Condition'))
-}
-
-# describe_dv_by_factors()
-#
-# Describe a single DV by each of our factors
-describe_dv_by_factors <- function(data, dv, factors = c()) {
-  dv <- as.list(dv)
-  
-  for (i in 1:length(dv)) {
-    describe_data(data, as.character(dv[i]), factors)
-  }
-}
-
-# describe_data ()
-#
-# Our main description function, wrapped by other methods
-#
-describe_data <- function(data, dv, factors = c()) {
-  # check that factors exist
-  if (length(factors) == 0) {
-    error('describe_data','Factors argument missing.  Factors must be passed as c() vector.')
-  }
-  
-  # get column names
-  columns <- colnames(data)
-  
-  describe_factors <- data.frame(matrix(ncol = length(factors), nrow = nrow(data)))
-  
-  for (i in 1:length(factors)) {
-    factor <- factors[i]
-    if (!1 %in% match(columns, factor)) {
-      error('describe_data',paste(factor, ' factor missing from dataset.  Each factor must have a column in the data object.',sep=""))
-    }
-    else if (!is.factor(data[, factor])) {
-      # factor it
-      data[, factor] <- factor(data[, factor])
-    }
-    
-    #add to list
-    describe_factors[, i] <- data[, factor]
-  }
-  
-  cat(paste("DV: ",dv,"\n====================================================================================\n",sep=""))
-  
-  details <- by(data[, dv], describe_factors, describe_column)
-  details <- capture.output(print(details, quote = FALSE))
-  
-  # we captured the print() output above because the normal formatting of our details
-  # text is really off and I want it to look nice.  so we capture it and then manipulate
-  # it with regex.
-  details <- sub('(.*?)matrix\\.(.*?)\\:',' X1:',details)
-  details <- sub('\\[1\\]\\s+',"",details)
-  details <- sub('(-+)',"\n------------------------------------------------------------------------------------\n",details)
-  details <- sub('X([0-9]+)\\: ([[:alnum:]]+)',"X\\1: \\2\n",details)
-  details <- sub('\\n\\s+',"\n",details)
-  
-  cat(details)
-  
-  cat("\n\n")
-}
-
-describe_column <- function(data) {
-  output <- paste("[Mean]: ",round(mean(data, na.rm = TRUE),3),"      ",
-                  "[SD]:   ",round(sd(data, na.rm = TRUE),3),"      ",
-                  "[Var]:  ",round(var(data, na.rm = TRUE),3),"      ",
-                  "[Min]:  ",round(min(data, na.rm = TRUE),3),"      ",
-                  "[Max]:  ",round(max(data, na.rm = TRUE),3),"      ",sep="")
-  
-  output
-}
-
 # time_analysis()
 #
-# Create a dataset that is ready for time-based analyses (either GCA or linear)
+# Create a dataset that is ready for time-based analyses, either a linear
+# analysis or a non-linear (i.e., growth curve) analysis
 #
-time_analysis <- function (data, dv = 'Animate', factors = c('Condition')) {
-  # make sure our columns are factors
-  for (i in 1:length(factors)) {
-    data[, factors[i]] <- factor(data[, factors[i]])
+# 
+#
+time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors = NA) {
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
   }
   
-  # bin by participant
-  binned <- bin_data(data, 'FramesFromPhaseOnset', 3, c('ParticipantName',factors), dv)
+  if (is.na(factors)) {
+    factors = data_options$default_factors
+  }
+  
+  # make sure the factor columns are actually factors for the sake of binning
+  # but track the classes so we can reset these afterwards...
+  original_classes = list()
+  
+  for (i in 1:length(factors)) {
+    factor_name = factors[i]
+    
+    # save original class
+    # if its character/factor, we will leave as a factor later
+    # if its numeric, we will return it to its numeric state
+    original_classes[factor_name] = class(data[, factor_name])
+    
+    # now factor!
+    data[, factor_name] <- factor(data[, factor_name])
+  }
+  
+  # ====== create bySubj data frame
+  
+  # calculate the number of samples to place in a bin based on
+  # the amount of time (ms) we want in a bin (bin_time)
+  bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
+  
+  # bin by participant and factors across time
+  binned <- bin_data(data, data_options$sample_factor, bin_size_in_samples, c(data_options$participant_factor,factors), dv)
   
   # rename columns
-  colnames(binned) <- c('ParticipantName',factors,'Bin','BinMean','N','y')
+  colnames(binned) <- c(data_options$participant_factor,factors,'Bin','BinMean','N','y')
   
-  # because we may have exclude trial time before our window, let's adjust our bin numbers
-  # so they start at 0
+  # because we may have excluded trial time before our window, let's re-calibrate
+  # our bin numbers to a zero point
   min_bin <- min(binned[, 'Bin'])
   
   if (min_bin > 0) {
@@ -374,7 +404,7 @@ time_analysis <- function (data, dv = 'Animate', factors = c('Condition')) {
   }
   
   # create t1
-  binned$t1 <- binned$Bin * .05
+  binned$t1 <- binned$Bin * (bin_time / 1000)
   
   # rename as bySubj
   bySubj <- binned
@@ -429,31 +459,17 @@ time_analysis <- function (data, dv = 'Animate', factors = c('Condition')) {
     bySubj[which(bySubj$Bin == (i - 1)),"ot4"] <- t[i, 4]
   }
   
-  # create natural polynomials
-  bySubj$t1 <- bySubj$Bin * .05
-  bySubj$t2 <- bySubj$t1^2
+  # ====== create byItem data frame
   
-  # fit model
-  #if (elog_wts == TRUE) {
-  #  bySubj.lmer <- lmer(subjects_model, data = bySubj, weights = 1/wts)
-  #}
-  # else {
-  #  bySubj.lmer <- lmer(subjects_model, data = bySubj)
-  #}
-
-  # get R-2 for fit
-  # bySubj.r2 <- summary(lm(attr(bySubj.lmer, "y") ~ fitted (bySubj.lmer)))$r.squared
+  # calculate the number of samples to place in a bin based on
+  # the amount of time (ms) we want in a bin (bin_time)
+  bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
   
-  # get p-values
-  # if (p_values == TRUE) {
-  #   bySubj.p_values <- pvals.fnc(bySubj.lmer, addPlot = FALSE)
-  # }
-  
-  # now bin by participant
-  binned <- bin_data(data, 'FramesFromPhaseOnset', 3, c('Trial',factors), dv)
+  # bin by participant and factors across time
+  binned <- bin_data(data, data_options$sample_factor, bin_size_in_samples, c(data_options$participant_factor,factors), dv)
   
   # rename columns
-  colnames(binned) <- c('Trial',factors,'Bin','BinMean','N','y')
+  colnames(binned) <- c(data_options$trial_factor,factors,'Bin','BinMean','N','y')
   
   # because we may have exclude trial time before our window, let's adjust our bin numbers
   # so they start at 0
@@ -462,6 +478,9 @@ time_analysis <- function (data, dv = 'Animate', factors = c('Condition')) {
   if (min_bin > 0) {
     binned$Bin <- binned$Bin - min_bin
   }
+  
+  # create t1
+  binned$t1 <- binned$Bin * (bin_time / 1000)
   
   # rename as byItem
   byItem <- binned
@@ -516,15 +535,17 @@ time_analysis <- function (data, dv = 'Animate', factors = c('Condition')) {
     byItem[which(byItem$Bin == (i - 1)),"ot4"] <- t[i, 4]
   }
   
-  # create natural polynomials
-  byItem$t1 <- byItem$Bin * .05
-  byItem$t2 <- byItem$t1^2
+  # ====== create crossed (by Items and Subjects) data frame
   
-  # crossed by items and subjects
-  binned <- bin_data(data, 'FramesFromPhaseOnset', 3, c('ParticipantName','Trial',factors), dv)
+  # calculate the number of samples to place in a bin based on
+  # the amount of time (ms) we want in a bin (bin_time)
+  bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
+  
+  # bin by participant and factors across time
+  binned <- bin_data(data, data_options$sample_factor, bin_size_in_samples, c(data_options$participant_factor,data_options$trial_factor,factors), dv)
   
   # rename columns
-  colnames(binned) <- c('ParticipantName','Trial',factors,'Bin','BinMean','N','y')
+  colnames(binned) <- c(data_options$participant_factor, data_options$trial_factor,factors,'Bin','BinMean','N','y')
   
   # because we may have exclude trial time before our window, let's adjust our bin numbers
   # so they start at 0
@@ -533,6 +554,9 @@ time_analysis <- function (data, dv = 'Animate', factors = c('Condition')) {
   if (min_bin > 0) {
     binned$Bin <- binned$Bin - min_bin
   }
+  
+  # create linear time column
+  binned$t1 <- binned$Bin * (1000 / bin_time)
   
   # are we fitting an empirical logit manual
   binned$elog <- log( (binned$y + .5) / (binned$N - binned$y + .5) )
@@ -584,14 +608,31 @@ time_analysis <- function (data, dv = 'Animate', factors = c('Condition')) {
     binned[which(binned$Bin == (i - 1)),"ot4"] <- t[i, 4]
   }
   
-  # create natural polynomials
-  binned$t1 <- binned$Bin * .05
-  binned$t2 <- binned$t1^2
+  # rename as crossed
+  crossed <- binned
+  
+  # ======== reset original column classes, if possible
+  
+  # above, we recorded original factor classes in 'original_classes'
+  # if these are numeric, let's reset them
+  # if they were characters/factors, we can leave them as factors for the sake
+  # of analysis
+  
+  original_classes[factor_name] = class(data[, factor_name])
+  
+  for (factor_name in names(original_classes)) {
+    original_class <- original_classes[[factor_name]]  
+    if (original_class == 'numeric') {
+      bySubj[, factor_name] <- as.numeric(as.character(bySubj[, factor_name]))
+      byItem[, factor_name] <- as.numeric(as.character(byItem[, factor_name]))
+      crossed[, factor_name] <- as.numeric(as.character(crossed[, factor_name]))
+    }  
+  }
   
   list (
       'bySubj' = bySubj,
       'byItem' = byItem,
-      'crossed' = binned
+      'crossed' = crossed
     )
 }
 
