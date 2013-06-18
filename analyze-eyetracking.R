@@ -166,53 +166,60 @@ get_trackloss_data <- function(data, data_options, window_start = NA, window_end
 
 # clean_by_trackloss()
 #
-# Clean our master file with a minimum frames criterion
+# Clean our master file by removing data from trials that contain less than a
+# specified number of non-trackloss samples.
 #
-clean_by_trackloss <- function(file = 'master-clean.csv', window_start = NA, window_end = NA, minimum_frames = NA) {
-  message('clean_by_trackloss','Loading datafile...')
-  data <- read.csv(file)
-  
-  # copy this object as we will want to manipulate it later
+# @param dataframe data
+# @param list data_options
+# @param integer window_start optional
+# @param integer window_end optional
+# @param integer minimum_samples
+#
+# @return dataframe data
+clean_by_trackloss <- function(data, data_options, window_start = NA, window_end = NA, minimum_samples = NA) {
+  # copy this object as we will want to manipulate it later.
+  # we are going to cut the original data by the window dimensions but
+  # want to return the full dataset.
   raw_data <- data
   
   # do we have a looking window?  if so, filter by one or both of the window parameters
   if (!is.na(window_start) & is.na(window_end)) {
-    message('clean_by_trackloss','Trimming before window...')
-    data <- data[which(data$TimeFromMovieOnset >= window_start), ]
+    message('get_trackloss_data','Trimming data before window...')
+    data <- data[which(data[, data_options$time_factor] >= window_start), ]
   }
   else if (is.na(window_start) & !is.na(window_end)) {
-    message('clean_by_trackloss','Trimming after window...')
-    data <- data[which(data$TimeFromMovieOnset <= window_end), ]
+    message('get_trackloss_data','Trimming data after window window...')
+    data <- data[which(data[, data_options$time_factor] <= window_end), ]
   }
   else if (!is.na(window_start) & !is.na(window_end)) {
-    message('clean_by_trackloss','Trimming outside of window...')
-    data <- data[which(data$TimeFromMovieOnset >= window_start & data$TimeFromMovieOnset <= window_end), ]
+    message('get_trackloss_data','Trimming data outside of window...')
+    data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
   }
   
-  looking <- aggregate(data['TrackLoss'], by = list(data[, data_options$participant_factor],data$Trial), 'sum', na.rm = TRUE)
+  looking <- aggregate(data[, data_options$trackloss_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'sum', na.rm = TRUE)
   
   # count total datapoints by trials/babies
-  total <- aggregate(data['ParticipantName'], by = list(data[, data_options$participant_factor],data$Trial), 'length')
-  looking$TotalFrames <- total[, 3]
+  total <- aggregate(data[, data_options$participant_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'length')
+  looking$TotalSamples <- total[, 3]
   
-  colnames(looking) <- c('ParticipantName','Trial','FramesLooking','TotalFrames')
+  colnames(looking) <- c(data_options$participant_factor,data_options$trial_factor,'SamplesLooking','TotalSamples')
   
-  # now flip the FramesLooking column, as it currently counts the trackloss (not good frames)
-  looking$FramesLooking <- looking$TotalFrames - looking$FramesLooking
+  # now flip the SamplesLooking column, as it currently counts the trackloss (not good samples)
+  looking$SamplesLooking <- looking$TotalSamples - looking$SamplesLooking
   
   # which should be removed?
   message('clean_by_trackloss','Calculating trials to be dropped...')
-  trackloss_trials <- looking[which(looking$FramesLooking < minimum_frames), ]
+  trackloss_trials <- looking[which(looking$SamplesLooking < minimum_samples), ]
   
   message('clean_by_trackloss',paste('Dropping ',nrow(trackloss_trials),' trials...',sep=""))
+  
   for (i in 1:nrow(trackloss_trials)) {
     row <- trackloss_trials[i, ]
     
-    raw_data <- raw_data[-which(raw_data$Trial == as.character(row[, 'Trial']) & raw_data[, data_options$participant_factor] == as.character(row[, 'ParticipantName'])), ]
+    raw_data <- raw_data[-which(raw_data[, data_options$trial_factor] == as.character(row[, data_options$trial_factor]) & raw_data[, data_options$participant_factor] == as.character(row[, data_options$participant_factor])), ]
   }
   
-  # write updated file
-  write.csv(raw_data, file)
+  raw_data
 }
 
 # final_trial_counts()
