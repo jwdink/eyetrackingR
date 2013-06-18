@@ -390,7 +390,7 @@ time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors 
   bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
   
   # bin by participant and factors across time
-  binned <- bin_data(data, data_options$sample_factor, bin_size_in_samples, c(data_options$participant_factor,factors), dv)
+  binned <- bin_data(data, data_options, bin_size_in_samples, c(data_options$participant_factor,factors), dv)
   
   # rename columns
   colnames(binned) <- c(data_options$participant_factor,factors,'Bin','BinMean','N','y')
@@ -466,7 +466,7 @@ time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors 
   bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
   
   # bin by participant and factors across time
-  binned <- bin_data(data, data_options$sample_factor, bin_size_in_samples, c(data_options$participant_factor,factors), dv)
+  binned <- bin_data(data, data_options, bin_size_in_samples, c(data_options$participant_factor,factors), dv)
   
   # rename columns
   colnames(binned) <- c(data_options$trial_factor,factors,'Bin','BinMean','N','y')
@@ -542,7 +542,7 @@ time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors 
   bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
   
   # bin by participant and factors across time
-  binned <- bin_data(data, data_options$sample_factor, bin_size_in_samples, c(data_options$participant_factor,data_options$trial_factor,factors), dv)
+  binned <- bin_data(data, data_options, bin_size_in_samples, c(data_options$participant_factor,data_options$trial_factor,factors), dv)
   
   # rename columns
   colnames(binned) <- c(data_options$participant_factor, data_options$trial_factor,factors,'Bin','BinMean','N','y')
@@ -636,25 +636,26 @@ time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors 
     )
 }
 
-p_values <- function (model) {
-  coefs <- data.frame(summary(model)@coefs)
-  # make the p-values a bit more readable
-  coefs$p <- format.pval(2*(1-pnorm(abs(coefs$t.value))), digits=2, eps=0.0001)
-  
-  data.frame(coefs[, 0], coefs$p)
-}
-
 # window_analysis()
 #
 # Collapse time across our entire window and do an analyis with subjects and items as random effecst
 #
-window_analysis <- function(data, dv, factors = c('Condition')) {
+window_analysis <- function(data, data_options, dv = NA, factors = NA) {
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
+  }
+  
+  if (is.na(factors)) {
+    factors = data_options$default_factors
+  }
+  
   # collapse across trials within subjects
-  test_sum <- aggregate(data[dv], by = data[c('ParticipantName','Trial',factors)], FUN = 'sum')
-  test_length <- aggregate(data[dv], by = data[c('ParticipantName','Trial',factors)], FUN = 'length')
+  test_sum <- aggregate(data[dv], by = data[c(data_options$participant_factor,data_options$trial_factor,factors)], FUN = 'sum')
+  test_length <- aggregate(data[dv], by = data[c(data_options$participant_factor,data_options$trial_factor,factors)], FUN = 'length')
   
   # transform our collapsed dataset into something pretty
-  test <- data.frame(test_sum[c('ParticipantName','Trial',factors)], test_sum[dv], test_length[dv])
+  test <- data.frame(test_sum[c(data_options$participant_factor,data_options$trial_factor,factors)], test_sum[dv], test_length[dv])
   
   colnames(test) <- c('ParticipantName','Trial',factors,'y','N')
   
@@ -687,10 +688,10 @@ window_analysis <- function(data, dv, factors = c('Condition')) {
 # factor = the factor by which to compare groups
 # dv = the dependent variable (column of 1's and 0's)
 diverging_bins <- function(data, bin_size = 250, factor = 'Condition', dv = 'Animate') {
-  bin_size_in_frames <- round(bin_size / 16.666667,0)
+  bin_size_in_frames <- round(bin_size / (1000 / data_options$sample_rate),0)
   
   # bin by participant
-  binned <- bin_data(data, 'FramesFromPhaseOnset', bin_size_in_frames, c('ParticipantName',factor), dv)
+  binned <- bin_data(data, data_options, bin_size_in_frames, c('ParticipantName',factor), dv)
   
   # rename columns
   colnames(binned) <- c('ParticipantName',factor,'Bin','BinMean','N','y')
@@ -767,78 +768,58 @@ subset_by_window <- function (data, data_options, window_start = NA, window_end 
 
 # bin_data ()
 # 
-# This function will bin values in one column, "cvar", grouping by any number of "constants" columns
-# and one "timevar" column. The timevar column is divided by binsize and rounded up.
-# All rows that have the same values for the new timevar column and constants columns are grouped
-# together. Within each group, the mean, length, and sum are calculated on the cvar column.
-# - df: The input data frame
-# - timevar: The column that determines the groupings
-# - binsize: The size of bins (timevar is divided by this value and rounded up)
-# - constants: the columns that are kept the same
-# - cvar: the variable which is processed
-
-# Example using this data set:
-# subj condition frame look
-#    1    square     0    1
-#    1    square     1    1
-#    1    square     2    0
-#    1    square     3    0
-#    2  triangle     0    1
-#    2  triangle     1    0
-#    2  triangle     2    0
-#    2  triangle     3    0
-#    2  triangle     4    1
+# This function will bin values in one column, "dv", grouping by any number of "factors"
+# and one "sample_factor" column. The sample_factor column is divided by bin_samples and rounded down to bin.
+# All rows that have the same values for the new binned sample column and factors are grouped
+# together. Within each group, the mean, length, and sum are calculated on the dv.
 #
-# bin_data(data, "frame", 2, c("subj", "condition"), "look")
-# Returns the following. Note that the "frame" column is essentially the old
-#  "frame" column divided by 2
-# subj condition frame BinMean BinSize BinSum
-#    1    square     0     1.0       2      2
-#    1    square     1     0.0       2      0
-#    2  triangle     0     0.5       2      1
-#    2  triangle     1     0.0       2      0
-#    2  triangle     2     1.0       1      1
-
-# Example usage:
-#  tb14 <- bin_data(tobii14, "FramesFromPhaseOnset", 2, c("SubjectNum", "Condition", "Trial", "Phase", "Subphase"), "GazeXAvg")
-bin_data <- function(df, timevar, binsize, constants, cvar) {  
+# @param dataframe data
+# @param list data_options
+# @param integer bin_samples How many samples to put in a single bin?
+# @param character.vector factors A vector of factor columns to aggregate by
+# @param string dv The column to act as the DV
+#
+# @return dataframe binned_data
+bin_data <- function(data, data_options, bin_samples, factors, dv) {  
+  sample_factor <- data_options$sample_factor
+  
   # set all rows of the var that are NA to 0, so we don't get errors in calculating a mean
   # if we have rows like this, we have to assume they meant to keep trackloss, even though
   # keep_trackloss() would have already set NA to 0...
-  df[is.na(df[,cvar]), cvar] <- 0
+  df[is.na(df[,dv]), dv] <- 0
   
-  # (Brock) after we subset the data and our "zero" point is actually, say, 8000 frames from the 
-  # phase onset (using "FramesFromPhaseOnset"), we run into trouble if we ask it to bin by a number of frames
-  # that does not go into the minimum value evenly.  SO, let's re-calibrate our timevar column
-  # with a nice clean 0.
-  if (min(df[,timevar]) > 0) {
-    df[,timevar] <- df[,timevar] - min(df[,timevar])
+  # after we subset the data and our "zero" point is actually, say, 8000 samples from the 
+  # phase onset, we run into trouble if we ask it to bin by a number of frames
+  # that does not go into the minimum value evenly.  So, let's re-calibrate our sample_factor column
+  # with a nice clean zero point.
+  if (min(df[,sample_factor]) > 0) {
+    df[,sample_factor] <- df[,sample_factor] - min(df[,sample_factor])
   }
     
   # If binsize=3, then 0,1,2 will go to 0; 3,4,5 will go to 1, and so on. 
-  cat(sprintf("Dividing values in column %s by bin size %d and rounding down... \n", cvar, binsize))        
-  df[,timevar] <- floor(df[,timevar]/binsize)
+  message('bin_data', sprintf("Dividing values in column %s by bin size %d and rounding down... \n", dv, bin_samples))        
+  df[,sample_factor] <- floor(df[,sample_factor] / bin_samples)
   
   # Collapse all rows where constants+timevar columns are the same 
-  cat(sprintf("Processing column %s, in groups where the following columns have the same value:\n", cvar))
-  cat(sprintf("    %s\n", paste(c(constants, timevar), collapse=", ")))
+  message('bin_data', sprintf("Processing column %s, in groups where the following columns have the same value:\n", cvar))
+  message('bin_data', sprintf("    %s\n", paste(c(factors, sample_factor), collapse=", ")))
   cat("    mean... ")
-  df.mean   <- aggregate(df[cvar], by=df[c(constants,timevar)], mean)
-  names(df.mean)[names(df.mean)==cvar]     <- "BinMean"
+  df.mean   <- aggregate(df[, dv], by=df[c(factors, sample_factor)], 'mean')
+  names(df.mean)[names(df.mean) == dv]     <- "BinMean"
   
   # Get the number of rows in each bin
-  cat(" bin size... ")
-  df.length <- aggregate(df[cvar], by=df[c(constants,timevar)], length)
-  names(df.length)[names(df.length)==cvar] <- "BinSize"
+  message('bin_data', " bin size... ")
+  df.length <- aggregate(df[, dv], by=df[c(factors, sample_factor)], 'length')
+  names(df.length)[names(df.length) == dv] <- "BinSize"
   
   # Get the sum of the rows
-  cat(" sum...\n")
-  df.sum    <- aggregate(df[cvar], by=df[c(constants,timevar)], sum)
-  names(df.sum)   [names(df.sum)   ==cvar] <- "BinSum"
+  message('bin_data', " sum... \n")
+  df.sum    <- aggregate(df[, dv], by=df[c(factors, sample_factor)], 'sum')
+  names(df.sum)   [names(df.sum)   == dv] <- "BinSum"
   
-  cat("Merging data frames for mean, bin size, and sum...\n")
-  dfb <- merge(df.mean, df.length, c(constants,timevar))
-  dfb <- merge(dfb,     df.sum,    c(constants,timevar))
+  message('bin_data', "Merging data frames for mean, bin size, and sum...\n")
+  dfb <- merge(df.mean, df.length, c(factors, sample_factor))
+  dfb <- merge(dfb,     df.sum,    c(factors, sample_factor))
   
   # Sort by all columns, from left to right
   dfb <- dfb[ do.call(order, as.list(dfb)), ]
