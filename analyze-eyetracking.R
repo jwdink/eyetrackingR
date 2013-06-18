@@ -1,115 +1,152 @@
 # -----------------------------------------------
 #
-# analyze_tobii_data_bf.R
+# analyze-eyetracking.R
 #
-# This library provides functions for analyzing Tobii data that has been processed using the
-# sister script, "process_tobii_data_bf.R".  Please see "Tobii Eyetracking Analysis" manual for
-# details.
+# This library helps prepare data for several different types of eyetracking analyses:
+#   * Bin analyses
+#   * Window analyses
+#   * Linear timecourse analyses
+#   * Non-linear (growth curve) timecourse analyses
+#
+# It also includes several functions for cleaning the dataset before each of these analyses.
+#
+# Required columns in dataset (names are configurable):
+#   * ParticipantName (participant subject code)
+#   * SceneType (active AOI)
 #
 # @author Brock Ferguson
-# @date July 24, 2012
-# @copyright 2012, Brock Ferguson
+#         brock.ferguson@gmail.com
+#         brockferguson.com
+# @created July 24, 2012
 #
 # -----------------------------------------------
 
 # load dependent libraries
-cat("Loading dependencies...")
 require('psych', quietly = TRUE)
-require('ggplot2', quietly = TRUE)
-require('ggthemes', quietly = TRUE)
-require('reshape2', quietly = TRUE)
-require('lme4', quietly = TRUE)
 
-cat("Library loaded!\n")
-
-# get_movie_names()
+# set_data_options
 #
-# Retrieve a list of movie names in a dataset.  This is used in tandem with
-# clean_by_movies() so that the researcher knows the exact names of movies in their dataset.
+# Create a list of data options which is passed to most of these
+# methods.
 #
-get_movie_names <- function(inputfile = 'master-clean.csv') {
-  message('get_movie_names','Loading data file...')
-  data <- read.csv(inputfile)
-  
-  message('get_movie_names','Factoring MovieName column...')
-  # make sure the column is a factor
-  data$MovieName <- factor(data$MovieName)
-  
-  # grab all levels of the trial factor
-  movies <- levels(data$MovieName)
-  
-  movies
+# @param string participant_factor Set to the subject code of the participant
+# @param string active_aoi_factor Set to the name of the AOI being gazed at for this sample
+# @param string trackloss_factor Set to 1 or 0 depending on whether the sample is lost to trackloss
+# @param string time_factor The factor to use for judgments of time (ms)
+# @param string trial_factor The unique name of the current trial
+#
+# @return list of configuration options
+set_data_options <- function(
+                        participant_factor = 'ParticipantName',
+                        active_aoi_factor = 'SceneType',
+                        trackloss_factor = 'TrackLoss',
+                        time_factor = 'TimeFromMovieOnset',
+                        trial_factor = 'Trial'
+                    ) {
+  list(
+            'participant_factor' = participant_factor,
+            'active_aoi_factor' = active_aoi_factor,
+            'trackloss_factor' = trackloss_factor,
+            'time_factor' = time_factor,
+            'trial_factor' = trial_factor
+          )
 }
 
-# clean_by_movies()
+# describe_dataset()
 #
-# Take a dataset (i.e., the master file being cleaned) and trim it so that it only contains
-# data for movies included in the 'movies' argument.
+# Output a brief summary of a dataset. This is useful before/after trimming
+# and cleaning functions, so that the user can make sure nothing disastrous
+# has happened.
 #
-clean_by_movies <- function(file = 'master-clean.csv', movies = NA) {
-  data <- read.csv(file)
+# @param dataframe data
+# @param list data_options
+#
+# @return null
+describe_dataset <- function (data, data_options) {
+  cat("Dataset Summary -----------------------------\n")
+  cat(paste("Total Rows:\t\t",nrow(data),sep=""))
+  cat(paste("Participants:\t\t",length(unique(data[, data_config$participant_factor])),sep=""))
+  cat(paste("Trackloss Prop.", mean(data[, data_options$trackloss_factor])))
+  cat("End Summary ---------------------------------\n")
+}
+
+# clean_by_factor()
+#
+# Clean a dataset by only retaining rows that match one of several values
+# on a specified factor. For example, you may have a column of MovieName and
+# only want to retain timeperiods where the participant was watching "TestMovie.mov".
+# Or, you may have a column Phase and only be interested in the "Baseline" and
+# "Test" phases.
+#
+# @param dataframe data; e.g., master_clean
+# @param list data_options, e.g., data_options
+# @param string factor; e.g., 'MovieName'
+# @param character.vector allowed_levels; e.g., c('Movie1','Movie2')
+#
+# @return dataframe data
+clean_by_factor <- function (data, data_options, factor, allowed_levels) {
+  # refactor column to ensure it is indeed a factor
+  data[, factor] <- factor(data[, factor])
   
-  # iterate through each requested trial, and string together all row indices
-  # that have a Trial column value matching this value
-  rows <- c()
-  
-  for (i in 1:length(movies)) {
-    movie <- movies[i]
-    rows <- c(rows, which(data$MovieName == movie))
-  }
-  
-  # trim dataset by matching indices
-  data <- data[rows, ]
-  
-  # write file
-  write.csv(data, file)
+  # subset data by rows that meet the criterion
+  data <- subset(data, data[,factor] %in% allowed_levels)
+
+  data
 }
 
 # treat_outside_looks_as_trackloss()
 #
-treat_outside_looks_as_trackloss <- function(file = 'master-clean.csv') {
-  data <- read.csv(file)
-  data[which(data$SceneType == ''), 'TrackLoss'] <- 1
-  data[which(data$TrackLoss == 1), 'SceneType'] <- 'TrackLoss'
-  data[which(data$TrackLoss == 1), 'Position'] <- 'TrackLoss'
-  data[which(data$TrackLoss == 1), 'SceneName'] <- 'TrackLoss'
-  write.csv(data, file)
+# Treat looks outside of any AOIs as trackloss.
+#
+# @param dataframe data
+# @param list data_options
+#
+# @return dataframe data
+treat_outside_looks_as_trackloss <- function(data, data_options) {
+  # if the active AOI column is empty or NA, set the trackloss column as 1
+  data[which(data[, data_options$active_aoi_factor] == ''), data_options$trackloss_factor] <- 1
+  data[is.na(data[, data_options$active_aoi_factor]), data_options$trackloss_factor] <- 1
+
+  data
 }
 
 # get_trackloss_data()
 #
-# When we are cleaning by trackloss, we likely want to know what sort of trackloss
-# numbers we are dealing with.  This will help us make informed decisions with our dataset.
+# Describe the type of trackloss in our data or, more specifically, within a subsetted time
+# window of our data.
 #
-get_trackloss_data <- function(file = 'master-clean.csv',window_start = NA, window_end = NA) {
-  message('get_trackloss_data','Loading datafile...')
-  data <- read.csv(file)
-  
+# @param dataframe data
+# @param list data_options
+# @param integer window_start optional
+# @param integer window_end optional
+#
+# @return list(trackloss, trials_committed)
+get_trackloss_data <- function(data, data_options, window_start = NA, window_end = NA) {
   # do we have a looking window?  if so, filter by one or both of the window parameters
   if (!is.na(window_start) & is.na(window_end)) {
     message('get_trackloss_data','Trimming data before window...')
-    data <- data[which(data$TimeFromMovieOnset >= window_start), ]
+    data <- data[which(data[, data_options$time_factor] >= window_start), ]
   }
   else if (is.na(window_start) & !is.na(window_end)) {
     message('get_trackloss_data','Trimming data after window window...')
-    data <- data[which(data$TimeFromMovieOnset <= window_end), ]
+    data <- data[which(data[, data_options$time_factor] <= window_end), ]
   }
   else if (!is.na(window_start) & !is.na(window_end)) {
     message('get_trackloss_data','Trimming data outside of window...')
-    data <- data[which(data$TimeFromMovieOnset >= window_start & data$TimeFromMovieOnset <= window_end), ]
+    data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
   }
   
   # count looking frames by trials/babies
-  looking <- aggregate(data['TrackLoss'], by = list(data$ParticipantName,data$Trial), 'sum', na.rm = TRUE)
+  looking <- aggregate(data[, data_options$trackloss_factor], by = list(data[, data_options$participant_factor], data[, data_options$trial_factor]), 'sum', na.rm = TRUE)
   
   # count total datapoints by trials/babies
-  total <- aggregate(data['ParticipantName'], by = list(data$ParticipantName,data$Trial), 'length')
+  total <- aggregate(data[, data_options$participant_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'length')
   looking$TotalFrames <- total[, 3]
   
-  colnames(looking) <- c('ParticipantName','Trial','FramesLooking','TotalFrames')
+  colnames(looking) <- c(data_options$participant_factor, data_options$trial_factor,'SamplesLooking','TotalSamples')
   
-  # now flip the FramesLooking column, as it currently counts the trackloss (not good frames)
-  looking$FramesLooking <- looking$TotalFrames - looking$FramesLooking
+  # now flip the SamplesLooking column, as it currently counts the trackloss (not good frames)
+  looking$SamplesLooking <- looking$TotalSamples - looking$SamplesLooking
   
   # add new columns for convenience
   looking$TracklossFrames <- looking$TotalFrames - looking$FramesLooking
@@ -152,10 +189,10 @@ clean_by_trackloss <- function(file = 'master-clean.csv', window_start = NA, win
     data <- data[which(data$TimeFromMovieOnset >= window_start & data$TimeFromMovieOnset <= window_end), ]
   }
   
-  looking <- aggregate(data['TrackLoss'], by = list(data$ParticipantName,data$Trial), 'sum', na.rm = TRUE)
+  looking <- aggregate(data['TrackLoss'], by = list(data[, data_options$participant_factor],data$Trial), 'sum', na.rm = TRUE)
   
   # count total datapoints by trials/babies
-  total <- aggregate(data['ParticipantName'], by = list(data$ParticipantName,data$Trial), 'length')
+  total <- aggregate(data['ParticipantName'], by = list(data[, data_options$participant_factor],data$Trial), 'length')
   looking$TotalFrames <- total[, 3]
   
   colnames(looking) <- c('ParticipantName','Trial','FramesLooking','TotalFrames')
@@ -171,7 +208,7 @@ clean_by_trackloss <- function(file = 'master-clean.csv', window_start = NA, win
   for (i in 1:nrow(trackloss_trials)) {
     row <- trackloss_trials[i, ]
     
-    raw_data <- raw_data[-which(raw_data$Trial == as.character(row[, 'Trial']) & raw_data$ParticipantName == as.character(row[, 'ParticipantName'])), ]
+    raw_data <- raw_data[-which(raw_data$Trial == as.character(row[, 'Trial']) & raw_data[, data_options$participant_factor] == as.character(row[, 'ParticipantName'])), ]
   }
   
   # write updated file
@@ -692,7 +729,7 @@ diverging_bins <- function(data, bin_size = 250, factor = 'Condition', dv = 'Ani
       samedifferent <- 'same'
     }
     
-    participants <- length(unique(factor(bin_data$ParticipantName)))
+    participants <- length(unique(factor(bin_data[, data_options$participant_factor])))
     
     results[bin + 1, ] <- c(bin, round((bin*bin_size_in_frames*16.666667),0), round(((bin*bin_size_in_frames + bin_size_in_frames)*16.666667),0), participants, samedifferent, p_value, '')
   }
@@ -786,9 +823,13 @@ bin_data <- function(df, timevar, binsize, constants, cvar) {
 # Wrap spaghetti() to simplify it
 #
 plot_data <- function(data, output_file = 'graph.png', dv = 'Animate', factor = 'Condition', title = 'Looking', y_title = 'Proportion', x_title = 'Time (ms)', type = 'empirical', vertical_lines = c(), bin_size = 100, x_gap = 500, width = 1000, height = 600) {
+  require('ggplot2', quietly = TRUE)
+  require('ggthemes', quietly = TRUE)
+  require('reshape2', quietly = TRUE)
+  
   data$TimeAlign <- data$TimeFromMovieOnset - min(data$TimeFromMovieOnset)
   
-  data <- aggregate(data.frame(data[, dv]), by = list(data$ParticipantName, data[, factor], data$TimeAlign), FUN = mean)  
+  data <- aggregate(data.frame(data[, dv]), by = list(data[, data_options$participant_factor], data[, factor], data$TimeAlign), FUN = mean)  
   colnames(data) <- c('ParticipantName',factor,'TimeAlign',dv)
   
   spaghetti(
