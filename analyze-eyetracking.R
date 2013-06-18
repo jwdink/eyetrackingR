@@ -230,12 +230,21 @@ final_trial_counts <- function(data, data_options, window_start = NA, window_end
 
 # keep_trackloss()
 #
-# Keep individual trackloss points
+# Keep individual trackloss points by making sure all AOI
+# columns are accurate.
 #
+# @param dataframe data
+# @param list data_options
+#
+# @return dataframe data
 keep_trackloss <- function(data, data_options) {
   message('keep_trackloss','Get column names...')
-  scenes <- levels(data$SceneType)
+  scenes <- levels(data[, data_options$active_aoi_factor])
   
+  # the idea here is to set all AOI columns to 0 where they are currently NA
+  # so that we can get accurate proportions across the column.
+  # if we didn't do this, we would get proportions that exclude the NA rows
+  # (as if we were excluding trackloss)
   for (i in 1:length(scenes)) {
     scene <- scenes[i]
     
@@ -246,7 +255,7 @@ keep_trackloss <- function(data, data_options) {
     }
   }
   
-  write.csv(data, file)
+  data
 }
 
 # remove_trackloss()
