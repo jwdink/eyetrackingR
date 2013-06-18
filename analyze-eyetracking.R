@@ -271,19 +271,8 @@ create_test_file <- function(input_file = 'master-test.csv', output_file = 'mast
   message('create_test_file','Loading datafile...')
   data <- read.csv(input_file)
   
-  # do we have a looking window?  if so, filter by one or both of the window parameters
-  if (!is.na(window_start) & is.na(window_end)) {
-    message('create_test_file','Trimming before window...')
-    data <- data[which(data$TimeFromMovieOnset >= window_start), ]
-  }
-  else if (is.na(window_start) & !is.na(window_end)) {
-    message('create_test_file','Trimming after window...')
-    data <- data[which(data$TimeFromMovieOnset <= window_end), ]
-  }
-  else if (!is.na(window_start) & !is.na(window_end)) {
-    message('create_test_file','Trimming outside of window...')
-    data <- data[which(data$TimeFromMovieOnset >= window_start & data$TimeFromMovieOnset <= window_end), ]
-  }
+  # subset data by the optional window parameters
+  data <- subset_by_window(data, data_options, window_start, window_end)
 
   write.csv(data, output_file)
 }
