@@ -184,15 +184,15 @@ clean_by_trackloss <- function(data, data_options, window_start = NA, window_end
   
   # do we have a looking window?  if so, filter by one or both of the window parameters
   if (!is.na(window_start) & is.na(window_end)) {
-    message('get_trackloss_data','Trimming data before window...')
+    message('clean_by_trackloss','Trimming data before window...')
     data <- data[which(data[, data_options$time_factor] >= window_start), ]
   }
   else if (is.na(window_start) & !is.na(window_end)) {
-    message('get_trackloss_data','Trimming data after window window...')
+    message('clean_by_trackloss','Trimming data after window window...')
     data <- data[which(data[, data_options$time_factor] <= window_end), ]
   }
   else if (!is.na(window_start) & !is.na(window_end)) {
-    message('get_trackloss_data','Trimming data outside of window...')
+    message('clean_by_trackloss','Trimming data outside of window...')
     data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
   }
   
@@ -226,33 +226,36 @@ clean_by_trackloss <- function(data, data_options, window_start = NA, window_end
 #
 # Calculate how many trials were committed to our analysis by each participant
 #
-final_trial_counts <- function(file = 'master-clean.csv',window_start = NA, window_end = NA) {
-  message('final_trial_counts','Loading datafile...')
-  data <- read.csv(file)
-  
+# @param dataframe data
+# @param list data_options
+# @param integer window_start
+# @param integer window_end
+#
+# @return dataframe trials_committed
+final_trial_counts <- function(data, data_options, window_start = NA, window_end = NA) {
   # do we have a looking window?  if so, filter by one or both of the window parameters
   if (!is.na(window_start) & is.na(window_end)) {
-    message('final_trial_counts','Trimming before window...')
-    data <- data[which(data$TimeFromMovieOnset >= window_start), ]
+    message('final_trial_counts','Trimming data before window...')
+    data <- data[which(data[, data_options$time_factor] >= window_start), ]
   }
   else if (is.na(window_start) & !is.na(window_end)) {
-    message('final_trial_counts','Trimming after window...')
-    data <- data[which(data$TimeFromMovieOnset <= window_end), ]
+    message('final_trial_counts','Trimming data after window window...')
+    data <- data[which(data[, data_options$time_factor] <= window_end), ]
   }
   else if (!is.na(window_start) & !is.na(window_end)) {
-    message('final_trial_counts','Trimming outside of window...')
-    data <- data[which(data$TimeFromMovieOnset >= window_start & data$TimeFromMovieOnset <= window_end), ]
+    message('final_trial_counts','Trimming data outside of window...')
+    data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
   }
   
-  excluding_trackloss <- data[is.na(data$TrackLoss), ]
+  excluding_trackloss <- data[is.na(data[, data_options$trackloss_factor]), ]
   
   # count looking frames by trials/babies
-  looking <- aggregate(excluding_trackloss['ParticipantName'], by = list(excluding_trackloss$ParticipantName,excluding_trackloss$Trial), 'length')
-  colnames(looking) <- c('ParticipantName','Trial','FramesLooking')
+  looking <- aggregate(excluding_trackloss[, data_options$participant_factor], by = list(excluding_trackloss[, data_options$participant_factor],excluding_trackloss[, data_options$trial_factor]), 'length')
+  colnames(looking) <- c(data_options$participant_factor,data_options$trial_factor,'SamplesLooking')
   
   # count trials by babies
-  trials_committed <- aggregate(looking['Trial'], by = list(looking$ParticipantName), 'length')
-  colnames(trials_committed) <- c('ParticipantName','Trials')
+  trials_committed <- aggregate(looking[, data_options$trial_factor], by = list(looking[, data_options$participant_factor]), 'length')
+  colnames(trials_committed) <- c(data_options$participantfactor,'Trials')
   
   trials_committed
 }
