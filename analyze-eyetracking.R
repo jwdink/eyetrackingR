@@ -238,7 +238,6 @@ final_trial_counts <- function(data, data_options, window_start = NA, window_end
 #
 # @return dataframe data
 keep_trackloss <- function(data, data_options) {
-  message('keep_trackloss','Get column names...')
   scenes <- levels(data[, data_options$active_aoi_factor])
   
   # the idea here is to set all AOI columns to 0 where they are currently NA
@@ -260,30 +259,17 @@ keep_trackloss <- function(data, data_options) {
 
 # remove_trackloss()
 #
-# Remove individual trackloss points
+# Remove individual trackloss points by removing all rows with the
+# trackloss column set as 1.
 #
-remove_trackloss <- function(file = 'master-clean.csv') {
-  message('remove_trackloss','Reading datafile...')
-  data = read.csv(file)
-  
-  message('remove_trackloss','Removing trackloss datapoints...')
-  data <- data[-which(data$TrackLoss == 1), ]
-  
-  write.csv(data, file)
-}
-
-# create_test_file()
-#
-# Create a final analyzable test file
+# @param dataframe data
+# @param list data_options
 # 
-create_test_file <- function(input_file = 'master-test.csv', output_file = 'master-test.csv', window_start = NA, window_end = NA) {
-  message('create_test_file','Loading datafile...')
-  data <- read.csv(input_file)
+# @return dataframe data
+remove_trackloss <- function(data, data_options) {
+  data <- data[-which(data[, data_options$trackloss_factor] == 1), ]
   
-  # subset data by the optional window parameters
-  data <- subset_by_window(data, data_options, window_start, window_end)
-
-  write.csv(data, output_file)
+  data
 }
 
 # describe_dv_by_condition ()
