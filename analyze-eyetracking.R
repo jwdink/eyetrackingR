@@ -618,8 +618,6 @@ time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors 
   # if they were characters/factors, we can leave them as factors for the sake
   # of analysis
   
-  original_classes[factor_name] = class(data[, factor_name])
-  
   for (factor_name in names(original_classes)) {
     original_class <- original_classes[[factor_name]]  
     if (original_class == 'numeric') {
@@ -627,6 +625,11 @@ time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors 
       byItem[, factor_name] <- as.numeric(as.character(byItem[, factor_name]))
       crossed[, factor_name] <- as.numeric(as.character(crossed[, factor_name]))
     }  
+    else {
+      bySubj[, factor_name] <- factor(bySubj[, factor_name])
+      byItem[, factor_name] <- factor(byItem[, factor_name])
+      crossed[, factor_name] <- factor(crossed[, factor_name])
+    }
   }
   
   list (
@@ -638,8 +641,14 @@ time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors 
 
 # window_analysis()
 #
-# Collapse time across our entire window and do an analyis with subjects and items as random effecst
+# Collapse time across our entire window and do an analyis with subjects and items as random effects
 #
+# @param dataframe data
+# @param list data_options
+# @param string dv
+# @param character.vector factors
+#
+# @return dataframe window_data
 window_analysis <- function(data, data_options, dv = NA, factors = NA) {
   # use defaults if unset
   if (is.na(dv)) {
@@ -650,6 +659,16 @@ window_analysis <- function(data, data_options, dv = NA, factors = NA) {
     factors = data_options$default_factors
   }
   
+  # track the original column classes so we can reset these afterwards...
+  original_classes = list()
+  
+  for (i in 1:length(factors)) {
+    factor_name = factors[i]
+    
+    # save original class
+    original_classes[factor_name] = class(data[, factor_name])
+  }
+  
   # collapse across trials within subjects
   test_sum <- aggregate(data[dv], by = data[c(data_options$participant_factor,data_options$trial_factor,factors)], FUN = 'sum')
   test_length <- aggregate(data[dv], by = data[c(data_options$participant_factor,data_options$trial_factor,factors)], FUN = 'length')
@@ -657,7 +676,7 @@ window_analysis <- function(data, data_options, dv = NA, factors = NA) {
   # transform our collapsed dataset into something pretty
   test <- data.frame(test_sum[c(data_options$participant_factor,data_options$trial_factor,factors)], test_sum[dv], test_length[dv])
   
-  colnames(test) <- c('ParticipantName','Trial',factors,'y','N')
+  colnames(test) <- c(data_options$participant_factor,data_options$trial_factor,factors,'y','N')
   
   # calculate elog, wts
   test$elog <- log( (test$y + .5) / (test$N - test$y + .5) )
@@ -670,12 +689,22 @@ window_analysis <- function(data, data_options, dv = NA, factors = NA) {
   test$ArcSin <- asin(sqrt(test$Proportion))
   
   # set column modes
-  test$ParticipantName <- factor(test$ParticipantName)
-  test$Trial <- factor(test$Trial)
+  test[, data_options$participant_factor] <- factor(test[, data_options$participant_factor])
+  test[, data_options$trial_factor] <- factor(test[, data_options$trial_factor])
   
-  for (i in 1:length(factors)) {
-    factor <- factors[i]
-    test[, factor] <- factor(test[, factor])
+  # above, we recorded original factor classes in 'original_classes'
+  # if these are numeric, let's reset them
+  # if they were characters/factors, we can set them as factors for the sake
+  # of analysis
+  
+  for (factor_name in names(original_classes)) {
+    original_class <- original_classes[[factor_name]]  
+    if (original_class == 'numeric') {
+      test[, factor_name] <- as.numeric(as.character(test[, factor_name]))
+    }  
+    else {
+      test[, factor_name] <- factor(test[, factor_name])
+    }
   }
   
   test
