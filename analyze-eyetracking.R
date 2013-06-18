@@ -149,14 +149,14 @@ get_trackloss_data <- function(data, data_options, window_start = NA, window_end
   looking$SamplesLooking <- looking$TotalSamples - looking$SamplesLooking
   
   # add new columns for convenience
-  looking$TracklossFrames <- looking$TotalFrames - looking$FramesLooking
-  looking$TracklossProportion <- looking$TracklossFrames / (looking$TotalFrames)
+  looking$TracklossSamples <- looking$TotalSamples - looking$SamplesLooking
+  looking$TracklossProportion <- looking$TracklossSamples / (looking$TotalSamples)
   
   # count trials by babies to see which were excluded just by not finishing the experiment
   # or not looking AT ALL (prior to trackloss scrubbing)
-  looking_no_zeroes <- looking[which(looking$FramesLooking > 0), ]
-  trials_committed <- aggregate(looking_no_zeroes[,'Trial'], by = list(looking_no_zeroes$ParticipantName), 'length')
-  colnames(trials_committed) <- c('ParticipantName','Trials')
+  looking_no_zeroes <- looking[which(looking$SamplesLooking > 0), ]
+  trials_committed <- aggregate(looking_no_zeroes[, data_options$trial_factor], by = list(looking_no_zeroes[, data_options$participant_factor]), 'length')
+  colnames(trials_committed) <- c(data_options$participant_factor,'Trials')
   
   list (
       trackloss = looking,
