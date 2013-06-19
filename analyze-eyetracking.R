@@ -1,5 +1,3 @@
-# -----------------------------------------------
-#
 # analyze-eyetracking.R
 #
 # This library helps prepare data for several different types of eyetracking analyses:
@@ -20,7 +18,6 @@
 #         brockferguson.com
 # @created July 24, 2012
 #
-# -----------------------------------------------
 
 # load dependent libraries
 require('psych', quietly = TRUE)
@@ -355,8 +352,13 @@ remove_trackloss <- function(data, data_options) {
 # Create a dataset that is ready for time-based analyses, either a linear
 # analysis or a non-linear (i.e., growth curve) analysis
 #
-# 
+# @param dataframe data
+# @param list data_options
+# @param integer bin_time The time (ms) to fit into each bin
+# @param string dv The dependent variable column
+# @param character.vector A vector of factor columns
 #
+# @return list(bySubj, byItem, crossed)
 time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors = NA) {
   # use defaults if unset
   if (is.na(dv)) {
@@ -710,28 +712,44 @@ window_analysis <- function(data, data_options, dv = NA, factors = NA) {
   test
 }
 
-# diverging_bins
+# sequential_bins_analysis()
 #
-# data = master_test file (the entire file will be used)
-# bin_size = time (in ms) for each bin
-# factor = the factor by which to compare groups
-# dv = the dependent variable (column of 1's and 0's)
-diverging_bins <- function(data, bin_size = 250, factor = 'Condition', dv = 'Animate') {
-  bin_size_in_frames <- round(bin_size / (1000 / data_options$sample_rate),0)
+# Analyze bins sequentially looking for a main effect of a single factor.
+# Uses the Arcsin-square root transformation on the DV.
+#
+# @param dataframe data
+# @param list data_options
+# @param integer bin_time The time (ms) to fit into each bin
+# @param string dv The dependent variable column
+# @param character.vector A vector of factor columns
+#
+# @return dataframe window_data
+sequential_bins_analysis <- function(data, data_options, bin_size = 250, dv = NA, factor) {
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
+  }
+  
+  # calculate the number of samples to place in a bin based on
+  # the amount of time (ms) we want in a bin (bin_time)
+  bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
   
   # bin by participant
-  binned <- bin_data(data, data_options, bin_size_in_frames, c('ParticipantName',factor), dv)
+  binned <- bin_data(data, data_options, bin_size_in_samples, c(data_options$participant_factor,factor), dv)
   
   # rename columns
-  colnames(binned) <- c('ParticipantName',factor,'Bin','BinMean','N','y')
+  colnames(binned) <- c(data_options$participant_factor,factor,'Bin','BinMean','N','y')
   
   # because we may have exclude trial time before our window, let's adjust our bin numbers
   # so they start at 0
   min_bin <- min(binned[, 'Bin'])
   
-  #if (min_bin > 0) {
-  #  binned$Bin <- binned$Bin - min_bin
-  #}
+  if (min_bin > 0) {
+    binned$Bin <- binned$Bin - min_bin
+  }
+  
+  # create ArcSin column
+  bySubj$ArcSin <- asin(sqrt(bySubj$BinMean))
   
   # test each consecutive bin
   bins <- max(binned$Bin)
@@ -740,28 +758,35 @@ diverging_bins <- function(data, bin_size = 250, factor = 'Condition', dv = 'Ani
   colnames(results) <- c('Bin','StartTime','EndTime','Participants','SameDifferent','p-value','ANOVA')
   
   for (bin in 0:bins) {
+    # subset data into bin
     bin_data <- binned[which(binned$Bin == bin), ]
-    num_levels <- length(unique(bin_data[, factor]))
+    
+    # re-factor the column
+    bin_data[, factor] <- factor(bin_data[, factor])
+    
+    # make sure that we have at least 2 levels of the factor
+    # in this bin
+    num_levels <- length(levels(bin_data[, factor]))
     
     if (num_levels <= 1) {
       next
     }
     
-    frm <- paste('BinMean',factor,sep="~")
+    frm <- paste('ArcSin',factor,sep=" ~ ")
     
     aov <- aov(formula(frm), data = bin_data)
     p_value <- summary(aov)[[1]][["Pr(>F)"]]
     
-    if (p_value < .05) {
+    if (p_value <= .05) {
       samedifferent <- 'different'
     }
     else {
       samedifferent <- 'same'
     }
     
-    participants <- length(unique(factor(bin_data[, data_options$participant_factor])))
+    participants <- length(levels(factor(bin_data[, data_options$participant_factor])))
     
-    results[bin + 1, ] <- c(bin, round((bin*bin_size_in_frames*16.666667),0), round(((bin*bin_size_in_frames + bin_size_in_frames)*16.666667),0), participants, samedifferent, p_value, '')
+    results[bin + 1, ] <- c(bin, round((bin*bin_size_in_samples*(1000/data_options$sample_rate)),0), round(((bin*bin_size_in_frames + bin_size_in_frames)*(1000/data_options$sample_rate)),0), participants, samedifferent, p_value, '')
   }
   
   results
@@ -858,18 +883,50 @@ bin_data <- function(data, data_options, bin_samples, factors, dv) {
 
 # plot_data()
 #
-# Wrap spaghetti() to simplify it
+# Plot a dv in the data by levels of a factor.
 #
-plot_data <- function(data, output_file = 'graph.png', dv = 'Animate', factor = 'Condition', title = 'Looking', y_title = 'Proportion', x_title = 'Time (ms)', type = 'empirical', vertical_lines = c(), bin_size = 100, x_gap = 500, width = 1000, height = 600) {
+# @param dataframe data
+# @param list data_options
+# @param string output_file (default: 'graph.png')
+# @param string dv
+# @param string factor
+# @param string title
+# @param string y_title
+# @param string x_title
+# @param string type ('empirical' or 'smoothed')
+# @param vector vertical_lines A vector of timepoints to add a vertical black line
+# @param integer bin_time Time (ms) to bin data by in plot
+# @param integer x_gap Plot the time on the x-axis incrementing by this much
+# @param integer width Width of plot in pixels
+# @param integer height Height of plot in pixels
+#
+# @return null Saves file to workingdirectory/output_file
+plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, factor = 'Condition', title = 'Looking', y_title = 'Proportion', x_title = 'Time (ms)', type = 'empirical', vertical_lines = c(), bin_size = 100, x_gap = 500, width = 1000, height = 600) {
+  # require dependencies
   require('ggplot2', quietly = TRUE)
   require('ggthemes', quietly = TRUE)
   require('reshape2', quietly = TRUE)
   
-  data$TimeAlign <- data$TimeFromMovieOnset - min(data$TimeFromMovieOnset)
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
+  }
   
+  # zero the time align
+  data$TimeAlign <- data[, data_options$time_factor] - min(data[, data_options$time_factor])
+  
+  # aggregate by participants, factor, and time
   data <- aggregate(data.frame(data[, dv]), by = list(data[, data_options$participant_factor], data[, factor], data$TimeAlign), FUN = mean)  
+  
+  # rename columns
+  # call the participant column 'ParticipantName' because it will be called in spaghetti()
+  # and its easier to just have it with this name
   colnames(data) <- c('ParticipantName',factor,'TimeAlign',dv)
   
+  # make sure the factor is a factor
+  data[, factor] <- factor(data[, factor])
+  
+  # now pass off to the spaghetti function...
   spaghetti(
       data,
       fname=output_file,
@@ -877,14 +934,14 @@ plot_data <- function(data, output_file = 'graph.png', dv = 'Animate', factor = 
       addOnsetLine=F,
       plotwidth=width,
       plotheight=height,
-      meltids=c("ParticipantName","TimePlot",factor),
+      meltids=c(data_options$participant_factor,"TimePlot",factor),
       meltfactors=c(factor),
       timeAlignVar="TimeAlign",
       colorvariable=factor,
       errbarvars=NA,
-      srate=16.6666667, # change this if we ever get a higher resolution Tobii
+      srate=(1000/data_options$sample_rate),
       region=c(dv),
-      sample=bin_size,
+      sample=bin_time,
       downsample="bin",
       upperlimit=max(data$TimeAlign),
       xbreakstep=x_gap,
@@ -903,15 +960,13 @@ spaghetti = function(
   # version 0.1
   # written by jdegen@bcs.rochester.edu
   # 01/11/2012
-  # modified by Brock for this library
   
-  # TODO:
-  # 1. Implement plotting of multiple regions in one plot. Currently only plotting one region at a time (by conditions) is possible. But sometimes we want to plot looks to eg target/competitor/distractor in one plot.
-  # 2. Give users more control over where to add vertical lines. So far, only adding one vertical line relative to one event and another (or group of others) relative to another event. Important is that there's a time column for each of these events. Ideally, you would also have the option of passing a vector of times, where each designates an x intercept. Or a combination of the two.
-  # 3. Add shapevariable as an option (important for writing papers where you can only do black and white prints and you want to use shapes to distinguish conditions).
-  # 4. Add "TimePlot" to vector of meltids so user doesn't have to do it
-  # 5. Generate meltfactors automatically by probing the type of variables in meltids
-  # 6. If errbarvars is NA, create vector automatically by creating vector of all of {color/line/size/facet}variable that aren't NA
+  # modified by Brock Ferguson
+  #   * set default options for this library
+  #   * made default formatting better
+  #   * added better formatting options, like titles
+  #   * aggregated across subjects within a given bin so that they don't contribute
+  #     multiple datapoints and lower the standard error
   
   # assumes that there are no rows where the value in the column coding region that is currently being looked at is empty. ie for ExAnalysis data.frames: rp_RegionType != ""
   data,
@@ -1280,8 +1335,7 @@ spaghetti = function(
   dev.off()
   
   rm(p)
-  gc()
-  
+  gc() 
 }
 
 se <- function(x) {
