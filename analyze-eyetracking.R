@@ -71,9 +71,8 @@ set_data_options <- function(
 # @return null
 summarize_data <- function (data, data_options) {
   cat("Dataset Summary -----------------------------\n")
-  cat(paste("Total Rows:\t\t",nrow(data),sep=""))
-  cat(paste("Participants:\t\t",length(levels(data[, data_config$participant_factor])),sep=""))
-  cat(paste("Trackloss Prop.", mean(data[, data_options$trackloss_factor])))
+  cat(paste("Total Rows:\t\t",nrow(data),"\n",sep=""))
+  cat(paste("Participants:\t\t",length(levels(factor(data[, data_options$participant_factor]))),"\n",sep=""))
   cat("End Summary ---------------------------------\n")
 }
 
@@ -308,10 +307,12 @@ clean_by_trackloss <- function(data, data_options, window_start = NA, window_end
   
   message('clean_by_trackloss',paste('Dropping ',nrow(trackloss_trials),' trials...',sep=""))
   
-  for (i in 1:nrow(trackloss_trials)) {
-    row <- trackloss_trials[i, ]
-    
-    raw_data <- raw_data[-which(raw_data[, data_options$trial_factor] == as.character(row[, data_options$trial_factor]) & raw_data[, data_options$participant_factor] == as.character(row[, data_options$participant_factor])), ]
+  if (nrow(trackloss_trials) > 0) {
+    for (i in 1:nrow(trackloss_trials)) {
+      row <- trackloss_trials[i, ]
+      
+      raw_data <- raw_data[-which(raw_data[, data_options$trial_factor] == as.character(row[, data_options$trial_factor]) & raw_data[, data_options$participant_factor] == as.character(row[, data_options$participant_factor])), ]
+    }
   }
   
   raw_data
