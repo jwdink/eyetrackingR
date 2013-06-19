@@ -19,17 +19,7 @@
 # @created July 24, 2012
 #
 
-# load dependent libraries
-<<<<<<< HEAD:analyze_tobii_data_bf.R
-cat("Loading dependencies...")
-library(psych)
-library(ggplot2)
-library(ggthemes)
-library(reshape2)
-library(lme4)
-=======
 require('psych', quietly = TRUE)
->>>>>>> vectorization:analyze-eyetracking.R
 
 # set_data_options
 #
@@ -84,9 +74,51 @@ set_data_options <- function(
 summarize_data <- function (data, data_options) {
   cat("Dataset Summary -----------------------------\n")
   cat(paste("Total Rows:\t\t",nrow(data),sep=""))
-  cat(paste("Participants:\t\t",length(unique(data[, data_config$participant_factor])),sep=""))
+  cat(paste("Participants:\t\t",length(levels(data[, data_config$participant_factor])),sep=""))
   cat(paste("Trackloss Prop.", mean(data[, data_options$trackloss_factor])))
   cat("End Summary ---------------------------------\n")
+}
+
+# verify_dataset()
+#
+# Verify the status of the dataset by assessing columns in your data_options
+#
+# @param dataframe data
+# @param list data_options
+#
+# @return dataframe data
+verify_dataset <- function(data, data_options) {
+  # participant column should be a factor
+  message('verify_dataset', paste('Participant factor: ', data_options$participant_factor, sep=""))
+  if (class(data[, data_options$participant_factor]) != 'factor') {
+    message('verify_dataset','Participants column should be a factor. Check that the field was imported properly, i.e., without empty rows.');
+    
+    data[, data_options$participant_factor] <- factor(data[, data_options$participant_factor])
+  }
+  
+  # time factor should be numeric
+  message('verify_dataset', paste('Time factor: ', data_options$time_factor, sep=""))
+  if (class(data[, data_options$time_factor]) != 'numeric') {
+    message('verify_dataset','Time column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+    
+    data[, data_options$time_factor] <- factor(data[, data_options$time_factor])
+  }
+  
+  # sample factor should also be numeric
+  message('verify_dataset', paste('Sample factor: ', data_options$sample_factor, sep=""))
+  if (class(data[, data_options$sample_factor]) != 'numeric') {
+    message('verify_dataset','Sample column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+    
+    data[, data_options$sample_factor] <- factor(data[, data_options$sample_factor])
+  }
+  
+  # trial factor should be a factor
+  message('verify_dataset', paste('Trial factor: ', data_options$trial_factor, sep=""))
+  if (class(data[, data_options$trial_factor]) != 'factor') {
+    message('verify_dataset','Trial column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+    
+    data[, data_options$trial_factor] <- factor(data[, data_options$trial_factor])
+  }
 }
 
 # describe_data ()
