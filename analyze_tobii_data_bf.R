@@ -19,7 +19,6 @@ library(ggplot2)
 library(ggthemes)
 library(reshape2)
 library(lme4)
-library(languageR)
 
 cat("Library loaded!\n")
 
