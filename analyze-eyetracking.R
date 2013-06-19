@@ -1,0 +1,1361 @@
+# analyze-eyetracking.R
+#
+# This library helps prepare data for several different types of eyetracking analyses:
+#   * Bin analyses
+#   * Window analyses
+#   * Linear timecourse analyses
+#   * Non-linear (growth curve) timecourse analyses
+#
+# It also includes several functions for cleaning the dataset before each of these analyses.
+#
+# Required columns in dataset (names are configurable):
+#   * ParticipantName (participant subject code)
+#   * SceneType (active AOI)
+#   * A column for each active AOI, set to 1 or 0
+#
+# @author Brock Ferguson
+#         brock.ferguson@gmail.com
+#         brockferguson.com
+# @created July 24, 2012
+#
+
+# load dependent libraries
+<<<<<<< HEAD:analyze_tobii_data_bf.R
+cat("Loading dependencies...")
+library(psych)
+library(ggplot2)
+library(ggthemes)
+library(reshape2)
+library(lme4)
+=======
+require('psych', quietly = TRUE)
+>>>>>>> vectorization:analyze-eyetracking.R
+
+# set_data_options
+#
+# Create a list of data options which is passed to most of these
+# methods.
+#
+# @param integer sample_rate Number of samples (per second) recorded by eyetracker
+# @param string participant_factor Set to the subject code of the participant
+# @param string active_aoi_factor Set to the name of the AOI being gazed at for this sample
+# @param string trackloss_factor Set to 1 or 0 depending on whether the sample is lost to trackloss
+# @param string time_factor The factor to use for judgments of time (ms)
+# @param string sample_factor The incrementing factor that numbers gaze samples (0,1,2,3,4,...)
+# @param string trial_factor The unique name of the current trial
+# @param string default_dv The default column for your dependent variable, used if unspecified in *_analysis() methods
+# @param character.vector default_factors The default columns for your indepdent variables, used if unspecified in *_analysis() methods
+#
+# @return list of configuration options
+set_data_options <- function(
+                        sample_rate = 60,
+                        participant_factor = 'ParticipantName',
+                        active_aoi_factor = 'SceneType',
+                        trackloss_factor = 'TrackLoss',
+                        time_factor = 'TimeFromMovieOnset',
+                        sample_factor = 'FramesFromMovieOnset',
+                        trial_factor = 'Trial',
+                        default_dv = 'ActionMatch',
+                        default_factors = c('Condition')
+                    ) {
+  list(
+            'sample_rate' = sample_rate,
+            'participant_factor' = participant_factor,
+            'active_aoi_factor' = active_aoi_factor,
+            'trackloss_factor' = trackloss_factor,
+            'time_factor' = time_factor,
+            'sample_factor' = sample_factor,
+            'trial_factor' = trial_factor,
+            'default_dv' = default_dv,
+            'default_factors' = default_factors
+          )
+}
+
+# summarize_dataset()
+#
+# Output a brief summary of a dataset. This is useful before/after trimming
+# and cleaning functions, so that the user can make sure nothing disastrous
+# has happened.
+#
+# @param dataframe data
+# @param list data_options
+#
+# @return null
+summarize_data <- function (data, data_options) {
+  cat("Dataset Summary -----------------------------\n")
+  cat(paste("Total Rows:\t\t",nrow(data),sep=""))
+  cat(paste("Participants:\t\t",length(unique(data[, data_config$participant_factor])),sep=""))
+  cat(paste("Trackloss Prop.", mean(data[, data_options$trackloss_factor])))
+  cat("End Summary ---------------------------------\n")
+}
+
+# describe_data ()
+#
+# Describe a DV column in the dataset by a (group of) factor(s)
+#
+# @param dataframe data
+# @param string dv
+# @param character.vector factors
+#
+# @return null It prints to the screen
+describe_data <- function(data, dv, factors = c()) {
+  # check that factors exist
+  if (length(factors) == 0) {
+    error('describe_data','Factors argument missing.  Factors must be passed as charactero vector.')
+  }
+  
+  # get column names
+  columns <- colnames(data)
+  
+  describe_factors <- data.frame(matrix(ncol = length(factors), nrow = nrow(data)))
+  
+  for (i in 1:length(factors)) {
+    factor <- factors[i]
+    if (!1 %in% match(columns, factor)) {
+      error('describe_data',paste(factor, ' factor missing from dataset.  Each factor must have a column in the data object.',sep=""))
+    }
+    else if (!is.factor(data[, factor])) {
+      # factor it
+      data[, factor] <- factor(data[, factor])
+    }
+    
+    # add to dataframe
+    describe_factors[, i] <- data[, factor]
+  }
+  
+  cat(paste("DV: ",dv,"\n====================================================================================\n",sep=""))
+  
+  details <- by(data[, dv], describe_factors, describe_column)
+  details <- capture.output(print(details, quote = FALSE))
+  
+  # we captured the print() output above because the normal formatting of our details
+  # text is really off and I want it to look nice.  so we capture it and then manipulate
+  # it with regex.
+  details <- sub('(.*?)matrix\\.(.*?)\\:',' X1:',details)
+  details <- sub('\\[1\\]\\s+',"",details)
+  details <- sub('(-+)',"\n------------------------------------------------------------------------------------\n",details)
+  details <- sub('X([0-9]+)\\: ([[:alnum:]]+)',"X\\1: \\2\n",details)
+  details <- sub('\\n\\s+',"\n",details)
+  
+  cat(details)
+  
+  cat("\n\n")
+}
+
+# describe_column()
+#
+# Supports describe_data(), above
+describe_column <- function(data) {
+  output <- paste("[Mean]: ",round(mean(data, na.rm = TRUE),3),"      ",
+                  "[SD]:   ",round(sd(data, na.rm = TRUE),3),"      ",
+                  "[Var]:  ",round(var(data, na.rm = TRUE),3),"      ",
+                  "[Min]:  ",round(min(data, na.rm = TRUE),3),"      ",
+                  "[Max]:  ",round(max(data, na.rm = TRUE),3),"      ",sep="")
+  
+  output
+}
+
+# clean_by_factor()
+#
+# Clean a dataset by only retaining rows that match one of several values
+# on a specified factor. For example, you may have a column of MovieName and
+# only want to retain timeperiods where the participant was watching "TestMovie.mov".
+# Or, you may have a column Phase and only be interested in the "Baseline" and
+# "Test" phases.
+#
+# @param dataframe data; e.g., master_clean
+# @param list data_options, e.g., data_options
+# @param string factor; e.g., 'MovieName'
+# @param character.vector allowed_levels; e.g., c('Movie1','Movie2')
+#
+# @return dataframe data
+clean_by_factor <- function (data, data_options, factor, allowed_levels) {
+  # refactor column to ensure it is indeed a factor
+  data[, factor] <- factor(data[, factor])
+  
+  # subset data by rows that meet the criterion
+  data <- subset(data, data[,factor] %in% allowed_levels)
+
+  data
+}
+
+# treat_outside_looks_as_trackloss()
+#
+# Treat looks outside of any AOIs as trackloss.
+#
+# @param dataframe data
+# @param list data_options
+#
+# @return dataframe data
+treat_outside_looks_as_trackloss <- function(data, data_options) {
+  # if the active AOI column is empty or NA, set the trackloss column as 1
+  data[which(data[, data_options$active_aoi_factor] == ''), data_options$trackloss_factor] <- 1
+  data[is.na(data[, data_options$active_aoi_factor]), data_options$trackloss_factor] <- 1
+
+  data
+}
+
+# get_trackloss_data()
+#
+# Describe the type of trackloss in our data or, more specifically, within a subsetted time
+# window of our data.
+#
+# @param dataframe data
+# @param list data_options
+# @param integer window_start optional
+# @param integer window_end optional
+#
+# @return list(trackloss, trials_committed)
+get_trackloss_data <- function(data, data_options, window_start = NA, window_end = NA) {
+  # subset data by the optional window parameters
+  data <- subset_by_window(data, data_options, window_start, window_end)
+  
+  # count looking frames by trials/babies
+  looking <- aggregate(data[, data_options$trackloss_factor], by = list(data[, data_options$participant_factor], data[, data_options$trial_factor]), 'sum', na.rm = TRUE)
+  
+  # count total datapoints by trials/babies
+  total <- aggregate(data[, data_options$participant_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'length')
+  looking$TotalFrames <- total[, 3]
+  
+  colnames(looking) <- c(data_options$participant_factor, data_options$trial_factor,'SamplesLooking','TotalSamples')
+  
+  # now flip the SamplesLooking column, as it currently counts the trackloss (not good frames)
+  looking$SamplesLooking <- looking$TotalSamples - looking$SamplesLooking
+  
+  # add new columns for convenience
+  looking$TracklossSamples <- looking$TotalSamples - looking$SamplesLooking
+  looking$TracklossProportion <- looking$TracklossSamples / (looking$TotalSamples)
+  
+  # count trials by babies to see which were excluded just by not finishing the experiment
+  # or not looking AT ALL (prior to trackloss scrubbing)
+  looking_no_zeroes <- looking[which(looking$SamplesLooking > 0), ]
+  trials_committed <- aggregate(looking_no_zeroes[, data_options$trial_factor], by = list(looking_no_zeroes[, data_options$participant_factor]), 'length')
+  colnames(trials_committed) <- c(data_options$participant_factor,'Trials')
+  
+  list (
+      trackloss = looking,
+      trials_committed = trials_committed
+    )
+}
+
+# clean_by_trackloss()
+#
+# Clean our master file by removing data from trials that contain less than a
+# specified number of non-trackloss samples.
+#
+# @param dataframe data
+# @param list data_options
+# @param integer window_start optional
+# @param integer window_end optional
+# @param integer minimum_samples
+#
+# @return dataframe data
+clean_by_trackloss <- function(data, data_options, window_start = NA, window_end = NA, minimum_samples = NA) {
+  # copy this object as we will want to manipulate it later.
+  # we are going to cut the original data by the window dimensions but
+  # want to return the full dataset.
+  raw_data <- data
+  
+  # subset data by the optional window parameters
+  data <- subset_by_window(data, data_options, window_start, window_end)
+  
+  looking <- aggregate(data[, data_options$trackloss_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'sum', na.rm = TRUE)
+  
+  # count total datapoints by trials/babies
+  total <- aggregate(data[, data_options$participant_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'length')
+  looking$TotalSamples <- total[, 3]
+  
+  colnames(looking) <- c(data_options$participant_factor,data_options$trial_factor,'SamplesLooking','TotalSamples')
+  
+  # now flip the SamplesLooking column, as it currently counts the trackloss (not good samples)
+  looking$SamplesLooking <- looking$TotalSamples - looking$SamplesLooking
+  
+  # which should be removed?
+  message('clean_by_trackloss','Calculating trials to be dropped...')
+  trackloss_trials <- looking[which(looking$SamplesLooking < minimum_samples), ]
+  
+  message('clean_by_trackloss',paste('Dropping ',nrow(trackloss_trials),' trials...',sep=""))
+  
+  for (i in 1:nrow(trackloss_trials)) {
+    row <- trackloss_trials[i, ]
+    
+    raw_data <- raw_data[-which(raw_data[, data_options$trial_factor] == as.character(row[, data_options$trial_factor]) & raw_data[, data_options$participant_factor] == as.character(row[, data_options$participant_factor])), ]
+  }
+  
+  raw_data
+}
+
+# final_trial_counts()
+#
+# Calculate how many trials were committed to our analysis by each participant
+#
+# @param dataframe data
+# @param list data_options
+# @param integer window_start
+# @param integer window_end
+#
+# @return dataframe trials_committed
+final_trial_counts <- function(data, data_options, window_start = NA, window_end = NA) {
+  # subset data by the optional window parameters
+  data <- subset_by_window(data, data_options, window_start, window_end)
+  
+  excluding_trackloss <- data[is.na(data[, data_options$trackloss_factor]), ]
+  
+  # count looking frames by trials/babies
+  looking <- aggregate(excluding_trackloss[, data_options$participant_factor], by = list(excluding_trackloss[, data_options$participant_factor],excluding_trackloss[, data_options$trial_factor]), 'length')
+  colnames(looking) <- c(data_options$participant_factor,data_options$trial_factor,'SamplesLooking')
+  
+  # count trials by babies
+  trials_committed <- aggregate(looking[, data_options$trial_factor], by = list(looking[, data_options$participant_factor]), 'length')
+  colnames(trials_committed) <- c(data_options$participantfactor,'Trials')
+  
+  trials_committed
+}
+
+# keep_trackloss()
+#
+# Keep individual trackloss points by making sure all AOI
+# columns are accurate.
+#
+# @param dataframe data
+# @param list data_options
+#
+# @return dataframe data
+keep_trackloss <- function(data, data_options) {
+  scenes <- levels(data[, data_options$active_aoi_factor])
+  
+  # the idea here is to set all AOI columns to 0 where they are currently NA
+  # so that we can get accurate proportions across the column.
+  # if we didn't do this, we would get proportions that exclude the NA rows
+  # (as if we were excluding trackloss)
+  for (i in 1:length(scenes)) {
+    scene <- scenes[i]
+    
+    if (scene != '') {     
+      if (length(data[is.na(data[,scene]), scene]) > 0) {
+        data[is.na(data[,scene]), scene] <- 0
+      }
+    }
+  }
+  
+  data
+}
+
+# remove_trackloss()
+#
+# Remove individual trackloss points by removing all rows with the
+# trackloss column set as 1.
+#
+# @param dataframe data
+# @param list data_options
+# 
+# @return dataframe data
+remove_trackloss <- function(data, data_options) {
+  data <- data[-which(data[, data_options$trackloss_factor] == 1), ]
+  
+  data
+}
+
+# time_analysis()
+#
+# Create a dataset that is ready for time-based analyses, either a linear
+# analysis or a non-linear (i.e., growth curve) analysis
+#
+# @param dataframe data
+# @param list data_options
+# @param integer bin_time The time (ms) to fit into each bin
+# @param string dv The dependent variable column
+# @param character.vector A vector of factor columns
+#
+# @return list(bySubj, byItem, crossed)
+time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors = NA) {
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
+  }
+  
+  if (is.na(factors)) {
+    factors = data_options$default_factors
+  }
+  
+  # make sure the factor columns are actually factors for the sake of binning
+  # but track the classes so we can reset these afterwards...
+  original_classes = list()
+  
+  for (i in 1:length(factors)) {
+    factor_name = factors[i]
+    
+    # save original class
+    # if its character/factor, we will leave as a factor later
+    # if its numeric, we will return it to its numeric state
+    original_classes[factor_name] = class(data[, factor_name])
+    
+    # now factor!
+    data[, factor_name] <- factor(data[, factor_name])
+  }
+  
+  # ====== create bySubj data frame
+  
+  # calculate the number of samples to place in a bin based on
+  # the amount of time (ms) we want in a bin (bin_time)
+  bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
+  
+  # bin by participant and factors across time
+  binned <- bin_data(data, data_options, bin_size_in_samples, c(data_options$participant_factor,factors), dv)
+  
+  # rename columns
+  colnames(binned) <- c(data_options$participant_factor,factors,'Bin','BinMean','N','y')
+  
+  # because we may have excluded trial time before our window, let's re-calibrate
+  # our bin numbers to a zero point
+  min_bin <- min(binned[, 'Bin'])
+  
+  if (min_bin > 0) {
+    binned$Bin <- binned$Bin - min_bin
+  }
+  
+  # create t1
+  binned$t1 <- binned$Bin * (bin_time / 1000)
+  
+  # rename as bySubj
+  bySubj <- binned
+  
+  # are we fitting an empirical logit manual
+  bySubj$elog <- log( (bySubj$y + .5) / (bySubj$N - bySubj$y + .5) )
+  bySubj$wts <- 1 / (bySubj$y + .5) + 1 / (bySubj$N - bySubj$y + .5)
+  
+  # create ArcSin column
+  bySubj$ArcSin <- asin(sqrt(bySubj$BinMean))
+  
+  # create an "aggregate" column so we can uniquely code each instance of our factors
+  bySubj$AggID <- 0
+  
+  last_row <- NA
+  
+  for (i in 1:nrow(bySubj)) {
+    row <- bySubj[i, ]
+    
+    if (length(last_row) > 1) {
+      for (j in 1:length(factors) + 1) {
+        if (row[, j] != last_row[, j]) {
+          bySubj[i, 'AggID'] <- max(bySubj$AggID) + 1
+        }
+      }
+      
+      bySubj[i, 'AggID'] <- max(bySubj$AggID)
+    }
+    else {
+      bySubj[i, 'AggID'] <- 1
+    }
+    
+    last_row <- row
+  }
+  
+  # factor this column
+  bySubj$AggID <- factor(bySubj$AggID)
+  
+  # generate orthogonal polynomial linearized time correlates
+  # generate polygonal time correlates
+  t <- poly((unique(bySubj$Bin)), 4)
+  
+  bySubj$ot1 <- 0
+  bySubj$ot2 <- 0
+  bySubj$ot3 <- 0
+  bySubj$ot4 <- 0
+  
+  for (i in 1:nrow(t)) {
+    bySubj[which(bySubj$Bin == (i - 1)),"ot1"] <- t[i, 1]
+    bySubj[which(bySubj$Bin == (i - 1)),"ot2"] <- t[i, 2]
+    bySubj[which(bySubj$Bin == (i - 1)),"ot3"] <- t[i, 3]
+    bySubj[which(bySubj$Bin == (i - 1)),"ot4"] <- t[i, 4]
+  }
+  
+  # ====== create byItem data frame
+  
+  # calculate the number of samples to place in a bin based on
+  # the amount of time (ms) we want in a bin (bin_time)
+  bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
+  
+  # bin by participant and factors across time
+  binned <- bin_data(data, data_options, bin_size_in_samples, c(data_options$participant_factor,factors), dv)
+  
+  # rename columns
+  colnames(binned) <- c(data_options$trial_factor,factors,'Bin','BinMean','N','y')
+  
+  # because we may have exclude trial time before our window, let's adjust our bin numbers
+  # so they start at 0
+  min_bin <- min(binned[, 'Bin'])
+  
+  if (min_bin > 0) {
+    binned$Bin <- binned$Bin - min_bin
+  }
+  
+  # create t1
+  binned$t1 <- binned$Bin * (bin_time / 1000)
+  
+  # rename as byItem
+  byItem <- binned
+  
+  # are we fitting an empirical logit manual
+  byItem$elog <- log( (byItem$y + .5) / (byItem$N - byItem$y + .5) )
+  byItem$wts <- 1 / (byItem$y + .5) + 1 / (byItem$N - byItem$y + .5)
+  
+  # create ArcSin column
+  byItem$ArcSin <- asin(sqrt(byItem$BinMean))
+  
+  # create an "aggregate" column so we can uniquely code each instance of Condition:Trial
+  byItem$AggID <- 0
+  
+  last_row <- NA
+  
+  for (i in 1:nrow(byItem)) {
+    row <- byItem[i, ]
+    
+    if (length(last_row) > 1) {
+      for (j in 1:length(factors) + 1) {
+        if (row[, j] != last_row[, j]) {
+          byItem[i, 'AggID'] <- max(byItem$AggID) + 1
+        }
+      }
+      
+      byItem[i, 'AggID'] <- max(byItem$AggID)
+    }
+    else {
+      byItem[i, 'AggID'] <- 1
+    }
+    
+    last_row <- row
+  }
+  
+  # factor this column
+  byItem$AggID <- factor(byItem$AggID)
+  
+  # generate orthogonal polynomial linearized time correlates
+  # generate polygonal time correlates
+  t <- poly((unique(byItem$Bin)), 4)
+  
+  byItem$ot1 <- 0
+  byItem$ot2 <- 0
+  byItem$ot3 <- 0
+  byItem$ot4 <- 0
+  
+  for (i in 1:nrow(t)) {
+    byItem[which(byItem$Bin == (i - 1)),"ot1"] <- t[i, 1]
+    byItem[which(byItem$Bin == (i - 1)),"ot2"] <- t[i, 2]
+    byItem[which(byItem$Bin == (i - 1)),"ot3"] <- t[i, 3]
+    byItem[which(byItem$Bin == (i - 1)),"ot4"] <- t[i, 4]
+  }
+  
+  # ====== create crossed (by Items and Subjects) data frame
+  
+  # calculate the number of samples to place in a bin based on
+  # the amount of time (ms) we want in a bin (bin_time)
+  bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
+  
+  # bin by participant and factors across time
+  binned <- bin_data(data, data_options, bin_size_in_samples, c(data_options$participant_factor,data_options$trial_factor,factors), dv)
+  
+  # rename columns
+  colnames(binned) <- c(data_options$participant_factor, data_options$trial_factor,factors,'Bin','BinMean','N','y')
+  
+  # because we may have exclude trial time before our window, let's adjust our bin numbers
+  # so they start at 0
+  min_bin <- min(binned[, 'Bin'])
+  
+  if (min_bin > 0) {
+    binned$Bin <- binned$Bin - min_bin
+  }
+  
+  # create linear time column
+  binned$t1 <- binned$Bin * (1000 / bin_time)
+  
+  # are we fitting an empirical logit manual
+  binned$elog <- log( (binned$y + .5) / (binned$N - binned$y + .5) )
+  binned$wts <- 1 / (binned$y + .5) + 1 / (binned$N - binned$y + .5)
+  
+  # create ArcSin column
+  binned$ArcSin <- asin(sqrt(binned$BinMean))
+  
+  # create an "aggregate" column so we can uniquely code each instance of Condition:Trial
+  binned$AggID <- 0
+  
+  last_row <- NA
+  
+  for (i in 1:nrow(byItem)) {
+    row <- binned[i, ]
+    
+    if (length(last_row) > 1) {
+      for (j in 1:length(factors) + 1) {
+        if (row[, j] != last_row[, j]) {
+          binned[i, 'AggID'] <- max(binned$AggID) + 1
+        }
+      }
+      
+      binned[i, 'AggID'] <- max(binned$AggID)
+    }
+    else {
+      binned[i, 'AggID'] <- 1
+    }
+    
+    last_row <- row
+  }
+  
+  # factor this column
+  binned$AggID <- factor(binned$AggID)
+  
+  # generate orthogonal polynomial linearized time correlates
+  # generate polygonal time correlates
+  t <- poly((unique(binned$Bin)), 4)
+  
+  binned$ot1 <- 0
+  binned$ot2 <- 0
+  binned$ot3 <- 0
+  binned$ot4 <- 0
+  
+  for (i in 1:nrow(t)) {
+    binned[which(binned$Bin == (i - 1)),"ot1"] <- t[i, 1]
+    binned[which(binned$Bin == (i - 1)),"ot2"] <- t[i, 2]
+    binned[which(binned$Bin == (i - 1)),"ot3"] <- t[i, 3]
+    binned[which(binned$Bin == (i - 1)),"ot4"] <- t[i, 4]
+  }
+  
+  # rename as crossed
+  crossed <- binned
+  
+  # ======== reset original column classes, if possible
+  
+  # above, we recorded original factor classes in 'original_classes'
+  # if these are numeric, let's reset them
+  # if they were characters/factors, we can leave them as factors for the sake
+  # of analysis
+  
+  for (factor_name in names(original_classes)) {
+    original_class <- original_classes[[factor_name]]  
+    if (original_class == 'numeric') {
+      bySubj[, factor_name] <- as.numeric(as.character(bySubj[, factor_name]))
+      byItem[, factor_name] <- as.numeric(as.character(byItem[, factor_name]))
+      crossed[, factor_name] <- as.numeric(as.character(crossed[, factor_name]))
+    }  
+    else {
+      bySubj[, factor_name] <- factor(bySubj[, factor_name])
+      byItem[, factor_name] <- factor(byItem[, factor_name])
+      crossed[, factor_name] <- factor(crossed[, factor_name])
+    }
+  }
+  
+  list (
+      'bySubj' = bySubj,
+      'byItem' = byItem,
+      'crossed' = crossed
+    )
+}
+
+# window_analysis()
+#
+# Collapse time across our entire window and do an analyis with subjects and items as random effects
+#
+# @param dataframe data
+# @param list data_options
+# @param string dv
+# @param character.vector factors
+#
+# @return dataframe window_data
+window_analysis <- function(data, data_options, dv = NA, factors = NA) {
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
+  }
+  
+  if (is.na(factors)) {
+    factors = data_options$default_factors
+  }
+  
+  # track the original column classes so we can reset these afterwards...
+  original_classes = list()
+  
+  for (i in 1:length(factors)) {
+    factor_name = factors[i]
+    
+    # save original class
+    original_classes[factor_name] = class(data[, factor_name])
+  }
+  
+  # collapse across trials within subjects
+  test_sum <- aggregate(data[dv], by = data[c(data_options$participant_factor,data_options$trial_factor,factors)], FUN = 'sum')
+  test_length <- aggregate(data[dv], by = data[c(data_options$participant_factor,data_options$trial_factor,factors)], FUN = 'length')
+  
+  # transform our collapsed dataset into something pretty
+  test <- data.frame(test_sum[c(data_options$participant_factor,data_options$trial_factor,factors)], test_sum[dv], test_length[dv])
+  
+  colnames(test) <- c(data_options$participant_factor,data_options$trial_factor,factors,'y','N')
+  
+  # calculate elog, wts
+  test$elog <- log( (test$y + .5) / (test$N - test$y + .5) )
+  test$wts <- (1/(test$y + .5)) + (1/(test$N - test$y + .5))
+  
+  # calculate proportion
+  test$Proportion <- test$y / test$N
+  
+  # do an arcsine root transformation
+  test$ArcSin <- asin(sqrt(test$Proportion))
+  
+  # set column modes
+  test[, data_options$participant_factor] <- factor(test[, data_options$participant_factor])
+  test[, data_options$trial_factor] <- factor(test[, data_options$trial_factor])
+  
+  # above, we recorded original factor classes in 'original_classes'
+  # if these are numeric, let's reset them
+  # if they were characters/factors, we can set them as factors for the sake
+  # of analysis
+  
+  for (factor_name in names(original_classes)) {
+    original_class <- original_classes[[factor_name]]  
+    if (original_class == 'numeric') {
+      test[, factor_name] <- as.numeric(as.character(test[, factor_name]))
+    }  
+    else {
+      test[, factor_name] <- factor(test[, factor_name])
+    }
+  }
+  
+  test
+}
+
+# sequential_bins_analysis()
+#
+# Analyze bins sequentially looking for a main effect of a single factor.
+# Uses the Arcsin-square root transformation on the DV.
+#
+# @param dataframe data
+# @param list data_options
+# @param integer bin_time The time (ms) to fit into each bin
+# @param string dv The dependent variable column
+# @param character.vector A vector of factor columns
+#
+# @return dataframe window_data
+sequential_bins_analysis <- function(data, data_options, bin_size = 250, dv = NA, factor) {
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
+  }
+  
+  # calculate the number of samples to place in a bin based on
+  # the amount of time (ms) we want in a bin (bin_time)
+  bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
+  
+  # bin by participant
+  binned <- bin_data(data, data_options, bin_size_in_samples, c(data_options$participant_factor,factor), dv)
+  
+  # rename columns
+  colnames(binned) <- c(data_options$participant_factor,factor,'Bin','BinMean','N','y')
+  
+  # because we may have exclude trial time before our window, let's adjust our bin numbers
+  # so they start at 0
+  min_bin <- min(binned[, 'Bin'])
+  
+  if (min_bin > 0) {
+    binned$Bin <- binned$Bin - min_bin
+  }
+  
+  # create ArcSin column
+  bySubj$ArcSin <- asin(sqrt(bySubj$BinMean))
+  
+  # test each consecutive bin
+  bins <- max(binned$Bin)
+  
+  results <- data.frame(matrix(nrow = bins, ncol = 7))
+  colnames(results) <- c('Bin','StartTime','EndTime','Participants','SameDifferent','p-value','ANOVA')
+  
+  for (bin in 0:bins) {
+    # subset data into bin
+    bin_data <- binned[which(binned$Bin == bin), ]
+    
+    # re-factor the column
+    bin_data[, factor] <- factor(bin_data[, factor])
+    
+    # make sure that we have at least 2 levels of the factor
+    # in this bin
+    num_levels <- length(levels(bin_data[, factor]))
+    
+    if (num_levels <= 1) {
+      next
+    }
+    
+    frm <- paste('ArcSin',factor,sep=" ~ ")
+    
+    aov <- aov(formula(frm), data = bin_data)
+    p_value <- summary(aov)[[1]][["Pr(>F)"]]
+    
+    if (p_value <= .05) {
+      samedifferent <- 'different'
+    }
+    else {
+      samedifferent <- 'same'
+    }
+    
+    participants <- length(levels(factor(bin_data[, data_options$participant_factor])))
+    
+    results[bin + 1, ] <- c(bin, round((bin*bin_size_in_samples*(1000/data_options$sample_rate)),0), round(((bin*bin_size_in_frames + bin_size_in_frames)*(1000/data_options$sample_rate)),0), participants, samedifferent, p_value, '')
+  }
+  
+  results
+}
+
+# subset_by_window ()
+#
+# Return a subset of the dataframe by the window parameters
+#
+# @param dataframe data
+# @param list data_options
+# @param integer window_start
+# @param integer window_end
+#
+# @return dataframe data
+subset_by_window <- function (data, data_options, window_start = NA, window_end = NA) {
+  # do we have a looking window?  if so, filter by one or both of the window parameters
+  if (!is.na(window_start) & is.na(window_end)) {
+    message('subset_by_window','Trimming data before window...')
+    data <- data[which(data[, data_options$time_factor] >= window_start), ]
+  }
+  else if (is.na(window_start) & !is.na(window_end)) {
+    message('subset_by_window','Trimming data after window window...')
+    data <- data[which(data[, data_options$time_factor] <= window_end), ]
+  }
+  else if (!is.na(window_start) & !is.na(window_end)) {
+    message('subset_by_window','Trimming data outside of window...')
+    data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
+  }
+  
+  data
+}
+
+# bin_data ()
+# 
+# This function will bin values in one column, "dv", grouping by any number of "factors"
+# and one "sample_factor" column. The sample_factor column is divided by bin_samples and rounded down to bin.
+# All rows that have the same values for the new binned sample column and factors are grouped
+# together. Within each group, the mean, length, and sum are calculated on the dv.
+#
+# @param dataframe data
+# @param list data_options
+# @param integer bin_samples How many samples to put in a single bin?
+# @param character.vector factors A vector of factor columns to aggregate by
+# @param string dv The column to act as the DV
+#
+# @return dataframe binned_data
+bin_data <- function(data, data_options, bin_samples, factors, dv) {  
+  sample_factor <- data_options$sample_factor
+  
+  # set all rows of the var that are NA to 0, so we don't get errors in calculating a mean
+  # if we have rows like this, we have to assume they meant to keep trackloss, even though
+  # keep_trackloss() would have already set NA to 0...
+  df[is.na(df[,dv]), dv] <- 0
+  
+  # after we subset the data and our "zero" point is actually, say, 8000 samples from the 
+  # phase onset, we run into trouble if we ask it to bin by a number of frames
+  # that does not go into the minimum value evenly.  So, let's re-calibrate our sample_factor column
+  # with a nice clean zero point.
+  if (min(df[,sample_factor]) > 0) {
+    df[,sample_factor] <- df[,sample_factor] - min(df[,sample_factor])
+  }
+    
+  # If binsize=3, then 0,1,2 will go to 0; 3,4,5 will go to 1, and so on. 
+  message('bin_data', sprintf("Dividing values in column %s by bin size %d and rounding down... \n", dv, bin_samples))        
+  df[,sample_factor] <- floor(df[,sample_factor] / bin_samples)
+  
+  # Collapse all rows where constants+timevar columns are the same 
+  message('bin_data', sprintf("Processing column %s, in groups where the following columns have the same value:\n", cvar))
+  message('bin_data', sprintf("    %s\n", paste(c(factors, sample_factor), collapse=", ")))
+  cat("    mean... ")
+  df.mean   <- aggregate(df[, dv], by=df[c(factors, sample_factor)], 'mean')
+  names(df.mean)[names(df.mean) == dv]     <- "BinMean"
+  
+  # Get the number of rows in each bin
+  message('bin_data', " bin size... ")
+  df.length <- aggregate(df[, dv], by=df[c(factors, sample_factor)], 'length')
+  names(df.length)[names(df.length) == dv] <- "BinSize"
+  
+  # Get the sum of the rows
+  message('bin_data', " sum... \n")
+  df.sum    <- aggregate(df[, dv], by=df[c(factors, sample_factor)], 'sum')
+  names(df.sum)   [names(df.sum)   == dv] <- "BinSum"
+  
+  message('bin_data', "Merging data frames for mean, bin size, and sum...\n")
+  dfb <- merge(df.mean, df.length, c(factors, sample_factor))
+  dfb <- merge(dfb,     df.sum,    c(factors, sample_factor))
+  
+  # Sort by all columns, from left to right
+  dfb <- dfb[ do.call(order, as.list(dfb)), ]
+  
+  dfb
+}
+
+# plot_data()
+#
+# Plot a dv in the data by levels of a factor.
+#
+# @param dataframe data
+# @param list data_options
+# @param string output_file (default: 'graph.png')
+# @param string dv
+# @param string factor
+# @param string title
+# @param string y_title
+# @param string x_title
+# @param string type ('empirical' or 'smoothed')
+# @param vector vertical_lines A vector of timepoints to add a vertical black line
+# @param integer bin_time Time (ms) to bin data by in plot
+# @param integer x_gap Plot the time on the x-axis incrementing by this much
+# @param integer width Width of plot in pixels
+# @param integer height Height of plot in pixels
+#
+# @return null Saves file to workingdirectory/output_file
+plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, factor = 'Condition', title = 'Looking', y_title = 'Proportion', x_title = 'Time (ms)', type = 'empirical', vertical_lines = c(), bin_size = 100, x_gap = 500, width = 1000, height = 600) {
+  # require dependencies
+  require('ggplot2', quietly = TRUE)
+  require('ggthemes', quietly = TRUE)
+  require('reshape2', quietly = TRUE)
+  
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
+  }
+  
+  # zero the time align
+  data$TimeAlign <- data[, data_options$time_factor] - min(data[, data_options$time_factor])
+  
+  # aggregate by participants, factor, and time
+  data <- aggregate(data.frame(data[, dv]), by = list(data[, data_options$participant_factor], data[, factor], data$TimeAlign), FUN = mean)  
+  
+  # rename columns
+  # call the participant column 'ParticipantName' because it will be called in spaghetti()
+  # and its easier to just have it with this name
+  colnames(data) <- c('ParticipantName',factor,'TimeAlign',dv)
+  
+  # make sure the factor is a factor
+  data[, factor] <- factor(data[, factor])
+  
+  # now pass off to the spaghetti function...
+  spaghetti(
+      data,
+      fname=output_file,
+      onset=0,
+      addOnsetLine=F,
+      plotwidth=width,
+      plotheight=height,
+      meltids=c(data_options$participant_factor,"TimePlot",factor),
+      meltfactors=c(factor),
+      timeAlignVar="TimeAlign",
+      colorvariable=factor,
+      errbarvars=NA,
+      srate=(1000/data_options$sample_rate),
+      region=c(dv),
+      sample=bin_time,
+      downsample="bin",
+      upperlimit=max(data$TimeAlign),
+      xbreakstep=x_gap,
+      plottype=type,
+      graphTitle=title,
+      y_title = y_title,
+      x_title = x_title
+    )
+}
+
+# spaghetti()
+#
+# Plot eyetracking data in a spaghetti plot
+#
+spaghetti = function(
+  # version 0.1
+  # written by jdegen@bcs.rochester.edu
+  # 01/11/2012
+  
+  # modified by Brock Ferguson
+  #   * set default options for this library
+  #   * made default formatting better
+  #   * added better formatting options, like titles
+  #   * aggregated across subjects within a given bin so that they don't contribute
+  #     multiple datapoints and lower the standard error
+  
+  # assumes that there are no rows where the value in the column coding region that is currently being looked at is empty. ie for ExAnalysis data.frames: rp_RegionType != ""
+  data,
+  meltids=c("TimeFromMovieOnset"), # vector of column names (as strings) to melt the dataset by (i.e. that you want to have the option of plotting by)
+  meltfactors, # the variables in meltids that are factors. Necessary for as.factor(as.character) calls  	
+  region=c("Target"), # vector of regions - region names must be column names in data
+  colorvariable=NA, # variable you want to assign different colors by
+  colormapping=NA, # a data.frame with two factor columns. One column with name of variable you want to map different colors to. One called "Color" with the color for each factor level. Data.frame row names must be levels of mapping variable, and data.frame must be sorted by mapping variable. 
+  linevariable=NA, # variable (column name in data), levels of which you want to plot in different line types. Currently support only for two levels.
+  sizevariable=NA, # variable (column name in data), levels of which you want to plot in different sizes. you can't specify a sizevariable if you haven't specified a linevariable. Currently support only for two levels.
+  facetvariable=NA, # variable (column name in data), levels of which you want to plot in different grids. uses facet_wrap.
+  errbars=TRUE, # plot error bars by default	
+  errbarvars=NA, # vector of column names (as strings) in the melted dataset, the combination of which error bars are to be calculated from (only relevant if drawing ribbons/error bars)
+  dataid="DataID", # name of the variable in the data.frame that uniquely codes samples. downsampling assumes that the data.frame is ordered by this variable, and that sample i and sample i+1 are in fact taken at sampling points t and t+1 (where t is the time step defined by the sampling frequency of the tracker, e.g. 4ms is the default for the EyeLink 500)
+  sample=20, # ms to downsample to
+  downsample="down", # down: downsample. bin: bin data into time bins of size sample
+  srate=4, # sampling rate in ms. 4ms is the default for the EyeLink 500	
+  half="both", # only generalized for half="both". if half = "first" or "second", assumes number of trials in my color_gumballs dataset
+  exclude=NA, # don't exclude data by default. if exclude is list of vectors of character strings, interpret character strings as levels of the variables denoted by the names of the list elements and exclude those from data. e.g. exclude=list(Var1=c("a","b"),Var2=c("1")). only works with factors.
+  onset = 100, # time that 0-point of linguistic event of interest should be aligned to, in ms
+  upperlimit = 5133, # upper limit on x axis (time in ms)
+  timeAlignVar=NA, # column that contains time variable that you want to align by (ie you want to align at the 0 point of that variable)
+  addOnsetLine=TRUE, # add a vertical line at linguistic event onset
+  addVerticalLine=FALSE, # add a second vertical line at eg mean onset of another event. provide name of that time variable where 0 is the onset of that event, e.g. "Time_rel_stim_Adjective"
+  extraVerticalType="collapsed", # one of "individual" or "collapsed". Either prints mean onset of each level of the additional linguistic event of interest (individual) or overall mean (sollapsed).
+  #	onsetReg=c("competitor","target"), # regions that can have been looked to at onset of linguistic event of interest
+  plottype="empirical", # one of "empirical" or "smoothed". The former plots empirical means (without error bars), the latter plots smoothed predicted means based on y~x. If you want to change the formula for the smoother, set form.
+  form=formula("y~x"), # formula to pass to smoother. 
+  method = "auto", # method for smoother to use. can be e.g. lm, glm, loess, etc. see stat_smooth for details
+  #	aggregateby=FALSE, # if downsample == "bin" and aggregateby is a string, proportions will be computed for timewindows of size sample and aggregated by aggregateby (eg "Subject")
+  analysiswindow=FALSE, # don't plot analysis window by default. when TRUE, not yet generalized. maybe add extra argument of c(window_start,window_end) times, relative to onset of linguistic event of interest?
+  analysisonset=0, 
+  extraopts=FALSE, # don't change the text size etc defaults. when TRUE, sets legend text size to 20, axis text size to 15, axis title size to 20, legend background to white, and panel label size to 20
+  #	align="qonset", # figure out if you can generalize this at all
+  xbreakstep=200, # size of tick mark spacing on x-axis
+  plotwidth=800, # width of the plot in pixels
+  plotheight=450, # height of the plot in pixels
+  fname=NA, # file name (quoted). if left NA, generates a filename for pdf that is not generalized	
+  fileformat="png", # can be one of "png" or "pdf"
+  showplot=FALSE, # don't print plot by default (save straight to file instead). If TRUE, will both print plot in quartz window and print plot to file
+  
+  # parameters deleted by Brock
+  # graphdir="./", # path to directory where graph will be saved
+  
+  # parameters added by Brock
+  graphTitle = "Looking Proportions",
+  y_title = 'Proportion Looking',
+  x_title = 'Time (ms)',
+  timeAdjust = 0,
+  vertical_lines = NA, # e.g., c(15000,20000)
+  ...
+)
+{
+  # remove data based on specified factor levels	
+  if (!is.na(exclude))
+  {
+    for (e in names(exclude))
+    {
+      data = data[!data[,e] %in% exclude[[e]],]
+      print(paste("removed levels:",exclude[[e]],"of variable",e))
+    }
+    print(paste("after removing factor levels:",nrow(data)))
+  }
+  
+  # remove first/second half
+  if (half == "first")
+  {
+    data <- subset(data, TrialNumber <= 120/2)
+    print(paste("after removing second half:",nrow(data)))
+  }
+  if (half == "second")
+  {
+    data <- subset(data, TrialNumber > 120/2)
+    print(paste("after removing first half:",nrow(data)))		
+  }		
+  
+  # create time variable to plot on x axis and remove samples not in desired time window
+  print(paste("event onset at", onset))
+  data$TimePlot = data[,timeAlignVar] + onset
+  
+  if (addVerticalLine != FALSE) { data$NewAdj = onset + (data[,timeAlignVar] - data[,addVerticalLine]) }
+  data = subset(data, TimePlot >= 0 & TimePlot <= upperlimit)
+  print(paste("after removing samples before sentence onset and after upper limit:",nrow(data)))
+  
+  if (downsample == "bin")
+  {
+    print(paste("binning into time bins of",sample,"ms"))
+    data$TimePlot <- (data$TimePlot %/% sample) * sample
+    print(paste("after binning data:",nrow(data)))		
+  } else {
+    if (downsample == "down")	
+    {
+      print(paste("downsampling to",sample,"ms"))	
+      data <- data[as.numeric(as.character(data[,"TimePlot"])) %% (sample/srate) == 0,]
+      print(paste("after downsampling:",nrow(data)))			
+    }
+  }
+  
+  if (is.na(fname)) 
+  { 
+    if (fileformat == "png")
+    {
+      fname = "spaghettiplot.png" 
+    } else {
+      if (fileformat == "pdf")	
+      {
+        fname = "spaghettiplot.pdf"
+      }
+    }	
+  }
+  
+  # create a reduced dataset containing only the data you need
+  for (me in meltfactors)
+  {
+    data[,me] = as.factor(as.character(data[,me]))
+  }
+  melted = melt(data,id = meltids,measure=region)
+  melted$value = as.numeric(as.character(melted$value))
+  
+  i=0
+  texty=c()
+  
+  if (is.na(errbarvars))
+  {
+    errbarvars = c(colorvariable,linevariable,sizevariable,facetvariable)
+    errbarvars = errbarvars[!is.na(errbarvars)]
+  }
+  
+  for (v in errbarvars)
+  {
+    if (i==0)
+    {
+      texty=paste(texty,paste("data[,\"",v,"\"]",sep=""),sep="")
+      i=1
+    } else {
+      texty=paste(texty,paste("data[,\"",v,"\"]",sep=""),sep=",")			
+    }
+  }
+  texty=paste("paste(",texty,")",sep="")
+  melted$errbargroup = eval(parse(text=texty))
+  melted$errbargroup = as.factor(as.character(melted$errbargroup))
+  
+  # aggregate over subjects so they don't contribute multiple points to a given bin
+  melted <- with(melted,aggregate(value, by = list(ParticipantName,TimePlot,eval(parse(text=colorvariable)),variable,errbargroup), FUN = mean))
+  colnames(melted) <- c('ParticipantName','TimePlot',colorvariable,'variable','errbargroup','value')
+  
+  # create the base plot
+  if (is.na(facetvariable))
+  {
+    if (plottype == "empirical")
+    {
+      if (is.na(linevariable))
+      {
+        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="mean"))
+        colnames(agr) = c("TimePlot",colorvariable,"errbargroup","value")		
+        
+        agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="se"))$x
+        agr$YMin = agr$value - agr$SE
+        agr$YMax = agr$value + agr$SE
+        limits = aes(ymin=YMin,ymax=YMax)					
+        p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable))
+      } else {			
+        if (is.na(sizevariable))
+        {
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="mean"))
+          colnames(agr) = c("TimePlot",colorvariable,linevariable,"errbargroup","value")
+          
+          agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="se"))$x	
+          agr$YMin = agr$value - agr$SE
+          agr$YMax = agr$value + agr$SE
+          limits = aes(ymin=YMin,ymax=YMax)		
+          p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable))
+        } else {
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="mean"))
+          colnames(agr) = c("TimePlot",colorvariable,linevariable,sizevariable,"errbargroup","value")
+          
+          agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="se"))$x
+          agr$YMin = agr$value - agr$SE
+          agr$YMax = agr$value + agr$SE
+          limits = aes(ymin=YMin,ymax=YMax)						
+          
+          p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable,size=sizevariable)) +
+            scale_size_manual(values=c(3,1.5))	
+        }
+      }
+      p = p +
+        geom_line(aes_string(group="errbargroup"),size=I(2))
+      if (errbars)
+      {
+        p = p + geom_errorbar(limits,linetype=I(1))	
+      }
+      
+    } else
+    {
+      if (is.na(linevariable))
+      {
+        p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable))
+      } else {
+        if (is.na(sizevariable))
+        {
+          p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable))			
+        } else {
+          p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable,size=sizevariable))						
+        }
+      }
+      p = p +
+        stat_smooth(aes_string(group="errbargroup",fill=colorvariable),size=I(1.5),method=method,formula=form)
+      if (!is.na(colormapping)) {
+        p = p + scale_fill_manual(values=colormapping[sort(as.character(unique(melted[,colorvariable]))),]$Color)
+      }				
+    }
+  } else {
+    if (plottype == "empirical")
+    {
+      if (is.na(linevariable))
+      {
+        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean"))
+        colnames(agr) = c("TimePlot",colorvariable,"errbargroup",facetvariable,"value")		
+        agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x
+        agr$YMin = agr$value - agr$SE
+        agr$YMax = agr$value + agr$SE
+        limits = aes(ymin=YMin,ymax=YMax)					
+        p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable)) #+
+      } else {			
+        if (is.na(sizevariable))
+        {
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean"))
+          colnames(agr) = c("TimePlot",colorvariable,linevariable,"errbargroup",facetvariable,"value")
+          agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x	
+          agr$YMin = agr$value - agr$SE
+          agr$YMax = agr$value + agr$SE
+          limits = aes(ymin=YMin,ymax=YMax)		
+          p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable)) #+
+        } else {
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean"))
+          colnames(agr) = c("TimePlot",colorvariable,linevariable,sizevariable,"errbargroup",facetvariable,"value")
+          agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x
+          agr$YMin = agr$value - agr$SE
+          agr$YMax = agr$value + agr$SE
+          limits = aes(ymin=YMin,ymax=YMax)						
+          
+          p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable,size=sizevariable)) +
+            scale_size_manual(values=c(3,1.5))	
+        }
+      }
+      p = p +
+        geom_line(aes(group=errbargroup),size=I(1))
+      if (errbars)
+      {
+        p = p + geom_errorbar(limits,linetype=I(1))	
+      }
+      
+    } else
+    {
+      if (is.na(linevariable))
+      {
+        p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable))
+      } else {
+        if (is.na(sizevariable))
+        {
+          p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable))			
+        } else {
+          p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable,size=sizevariable))						
+        }
+      }
+      p = p +
+        stat_smooth(aes_string(group="errbargroup",fill=colorvariable),size=I(1.5))
+      if (!is.na(colormapping)) {
+        p = p + scale_fill_manual(values=colormapping[sort(as.character(unique(melted[,colorvariable]))),]$Color)			
+      }	
+    }
+    form = as.formula(paste("~",facetvariable,sep=""))
+    p = p +
+      facet_wrap(form)			
+  }
+  
+  # extra stuff that's common to all plots
+  if (analysiswindow) { onset = onset + analysisonset }
+  
+  p <- p + theme_few()
+  
+  p <- p + scale_y_continuous(y_title) +
+    coord_cartesian(ylim=c(0.0,1.0)) +	
+    scale_y_continuous(y_title, breaks = seq(0,1,by=.1)) +
+    scale_x_continuous(x_title,breaks=seq(0 + timeAdjust,upperlimit + timeAdjust,by=xbreakstep)) 
+  if (addOnsetLine)
+  {
+    p = p + geom_vline(xintercept=onset, colour="black",size=I(1.5),legend=FALSE)
+  }
+  if (!is.na(colormapping))	
+  {
+    p = p +	
+      scale_colour_manual(values=colormapping[sort(as.character(unique(melted[,colorvariable]))),]$Color)
+    
+  }
+  
+  if (addVerticalLine != FALSE)
+  {
+    means <- with(data,aggregate(NewAdj, by=list(eval(parse(text=colorvariable))), FUN=mean))
+    row.names(means) <- means$Group.1
+    means <- means[order(means$Group.1),]
+    
+    if (extraVerticalType == "individual")
+    {
+      for (i in 1:length(means$x))
+      {
+        xi <- means$x[i]
+        if (analysiswindow) { xi <- xi + analysisonset }
+        if (!is.na(colormapping))
+        {
+          co <- as.character(colormapping[as.character(means$Group.1[i]),]$Color)
+        } else {
+          co <- "black"
+        }
+        p <- p + geom_vline(xintercept=xi, colour=I(co),size=I(1.5),legend=FALSE)
+      }
+    } else {
+      if (extraVerticalType == "collapsed")	
+      {
+        xi <- mean(means$x)				
+        if (analysiswindow) { xi <- xi + analysisonset }
+        p <- p + geom_vline(xintercept=xi, colour="black", size=I(1.5),legend=FALSE)
+      }
+    }
+  }
+  
+  
+  # set options
+  p <- p +
+    opts(
+      legend.text = theme_text(size = 12),
+      axis.text.x = theme_text(size=12),
+      axis.text.y = theme_text(size=12,hjust=1),
+      axis.title.x = theme_text(size=14,vjust=.05),
+      axis.title.y = theme_text(size=14,angle=90,vjust=0.25),
+      legend.background=theme_rect(fill="white"),
+      strip.text.x = theme_text(size=14),
+      title = graphTitle,
+      plot.title = theme_text(size=18, lineheight=.8, face="bold", vjust=1.5)
+    ) 
+  
+  if (!is.na(vertical_lines)) {
+    for (i in 1:length(vertical_lines)) {
+      line <- vertical_lines[i]
+      
+      cat("line: ")
+      cat(line)
+      
+      p = p + geom_vline(xintercept=line, colour="black",size=I(1.5))
+    }
+  }
+  
+  if (showplot) { print(p) }
+  # print plot to file	
+  print(paste("printing to",fname))	
+  if (fileformat == "png")
+  {
+    png(file=fname, width=plotwidth, height=plotheight)
+  } else {
+    if (fileformat == "pdf")
+    {
+      pdf(file=fname, width=plotwidth, height=plotheight)
+    }
+  }
+  print(p)
+  dev.off()
+  
+  rm(p)
+  gc() 
+}
+
+se <- function(x) {
+  y <- x[!is.na(x)] # remove the missing values, if any
+  sqrt(var(as.vector(y))/length(y))
+}
+
+error <- function(method, message) {
+  stop(paste("(",method,"): ",message,"\n",sep=""), call. = FALSE)
+}
+
+message <- function(method, message) {
+  cat(paste(message,"\n",sep=""))
+}
