@@ -2,13 +2,11 @@
 .DS_Store
 
 # History, project, and data files
-.Rhistory
-.Rdata
+.R*
 *.Rproj
 
 # Example code in package build process
 *-Ex.R
-.Rproj.user
 
 # TODO file
 TODO-PRIVATE.md
