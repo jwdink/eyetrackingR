@@ -19,8 +19,6 @@
 # @created July 24, 2012
 #
 
-require('psych', quietly = TRUE)
-
 # set_data_options
 #
 # Create a list of data options which is passed to most of these
@@ -131,6 +129,8 @@ verify_dataset <- function(data, data_options) {
 #
 # @return null It prints to the screen
 describe_data <- function(data, dv, factors = c()) {
+  require('psych', quietly = TRUE)
+  
   # check that factors exist
   if (length(factors) == 0) {
     error('describe_data','Factors argument missing.  Factors must be passed as charactero vector.')
