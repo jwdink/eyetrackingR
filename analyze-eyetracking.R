@@ -176,7 +176,7 @@ describe_data <- function(data, dv, factors = c()) {
 # describe_column()
 #
 # Supports describe_data(), above
-describe_column <- function(data) {
+describe_column <- function (data) {
   output <- paste("[Mean]: ",round(mean(data, na.rm = TRUE),3),"      ",
                   "[SD]:   ",round(sd(data, na.rm = TRUE),3),"      ",
                   "[Var]:  ",round(var(data, na.rm = TRUE),3),"      ",
@@ -184,6 +184,120 @@ describe_column <- function(data) {
                   "[Max]:  ",round(max(data, na.rm = TRUE),3),"      ",sep="")
   
   output
+}
+
+# generate_random_data()
+#
+# Generate a random set of looking time data
+#
+# @param list data_options
+# @param integer seed (optional)
+#
+# @return dataframe data
+generate_random_data <- function (data_options, seed = NA) {
+  # if we have a seed, set it so that we can generate a consistent dataset
+  # perhaps to follow along in a tutorial
+  if (!is.na(seed)) {
+    set.seed(seed)
+  }
+  
+  # Experiment design
+  #
+  # Looking while listening, look to target
+  #
+  # Conditions:
+  #     RelatedVerb, "He drinks the juice"
+  #     UnrelatedVerb, "He takes the juice"
+  
+  # Rows
+  #
+  # We will have 8 seconds of total looking in each of our 6 trials for 20 participants
+  #   baseline: 4 seconds
+  #   response: 4 seconds
+  
+  num_rows <- data_options$sample_rate*8*6*20
+  
+  # Columns
+  #
+  # ParticipantName
+  # Age
+  # Condition
+  # TrialNum
+  # Trial
+  # Window
+  # Time
+  # Sample
+  # Trackloss
+  # ActiveAOI (Target, Distractor)
+  # Target
+  # Distractor
+  
+  data <- data.frame(matrix(nrow = num_rows, ncol = 12))
+  colnames(data) <- c(data_options$participant_factor, 'Age', 'Condition', 'TrialNum', 'Trial', 'Window', data_options$time_factor, data_options$sample_factor, data_options$trackloss_factor, data_options$active_aoi_factor, 'Target', 'Distractor')
+  
+  # set participants
+  participants <- c(1:20)
+  
+  sapply(participants, function (x, env) {
+    # this participant's data will live in these rows
+    row_range <- seq((((x - 1)*(data_options$sample_rate*8*6))+1),(x*data_options$sample_rate*8*6))
+    
+    participant_id <- paste('SUBJ_',x,sep="")
+    condition <- ifelse(x <= 10, 'RelatedVerb', 'UnrelatedVerb')
+    
+    env$data[row_range, data_options$participant_factor] <- participant_id
+    env$data[row_range, 'Age'] <- round(rnorm(1,24,.25), 2)
+    env$data[row_range, 'Condition'] <- condition
+    env$data[row_range, 'TrialNum'] <- rep(c(1:6),each=(data_options$sample_rate*8))
+    env$data[row_range, data_options$trial_factor] <- rep(c('Monkey','Elephant','Tiger','Lion','Zebra','Aardvark'),each=(data_options$sample_rate*8))
+    env$data[row_range, data_options$sample_factor] <- rep(c(1:(data_options$sample_rate*8)),times=6)
+    env$data[row_range, data_options$time_factor] <- (env$data[row_range, data_options$sample_factor]-1)*(1000/data_options$sample_rate)
+    
+    # generate trackloss probability for this participant
+    trackloss_probability <- runif(1,0.5)
+    
+    env$data[row_range, data_options$trackloss_factor] <- rbinom((data_options$sample_rate*8*6),1,trackloss_probability)
+    
+    # for baseline, they have a 50% chance of looking to the target or distractor
+    env$data[row_range, data_options$active_aoi_factor] <- 0
+    
+    # AOI assignment is by trial
+    sapply(c(1:6), function (y, env) {
+      # for baseline, let's just give everyone a 50/50 chance
+      baseline_range <- which(env$data[, data_options$participant_factor] == participant_id & env$data[, data_options$sample_factor] < (data_options$sample_rate*4) & env$data[, 'TrialNum'] == y)
+      
+      env$data[baseline_range, 'Window'] <- 'Baseline'
+      env$data[baseline_range, data_options$active_aoi_factor] <- ifelse(rbinom((data_options$sample_rate*8*6),1,0.5) == 1,'Target','Distractor')
+      
+      # for response, let's do a linear model orienting towards Target by condition
+      response_range <- which(env$data[, data_options$participant_factor] == participant_id & env$data[, data_options$sample_factor] >= (data_options$sample_rate*4) & env$data[, 'TrialNum'] == y)
+      
+      slope <- ifelse(condition == 'RelatedVerb', .25, .15)
+      randomness <- rnorm(data_options$sample_rate*4, .5, .07)
+    }, env = environment());
+    
+    env$dat
+    
+    # set AOI columns from active_aoi_factor
+    env$data$Target <- NA
+    env$data$Distractor <- NA
+    env$data[which(data[, data_options$active_aoi_factor] == 'Target'), 'Target'] <- 1
+    env$data[which(data[, data_options$active_aoi_factor] == 'Target'), 'Distractor'] <- 0
+    env$data[which(data[, data_options$active_aoi_factor] == 'Distractor'), 'Distractor'] <- 1
+    env$data[which(data[, data_options$active_aoi_factor] == 'Distractor'), 'Target'] <- 0
+    
+    # no AOI for trackloss
+    env$data[which(data[, data_options$trackloss_factor] == 1), data_options$active_aoi_factor] <- NA
+    env$data[which(data[, data_options$trackloss_factor] == 1), 'Target'] <- NA
+    env$data[which(data[, data_options$trackloss_factor] == 1), 'Distractor'] <- NA
+
+  }, env = environment())
+  
+  
+  
+  # generate random trackloss by participants
+  
+  data
 }
 
 # clean_by_factor()
