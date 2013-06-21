@@ -1004,6 +1004,321 @@ sequential_bins_analysis <- function(data, data_options, bin_size = 250, dv = NA
   results
 }
 
+# first_looks_analysis()
+#
+# Look at an analysis of switches/stays on a dv AOI based on a subject's
+# first AND second looks. You can see if subjects are faster to switch
+# from AOI X to AOI Y than the reverse (implying they are moving nonrandomly
+# towards AOI Y)
+#
+# @param dataframe data
+# @param list data_options
+# @param string dv
+# @param character.vector factors
+#
+# @return dataframe first_looks
+first_looks_analysis <- function(data, data_options, dv = NA, factors = NA) {
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
+  }
+  
+  if (is.na(factors)) {
+    factors = data_options$default_factors
+  }
+  
+  # get the looks dataframe
+  looks <- find_looks(data, data_options, dv, factors)
+  
+  # first, let's clean up the looks dataframe
+  
+  # aggregate by participants > trials > AOIs and take the
+  # MIN(frames) values for each scenetype
+  looks <- aggregate(data.frame(looks$StartTime,looks$EndTime), by = list(looks[, data_options$participant_factor], looks[, factors], looks[, data_options$trial_factor], looks[, data_options$active_aoi_factor]), FUN = 'min')
+  colnames(looks) <- c(data_options$active_aoi_factor,factors,data_options$trial_factor,data_options$active_aoi_factor,'StartTime','EndTime')
+  
+  # re-sort
+  looks <- looks[order(looks[, data_options$participant_factor], looks[, factors], looks[, data_options$trial_factor], looks$StartTime, looks$EndTime), ]
+  
+  # add the FixationNum column
+  looks$FixationNum <- 0
+  
+  max_fixations <- length(unique(looks[, data_options$active_aoi_factor]))
+  fixation_vector <- c(1:max_fixations)
+  
+  subjectnums <- unique(looks[, data_options$participant_factor])
+  trials      <- unique(looks$Trial)
+  scenetypes  <- unique(looks$SceneType)
+  
+  for (subjectnum in subjectnums) {
+    for (factor in factors) {
+      for (factor_level in unique(looks[, factor])) {
+        for (trial in trials) {
+          rows <- length(looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'FixationNum'])
+          looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'FixationNum'] <- fixation_vector[0:rows]
+        }
+      }
+    }
+  }
+  
+  # get all first looks
+  first_looks <- looks[which(looks$FixationNum == 1), 1:8]
+  colnames(first_looks)[7] <- 'FirstAOI'
+  colnames(first_looks)[8] <- 'FirstStartTime'
+  
+  # get all second looks
+  second_looks <- looks[which(looks$FixationNum == 2), 1:9]
+  colnames(second_looks)[7] <- 'SecondAOI'
+  colnames(second_looks)[8] <- 'SecondStartTime'
+  colnames(second_looks)[9] <- 'SecondEndTime'
+  
+  # merge first and second looks, getting rid of non-switch trials
+  merged <- merge(first_looks, second_looks, by = c(colnames(first_looks)[1:6]))
+  
+  # calculate switch time
+  merged$SwitchTime <- merged$SecondStartTime - merged$FirstStartTime
+  
+  merged
+}
+
+# find_looks()
+#
+# Find all looks in a dataset and describe them. This function fills in 1-sample gaps
+# caused by trackloss between sequential gazes to the same location.
+#
+# @param dataframe data
+# @param list data_options
+# @param string dv
+# @param character.vector factors
+#
+# @return dataframe looks
+find_looks <- function(data, data_options, dv = NA, factors = NA) {
+  # use defaults if unset
+  if (is.na(dv)) {
+    dv = data_options$default_dv
+  }
+  
+  if (is.na(factors)) {
+    factors = data_options$default_factors
+  }
+  
+  subjectnums = unique(data[, data_options$participant_factor])
+  trials      = levels(data[, data_options$trial_factor])
+  
+  # let's just treat all non-AOI looks as trackloss
+  data <- treat_outside_looks_as_trackloss(data, data_options)
+  
+  # now mark all trackloss looks as NA in the AOI factor, so we can maybe
+  # fill them in as 1-sample gaps
+  data <- data[which(data_options$trackloss_factor == 1), data_options$active_aoi_factor] <- NA
+  
+  # ================== Smooth the data within each phase =================
+  
+  cat("Smoothing over one-frame gaps in SceneType...\n")
+  
+  # Iterate over each of the following
+  for (subjectnum in subjectnums) {
+    for (factor in factors) {
+      for (factor_level in unique(data[, factor])) {
+        for (trial in trials) {
+          # Find which rows of data are in this phase
+          trialrows <- which(data[, data_options$participant_factor] == subjectnum & data[, factor] == factor_level & data[, data_options$trial_factor] == trial)
+          
+          # Replace the NA's with FALSE
+          trialrows[ is.na(trialrows) ] <- FALSE
+          
+          # If there's no data to look at, skip the rest of this (otherwise will crash)
+          if (sum(trialrows) == 0) next();
+          
+          # get data for trial rows
+          trialdata <- data[trialrows, ]
+          
+          # Find all the NA's for SceneType in this phase
+          pdNA <- is.na(trialdata[, data_options$active_aoi_factor])
+          
+          # Wherever there's an NA, look at the SceneType of the previous and next frame.
+          # If they're the same (and not NA or TrackLoss), then fill in the gap
+          # with that SceneType.
+          
+          # Shift the SceneType one to the left or right
+          SceneTypePrev <- c(trialdata[2:length(trialdata[, data_options$active_aoi_factor]), data_options$active_aoi_factor], NA)
+          SceneTypeNext <- c(NA, trialdata[1:(length(trialdata[, data_options$active_aoi_factor])-1), data_options$active_aoi_factor])
+          
+          # These are the rows that need to be filled
+          gaps <- pdNA & SceneTypePrev == SceneTypeNext
+          gaps[is.na(gaps)] <- FALSE
+          
+          cat(sprintf("Subject %s | Trial %s | Gaps found: %d\n",
+                      subjectnum, trial, sum(gaps)))
+          
+          # Now find all the rows that are just before each of the gaps. This is where
+          # we'll get the SceneType (to fill the gaps) from
+          gapsPrev <- c(gaps[2:length(gaps)], FALSE)
+          
+          # fill in the gaps with the entry from the previous frame
+          trialdata[gaps, data_options$active_aoi_factor] <- trialdata[gapsPrev, data_options$active_aoi_factor]
+          
+          # Move it out to the main data frame
+          data[phaserows, data_options$active_aoi_factor] <- trialdata[, data_options$active_aoi_factor]
+        }
+      }
+    }
+  }
+  
+  # ================== Look for runs within each trial =================
+  
+  cat("\n\nLooking for runs (looks) in each subphase...\n")
+  
+  # This will be used to store all the runs
+  Runs <- NULL
+  
+  # Iterate over each of the following
+  for (subjectnum in subjectnums) {
+    for (factor in factors) {
+      for (factor_level in unique(data[, factor])) {
+        for (trial in trials) {
+          # Find which rows of data are in this phase
+          trialrows <- which(data[, data_options$participant_factor] == subjectnum & data[, factor] == factor_level & data[, data_options$trial_factor] == trial)
+         
+          # Replace the NA's with FALSE
+          trialrows[is.na(trialrows)] <- FALSE
+          
+          # Get all the rows of data that are in this particular phase
+          trialdata <- data[trialrows,]
+          
+          # Make sure it's sorted by frame count
+          trialdata <- trialdata[order(trialdata[, data_options$sample_factor]), ]
+          
+          cat(sprintf("Subject %s | Trial %s | \"%s\"\n",
+                      subjectnum, trial))
+            
+          # If there's no data for this particular combination of trial/phase/subphase,
+          #  or if all the AOI entries are NA or TrackLoss (which means there were no looks),
+          #  skip the rest of this inner loop
+          if (sum(trialrows) == 0  ||  sum(!is.na(trialdata[trialrows, data_options$trial_factor]))==0 ) next()
+            
+          # These vectors will keep track of each look in the subphase
+          # - The SceneType of the area of interest (AOI) being looked at
+          SceneType <- factor(levels=levels(trialdata[, data_options$active_aoi_factor))
+          
+          # - The start and ending frame numbers for each look
+          startFrame <- vector(mode="numeric")
+          endFrame   <- vector(mode="numeric")
+            
+          # Now iterate over trialdata and search for runs of SceneType
+          prevSceneType <- NA
+          curSceneType  <- NA
+          for (i in 1:nrow(trialdata)) {
+            prevSceneType <- curSceneType
+            curSceneType  <- trialdata$SceneType[i]
+            
+            if (is.na(curSceneType)) {
+              if (!is.na(prevSceneType)) {
+                # If the previous wasn't NA or TrackLoss, then end the run
+                endFrame <- append(endFrame, i-1)
+                cat(sprintf("%d\n", i-1))
+              }
+            } else {
+              if (is.na(prevSceneType)) {
+                # If the previous SceneType is NA or TrackLoss, this is the start of a new run
+                # Have to use this fancy stuff instead of append() because append only works with vectors
+                SceneType [length(SceneType) +1] <- curSceneType
+                startFrame[length(startFrame)+1] <- i
+                cat(sprintf("    Look found. %s | Frame %d-", curSceneType, i))
+                
+              } else if (prevSceneType != curSceneType) {
+                # If the previous SceneType isn't NA, but it is different from
+                #  the current one, end the old run and start a new one
+                endFrame  [length(endFrame)  +1] <- i-1
+                SceneType [length(SceneType) +1] <- curSceneType
+                startFrame[length(startFrame)+1] <- i
+                
+                cat(sprintf("%d\n", i-1))
+                cat(sprintf("    Look found. %s | Frame %d-", curSceneType, i))
+                
+              }
+            }
+            
+            # If we were in the middle of an SceneType run, end it.
+            if ( !is.na(curSceneType)) {
+              endFrame[length(endFrame)+1]     <- i-1
+              cat(sprintf("%d\n", i-1))
+            }
+            
+            # Make a data frame of all the runs/looks in this subphase
+            RunsSP <- data.frame(ParticipantName=subjectnum, Condition=condition, 
+                                 Trial=trial, TrialNumber=trialdata[1,'TrialNumber'], Phase=phase, Subphase=subphase, 
+                                 SceneType=SceneType, StartFrame=startFrame, EndFrame=endFrame)
+            
+            RunsSP$LengthFrames <- RunsSP$EndFrame - RunsSP$StartFrame + 1
+            RunsSP$StartTime    <- round(RunsSP$StartFrame   * 1000/60)
+            RunsSP$EndTime      <- round(RunsSP$EndFrame     * 1000/60)
+            RunsSP$LengthTime   <- round(RunsSP$LengthFrames * 1000/60)
+            RunsSP$FixationNum  <- 1:nrow(RunsSP)
+            
+            # ====================== Rank Look Length =======================
+            
+            # Rank the length within each subphase, across all scenetypes (e.g., Action/Object)
+            # Start these at a maximum value -- they will be replaced later
+            RunsSP$RankLengthSubphase             <- 9999
+            RunsSP$RankLengthSubphase_NoCarryover <- 9999
+            
+            RunsSP$RankLengthSubphase <- rank(-RunsSP$LengthFrames, ties.method="first")
+            if (carryover) {
+              RunsSP$RankLengthSubphase_NoCarryover[RunsSP$StartFrame!=1] <- rank(-RunsSP$LengthFrames[RunsSP$StartFrame!=1], ties.method="first")
+            } else {
+              RunsSP$RankLengthSubphase_NoCarryover <- RunsSP$RankLengthSubphase
+            }
+            
+            
+            
+            # Rank the length within each scene type (e.g., Action/Object) within each subphase
+            RunsSP$RankLengthScenetype             <- 9999
+            RunsSP$RankLengthScenetype_NoCarryover <- 9999
+            
+            for (scenetype in levels(RunsSP$SceneType)) {
+              
+              # Rank the runs by length
+              # These are the looks to this SceneType
+              SceneTypelooks <- RunsSP$SceneType==scenetype
+              RunsSP$RankLengthScenetype[SceneTypelooks] <-
+                rank(-RunsSP$LengthFrames[SceneTypelooks], ties.method="first")
+              
+              # Rank the runs by length -- but only if initiated WITHIN this subphase --
+              #  that is, if there was carryover AND StartFrame is 1, ignore it.
+              # These are the looks to this SceneType, excluding startframe=1 cases
+              if (carryover) {
+                SceneTypelooks <- RunsSP$SceneType==scenetype & RunsSP$StartFrame!=1
+                RunsSP$RankLengthScenetype_NoCarryover[SceneTypelooks] <-
+                  rank(-RunsSP$LengthFrames[SceneTypelooks], ties.method="first")
+              } else {
+                RunsSP$RankLengthScenetype_NoCarryover <- RunsSP$RankLengthScenetype
+              }
+              
+            }
+            
+            
+            
+            # Sort by SceneType and RankLengthScenetype
+            RunsSP <- RunsSP[order(RunsSP$SceneType, RunsSP$RankLengthScenetype),]
+            
+            Runs <- rbind(Runs, RunsSP)
+            
+            
+          }
+        }
+      }
+    }
+  }
+  
+  
+  if (!is.null(outputfile)) {
+    write.csv(Runs, outputfile, row.names=FALSE)
+  }
+  
+  Runs
+}
+
 # subset_by_window ()
 #
 # Return a subset of the dataframe by the window parameters
