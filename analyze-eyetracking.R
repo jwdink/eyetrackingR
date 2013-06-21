@@ -1013,16 +1013,11 @@ sequential_bins_analysis <- function(data, data_options, bin_size = 250, dv = NA
 #
 # @param dataframe data
 # @param list data_options
-# @param string dv
 # @param character.vector factors
 #
 # @return dataframe first_looks
-first_looks_analysis <- function(data, data_options, dv = NA, factors = NA) {
+first_looks_analysis <- function(data, data_options, factors = NA) {
   # use defaults if unset
-  if (is.na(dv)) {
-    dv = data_options$default_dv
-  }
-  
   if (is.na(factors)) {
     factors = data_options$default_factors
   }
@@ -1054,20 +1049,20 @@ first_looks_analysis <- function(data, data_options, dv = NA, factors = NA) {
     for (factor in factors) {
       for (factor_level in unique(looks[, factor])) {
         for (trial in trials) {
-          rows <- length(looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'FixationNum'])
-          looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'FixationNum'] <- fixation_vector[0:rows]
+          rows <- length(looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'RankSequence'])
+          looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'RankSequence'] <- fixation_vector[0:rows]
         }
       }
     }
   }
   
   # get all first looks
-  first_looks <- looks[which(looks$FixationNum == 1), 1:8]
+  first_looks <- looks[which(looks$RankSequence == 1), 1:8]
   colnames(first_looks)[7] <- 'FirstAOI'
   colnames(first_looks)[8] <- 'FirstStartTime'
   
   # get all second looks
-  second_looks <- looks[which(looks$FixationNum == 2), 1:9]
+  second_looks <- looks[which(looks$RankSequence == 2), 1:9]
   colnames(second_looks)[7] <- 'SecondAOI'
   colnames(second_looks)[8] <- 'SecondStartTime'
   colnames(second_looks)[9] <- 'SecondEndTime'
@@ -1079,6 +1074,98 @@ first_looks_analysis <- function(data, data_options, dv = NA, factors = NA) {
   merged$SwitchTime <- merged$SecondStartTime - merged$FirstStartTime
   
   merged
+}
+
+# get_looks(data, data_options)
+#
+# Find all looks to AOIs in a dataset and describe them. This function fills in 1-sample gaps
+# caused by trackloss between sequential gazes to the same location.
+#
+# @param dataframe data
+# @param list data_options
+# @param character.vector factors
+#
+# @return dataframe looks
+get_looks <- function (data, data_options, smoothing = 1, factors = NA) {
+  # set defaults if necessary
+  if (is.na(factors)) {
+    factors <- data_options$default_factors
+  }
+  
+  # make sure all outside looks are treated as trackloss
+  data <- treat_outside_looks_as_trackloss(data, data_options)
+  
+  # first, make sure all trackloss results in an NA within the AOI column
+  data[which(data[, data_options$trackloss_factor] == 1), data_options$active_aoi_factor] <- NA
+             
+  # for each AOI within each trial within each subject,
+  # do some smoothing to get rid of trackloss issues
+  
+  looks <- data.frame(matrix(nrow = 0, ncol = 11 + length(factors)))
+  
+  # we'll store this in column_names so we can keep using it
+  column_names <- c(data_options$participant_factor, factors, data_options$trial_factor, data_options$active_aoi_factor, 'SampleLength', 'StartSample', 'EndSample', 'TimeLength', 'StartTime', 'EndTime', 'RankLength', 'RankSequence')
+  
+  colnames(looks) <- column_names
+  
+  for (participant in unique(data[, data_options$participant_factor])) {
+    for (factor in factors) {
+      for (factor_level in unique(data[, factor])) {
+        for (trial in unique(data[, data_options$trial_factor])) {
+          # get matching rows for this operation
+          trial_rows <- which(data[, data_options$participant_factor] == participant & data[, factor] == factor_level & data[, data_options$trial_factor] == trial);
+          
+          # calculate AOI runs within these trial rows
+          # then look for any chances for smoothing
+          runs <- rle(as.character(data[trial_rows, data_options$active_aoi_factor]))
+          
+          for (i in 1:length(runs$values)) {
+            if (length(runs$values[i]) > 1 && is.na(runs$values[i]) && i > 1) {
+              # if the NA look is <= our smoothing sample value, let's fill it in with
+              # the last value
+              if (runs$lengths[i] <= smoothing && !is.na(runs$values[i - 1])) {
+                # smooth it!
+                # kill this value by setting its length to 0
+                runs$lengths[i] <- 0
+                
+                # then add a length to the preceding value
+                runs$lengths[i - 1] <- runs$length[i - 1] + 1
+              }
+            }
+          }
+          
+          # regenerate runs with the smoothed dataset
+          runs <- rle(inverse.rle(runs))
+          
+          # now add the final runs to the looks dataframe
+          looks_to_bind <- data.frame(matrix(nrow = length(runs$values), ncol = 11 + length(factors)))
+          colnames(looks_to_bind) <- column_names
+          
+          looks_to_bind[, data_options$participant_factor] <- participant
+          
+          for (factor in factors) {
+            looks_to_bind[, factor] <- as.character(data[trial_rows[1], factor])
+          }
+          
+          looks_to_bind[, data_options$trial_factor] <- trial
+          looks_to_bind[, data_options$active_aoi_factor] <- runs$values
+          looks_to_bind$SampleLength <- runs$lengths
+          looks_to_bind$StartSample <- c(1,cumsum(runs$lengths)[1:length(runs$lengths) - 1] + 1)
+          looks_to_bind$EndSample <- cumsum(runs$lengths) + 1
+          looks_to_bind$TimeLength <- looks_to_bind$SampleLength * (1000/data_options$sample_rate)
+          looks_to_bind$StartTime <- (looks_to_bind$StartSample - 1) * (1000/data_options$sample_rate)
+          looks_to_bind$EndTime <- (looks_to_bind$EndSample - 1) * (1000/data_options$sample_rate)
+          looks_to_bind$RankLength <- rank(-looks_to_bind$SampleLength)
+          looks_to_bind$RankSequence <- 1:length(runs$lengths)
+          
+          # bind!
+          looks <- rbind(looks, looks_to_bind)
+        }
+      }
+    }
+  }
+  
+  looks
 }
 
 # find_looks()
@@ -1100,7 +1187,7 @@ find_looks <- function(data, data_options, dv = NA, factors = NA) {
   
   if (is.na(factors)) {
     factors = data_options$default_factors
-  }
+  }  
   
   subjectnums = unique(data[, data_options$participant_factor])
   trials      = levels(data[, data_options$trial_factor])
@@ -1110,7 +1197,7 @@ find_looks <- function(data, data_options, dv = NA, factors = NA) {
   
   # now mark all trackloss looks as NA in the AOI factor, so we can maybe
   # fill them in as 1-sample gaps
-  data <- data[which(data_options$trackloss_factor == 1), data_options$active_aoi_factor] <- NA
+  data[which(data_options$trackloss_factor == 1), data_options$active_aoi_factor] <- NA
   
   # ================== Smooth the data within each phase =================
   
@@ -1159,7 +1246,7 @@ find_looks <- function(data, data_options, dv = NA, factors = NA) {
           trialdata[gaps, data_options$active_aoi_factor] <- trialdata[gapsPrev, data_options$active_aoi_factor]
           
           # Move it out to the main data frame
-          data[phaserows, data_options$active_aoi_factor] <- trialdata[, data_options$active_aoi_factor]
+          data[trialrows, data_options$active_aoi_factor] <- trialdata[, data_options$active_aoi_factor]
         }
       }
     }
@@ -1189,7 +1276,7 @@ find_looks <- function(data, data_options, dv = NA, factors = NA) {
           # Make sure it's sorted by frame count
           trialdata <- trialdata[order(trialdata[, data_options$sample_factor]), ]
           
-          cat(sprintf("Subject %s | Trial %s | \"%s\"\n",
+          cat(sprintf("Subject %s | Trial %s \n",
                       subjectnum, trial))
             
           # If there's no data for this particular combination of trial/phase/subphase,
@@ -1251,11 +1338,11 @@ find_looks <- function(data, data_options, dv = NA, factors = NA) {
             RunsTrial[, data_options$participant_factor] <- subjectnum
             
             for (factor in factors) {
-              RunsTrial[, factor] <- trialdata[, factor]
+              RunsTrial[, factor] <- trialdata[1, factor]
             }
             
             RunsTrial[, data_options$trial_factor] <- trial
-            RunsTrial[, data_options$active_aoi_factor] <- SceneType
+            RunsTrial[, data_options$active_aoi_factor] <- as.character(SceneType)
             RunsTrial$StartFrame <- startFrame
             RunsTrial$EndFrame <- endFrame
             
