@@ -4,6 +4,7 @@
 # History, project, and data files
 .R*
 *.Rproj
+graph.png
 
 # Example code in package build process
 *-Ex.R
