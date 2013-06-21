@@ -1199,7 +1199,7 @@ find_looks <- function(data, data_options, dv = NA, factors = NA) {
             
           # These vectors will keep track of each look in the subphase
           # - The SceneType of the area of interest (AOI) being looked at
-          SceneType <- factor(levels=levels(trialdata[, data_options$active_aoi_factor))
+          SceneType <- factor(levels=levels(trialdata[, data_options$active_aoi_factor]))
           
           # - The start and ending frame numbers for each look
           startFrame <- vector(mode="numeric")
@@ -1210,7 +1210,7 @@ find_looks <- function(data, data_options, dv = NA, factors = NA) {
           curSceneType  <- NA
           for (i in 1:nrow(trialdata)) {
             prevSceneType <- curSceneType
-            curSceneType  <- trialdata$SceneType[i]
+            curSceneType  <- trialdata[i, data_options$active_aoi_factor]
             
             if (is.na(curSceneType)) {
               if (!is.na(prevSceneType)) {
@@ -1246,74 +1246,51 @@ find_looks <- function(data, data_options, dv = NA, factors = NA) {
             }
             
             # Make a data frame of all the runs/looks in this subphase
-            RunsSP <- data.frame(ParticipantName=subjectnum, Condition=condition, 
-                                 Trial=trial, TrialNumber=trialdata[1,'TrialNumber'], Phase=phase, Subphase=subphase, 
-                                 SceneType=SceneType, StartFrame=startFrame, EndFrame=endFrame)
+            RunsTrial <- data.frame(matrix(ncol = (5 + length(factors)), nrow = length(endFrame)))
             
-            RunsSP$LengthFrames <- RunsSP$EndFrame - RunsSP$StartFrame + 1
-            RunsSP$StartTime    <- round(RunsSP$StartFrame   * 1000/60)
-            RunsSP$EndTime      <- round(RunsSP$EndFrame     * 1000/60)
-            RunsSP$LengthTime   <- round(RunsSP$LengthFrames * 1000/60)
-            RunsSP$FixationNum  <- 1:nrow(RunsSP)
+            RunsTrial[, data_options$participant_factor] <- subjectnum
+            
+            for (factor in factors) {
+              RunsTrial[, factor] <- trialdata[, factor]
+            }
+            
+            RunsTrial[, data_options$trial_factor] <- trial
+            RunsTrial[, data_options$active_aoi_factor] <- SceneType
+            RunsTrial$StartFrame <- startFrame
+            RunsTrial$EndFrame <- endFrame
+            
+            RunsTrial$LengthFrames <- RunsTrial$EndFrame - RunsTrial$StartFrame + 1
+            RunsTrial$StartTime    <- round(RunsTrial$StartFrame   * 1000/60)
+            RunsTrial$EndTime      <- round(RunsTrial$EndFrame     * 1000/60)
+            RunsTrial$LengthTime   <- round(RunsTrial$LengthFrames * 1000/60)
+            RunsTrial$FixationNum  <- 1:nrow(RunsTrial)
             
             # ====================== Rank Look Length =======================
             
             # Rank the length within each subphase, across all scenetypes (e.g., Action/Object)
             # Start these at a maximum value -- they will be replaced later
-            RunsSP$RankLengthSubphase             <- 9999
-            RunsSP$RankLengthSubphase_NoCarryover <- 9999
+            RunsTrial$RankLengthTrial             <- 9999
             
-            RunsSP$RankLengthSubphase <- rank(-RunsSP$LengthFrames, ties.method="first")
-            if (carryover) {
-              RunsSP$RankLengthSubphase_NoCarryover[RunsSP$StartFrame!=1] <- rank(-RunsSP$LengthFrames[RunsSP$StartFrame!=1], ties.method="first")
-            } else {
-              RunsSP$RankLengthSubphase_NoCarryover <- RunsSP$RankLengthSubphase
-            }
-            
-            
+            RunsTrial$RankLengthTrial <- rank(-RunsTrial$LengthFrames, ties.method="first")
             
             # Rank the length within each scene type (e.g., Action/Object) within each subphase
-            RunsSP$RankLengthScenetype             <- 9999
-            RunsSP$RankLengthScenetype_NoCarryover <- 9999
+            RunsTrial$RankLengthAOI            <- 9999
             
-            for (scenetype in levels(RunsSP$SceneType)) {
-              
+            for (scenetype in levels(RunsTrial[, data_options$active_aoi_factor])) {
               # Rank the runs by length
               # These are the looks to this SceneType
-              SceneTypelooks <- RunsSP$SceneType==scenetype
-              RunsSP$RankLengthScenetype[SceneTypelooks] <-
-                rank(-RunsSP$LengthFrames[SceneTypelooks], ties.method="first")
-              
-              # Rank the runs by length -- but only if initiated WITHIN this subphase --
-              #  that is, if there was carryover AND StartFrame is 1, ignore it.
-              # These are the looks to this SceneType, excluding startframe=1 cases
-              if (carryover) {
-                SceneTypelooks <- RunsSP$SceneType==scenetype & RunsSP$StartFrame!=1
-                RunsSP$RankLengthScenetype_NoCarryover[SceneTypelooks] <-
-                  rank(-RunsSP$LengthFrames[SceneTypelooks], ties.method="first")
-              } else {
-                RunsSP$RankLengthScenetype_NoCarryover <- RunsSP$RankLengthScenetype
-              }
-              
+              SceneTypelooks <- RunsTrial[, data_options$active_aoi_factor] == scenetype
+              RunsTrial$RankLengthAOI[SceneTypelooks] <- rank(-RunsTrial$LengthFrames[SceneTypelooks], ties.method="first")
             }
             
-            
-            
             # Sort by SceneType and RankLengthScenetype
-            RunsSP <- RunsSP[order(RunsSP$SceneType, RunsSP$RankLengthScenetype),]
+            RunsTrial <- RunsTrial[order(RunsTrial[, data_options$active_aoi_factor], RunsTrial$RankLengthAOI), ]
             
-            Runs <- rbind(Runs, RunsSP)
-            
-            
+            Runs <- rbind(Runs, RunsTrial)
           }
         }
       }
     }
-  }
-  
-  
-  if (!is.null(outputfile)) {
-    write.csv(Runs, outputfile, row.names=FALSE)
   }
   
   Runs
