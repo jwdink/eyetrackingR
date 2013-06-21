@@ -223,10 +223,12 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
   # Experiment design
   #
   # Looking while listening, look to target
+  # 
+  # Will children look towards objects thematically associated with the heard word?
   #
   # Conditions:
-  #     RelatedVerb, "He drinks the juice"
-  #     UnrelatedVerb, "He takes the juice"
+  #     Related, one of the objects is related to the word
+  #     NotRelated, no thematic matches
   
   # set participants
   participants <- c(1:num_participants)
@@ -261,10 +263,10 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
   
   # break the response period into 16 phases, and use a log function to
   # increase the likelihood of a look towards the Target
-  log_target <- rep(log(seq(1,16), 1000),each=((data_options$sample_rate*4)/16))
+  log_target <- rep(log(seq(1,16), 100000),each=((data_options$sample_rate*4)/16))
   
   # add some error
-  error <- rnorm((data_options$sample_rate*4),0,.25)
+  error <- rnorm((data_options$sample_rate*4),0,.15)
   
   # calculate looking to target (>.5 == a target look)
   y <- .5 + log_target + error
@@ -273,29 +275,28 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
   y[which(y > 1.0)] <- 1.0
   y[which(y < 0)] <- 0
   
-  RelatedVerb <- y
+  Related <- y
   
   # and again...
-  log_target <- rep(log(seq(1,16), 20000),each=((data_options$sample_rate*4)/16))
-  error <- rnorm((data_options$sample_rate*4),0,.25)
-  y <- .5 + log_target + error
+  error <- rnorm((data_options$sample_rate*4),0,.15)
+  y <- .55 + error
   y[which(y > 1.0)] <- 1.0
   y[which(y < 0)] <- 0
   
-  UnrelatedVerb <- y
+  NotRelated <- y
   
   for (x in participants) {
     # this participant's data will live in these rows
     row_range <- seq((((x - 1)*(data_options$sample_rate*8*6))+1),(x*data_options$sample_rate*8*6))
     
     participant_id <- paste('SUBJ_',x,sep="")
-    condition <- ifelse(x <= floor(length(participants) / 2), 'RelatedVerb', 'UnrelatedVerb')
+    condition <- ifelse(x <= floor(length(participants) / 2), 'Related','NotRelated')
     
     data[row_range, data_options$participant_factor] <- participant_id
     data[row_range, 'Age'] <- round(rnorm(1,24,.25), 2)
     data[row_range, 'Condition'] <- condition
     data[row_range, 'TrialNum'] <- rep(c(1:6),each=(data_options$sample_rate*8))
-    data[row_range, data_options$trial_factor] <- rep(c('Monkey','Elephant','Tiger','Lion','Zebra','Aardvark'),each=(data_options$sample_rate*8))
+    data[row_range, data_options$trial_factor] <- rep(c('Chimpanzee','Bowl','Speaker','Woman','Pen','Basketball'),each=(data_options$sample_rate*8))
     data[row_range, data_options$sample_factor] <- rep(c(1:(data_options$sample_rate*8)),times=6)
     data[row_range, data_options$time_factor] <- (data[row_range, data_options$sample_factor]-1)*(1000/data_options$sample_rate)
     
@@ -321,11 +322,11 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
       
       data[response_range, 'Window'] <- 'Response'
       
-      if (condition == 'RelatedVerb') {
-        data[response_range, 'Target'] <- RelatedVerb
+      if (condition == 'Related') {
+        data[response_range, 'Target'] <- Related
       }
       else {
-        data[response_range, 'Target'] <- UnrelatedVerb
+        data[response_range, 'Target'] <- NotRelated
       }
       
       data[response_range, 'Target'] <- sapply(data[response_range, 'Target'], function (x) {
