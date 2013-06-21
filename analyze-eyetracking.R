@@ -82,40 +82,59 @@ summarize_data <- function (data, data_options) {
 #
 # @param dataframe data
 # @param list data_options
+# @param boolean silent
 #
 # @return dataframe data
-verify_dataset <- function(data, data_options) {
+verify_dataset <- function(data, data_options, silent = F) {
   # participant column should be a factor
-  message('verify_dataset', paste('Participant factor: ', data_options$participant_factor, sep=""))
+  if (silent == F) {
+    message('verify_dataset', paste('Participant factor: ', data_options$participant_factor, sep=""))
+  }
   if (class(data[, data_options$participant_factor]) != 'factor') {
-    message('verify_dataset','Participants column should be a factor. Check that the field was imported properly, i.e., without empty rows.');
+    if (silent == F) {
+      message('verify_dataset','Participants column should be a factor. Check that the field was imported properly, i.e., without empty rows.');
+    }
     
     data[, data_options$participant_factor] <- factor(data[, data_options$participant_factor])
   }
   
   # time factor should be numeric
-  message('verify_dataset', paste('Time factor: ', data_options$time_factor, sep=""))
+  if (silent == F) {
+    message('verify_dataset', paste('Time factor: ', data_options$time_factor, sep=""))
+  }
   if (class(data[, data_options$time_factor]) != 'numeric') {
-    message('verify_dataset','Time column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+    if (silent == F) {
+      message('verify_dataset','Time column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+    }
     
     data[, data_options$time_factor] <- factor(data[, data_options$time_factor])
   }
   
   # sample factor should also be numeric
-  message('verify_dataset', paste('Sample factor: ', data_options$sample_factor, sep=""))
+  if (silent == F) {
+    message('verify_dataset', paste('Sample factor: ', data_options$sample_factor, sep=""))
+  }
   if (class(data[, data_options$sample_factor]) != 'numeric') {
-    message('verify_dataset','Sample column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+    if (silent == F) {
+      message('verify_dataset','Sample column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+    }
     
     data[, data_options$sample_factor] <- factor(data[, data_options$sample_factor])
   }
   
   # trial factor should be a factor
-  message('verify_dataset', paste('Trial factor: ', data_options$trial_factor, sep=""))
+  if (silent == F) {
+    message('verify_dataset', paste('Trial factor: ', data_options$trial_factor, sep=""))
+  }
   if (class(data[, data_options$trial_factor]) != 'factor') {
-    message('verify_dataset','Trial column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+    if (silent == F) {
+      message('verify_dataset','Trial column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+    }
     
     data[, data_options$trial_factor] <- factor(data[, data_options$trial_factor])
   }
+  
+  data
 }
 
 # describe_data ()
@@ -194,7 +213,7 @@ describe_column <- function (data) {
 # @param integer seed (optional)
 #
 # @return dataframe data
-generate_random_data <- function (data_options, seed = NA) {
+generate_random_data <- function (data_options, seed = NA, num_participants = 20) {
   # if we have a seed, set it so that we can generate a consistent dataset
   # perhaps to follow along in a tutorial
   if (!is.na(seed)) {
@@ -209,13 +228,16 @@ generate_random_data <- function (data_options, seed = NA) {
   #     RelatedVerb, "He drinks the juice"
   #     UnrelatedVerb, "He takes the juice"
   
+  # set participants
+  participants <- c(1:num_participants)
+  
   # Rows
   #
   # We will have 8 seconds of total looking in each of our 6 trials for 20 participants
   #   baseline: 4 seconds
   #   response: 4 seconds
   
-  num_rows <- data_options$sample_rate*8*6*20
+  num_rows <- data_options$sample_rate*8*6*max(participants)
   
   # Columns
   #
@@ -233,69 +255,102 @@ generate_random_data <- function (data_options, seed = NA) {
   # Distractor
   
   data <- data.frame(matrix(nrow = num_rows, ncol = 12))
-  colnames(data) <- c(data_options$participant_factor, 'Age', 'Condition', 'TrialNum', 'Trial', 'Window', data_options$time_factor, data_options$sample_factor, data_options$trackloss_factor, data_options$active_aoi_factor, 'Target', 'Distractor')
+  colnames(data) <- c(data_options$participant_factor, 'Age', 'Condition', 'TrialNum', data_options$trial_factor, 'Window', data_options$time_factor, data_options$sample_factor, data_options$trackloss_factor, data_options$active_aoi_factor, 'Target', 'Distractor')
   
-  # set participants
-  participants <- c(1:20)
+  # calculate the general slopes by condition
   
-  sapply(participants, function (x, env) {
+  # break the response period into 16 phases, and use a log function to
+  # increase the likelihood of a look towards the Target
+  log_target <- rep(log(seq(1,16), 1000),each=((data_options$sample_rate*4)/16))
+  
+  # add some error
+  error <- rnorm((data_options$sample_rate*4),0,.25)
+  
+  # calculate looking to target (>.5 == a target look)
+  y <- .5 + log_target + error
+  
+  # fix ceiling/floor hits
+  y[which(y > 1.0)] <- 1.0
+  y[which(y < 0)] <- 0
+  
+  RelatedVerb <- y
+  
+  # and again...
+  log_target <- rep(log(seq(1,16), 5000),each=((data_options$sample_rate*4)/16))
+  error <- rnorm((data_options$sample_rate*4),0,.25)
+  y <- .5 + log_target + error
+  y[which(y > 1.0)] <- 1.0
+  y[which(y < 0)] <- 0
+  
+  UnrelatedVerb <- y
+  
+  for (x in participants) {
     # this participant's data will live in these rows
     row_range <- seq((((x - 1)*(data_options$sample_rate*8*6))+1),(x*data_options$sample_rate*8*6))
     
     participant_id <- paste('SUBJ_',x,sep="")
-    condition <- ifelse(x <= 10, 'RelatedVerb', 'UnrelatedVerb')
+    condition <- ifelse(x <= floor(length(participants) / 2), 'RelatedVerb', 'UnrelatedVerb')
     
-    env$data[row_range, data_options$participant_factor] <- participant_id
-    env$data[row_range, 'Age'] <- round(rnorm(1,24,.25), 2)
-    env$data[row_range, 'Condition'] <- condition
-    env$data[row_range, 'TrialNum'] <- rep(c(1:6),each=(data_options$sample_rate*8))
-    env$data[row_range, data_options$trial_factor] <- rep(c('Monkey','Elephant','Tiger','Lion','Zebra','Aardvark'),each=(data_options$sample_rate*8))
-    env$data[row_range, data_options$sample_factor] <- rep(c(1:(data_options$sample_rate*8)),times=6)
-    env$data[row_range, data_options$time_factor] <- (env$data[row_range, data_options$sample_factor]-1)*(1000/data_options$sample_rate)
+    data[row_range, data_options$participant_factor] <- participant_id
+    data[row_range, 'Age'] <- round(rnorm(1,24,.25), 2)
+    data[row_range, 'Condition'] <- condition
+    data[row_range, 'TrialNum'] <- rep(c(1:6),each=(data_options$sample_rate*8))
+    data[row_range, data_options$trial_factor] <- rep(c('Monkey','Elephant','Tiger','Lion','Zebra','Aardvark'),each=(data_options$sample_rate*8))
+    data[row_range, data_options$sample_factor] <- rep(c(1:(data_options$sample_rate*8)),times=6)
+    data[row_range, data_options$time_factor] <- (data[row_range, data_options$sample_factor]-1)*(1000/data_options$sample_rate)
     
     # generate trackloss probability for this participant
-    trackloss_probability <- runif(1,0.5)
+    trackloss_probability <- runif(1,.1,0.35)
     
-    env$data[row_range, data_options$trackloss_factor] <- rbinom((data_options$sample_rate*8*6),1,trackloss_probability)
+    data[row_range, data_options$trackloss_factor] <- rbinom((data_options$sample_rate*8*6),1,trackloss_probability)
     
     # for baseline, they have a 50% chance of looking to the target or distractor
-    env$data[row_range, data_options$active_aoi_factor] <- 0
+    data[row_range, data_options$active_aoi_factor] <- 0
     
     # AOI assignment is by trial
-    sapply(c(1:6), function (y, env) {
+    for (y in 1:6) {
       # for baseline, let's just give everyone a 50/50 chance
-      baseline_range <- which(env$data[, data_options$participant_factor] == participant_id & env$data[, data_options$sample_factor] < (data_options$sample_rate*4) & env$data[, 'TrialNum'] == y)
+      baseline_range <- which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] <= (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
       
-      env$data[baseline_range, 'Window'] <- 'Baseline'
-      env$data[baseline_range, data_options$active_aoi_factor] <- ifelse(rbinom((data_options$sample_rate*8*6),1,0.5) == 1,'Target','Distractor')
+      data[baseline_range, 'Window'] <- 'Baseline'
+      data[baseline_range, 'Target'] <- ifelse(rbinom((data_options$sample_rate*4),1,0.5) == 1,1,0)
       
-      # for response, let's do a linear model orienting towards Target by condition
-      response_range <- which(env$data[, data_options$participant_factor] == participant_id & env$data[, data_options$sample_factor] >= (data_options$sample_rate*4) & env$data[, 'TrialNum'] == y)
+      # for response, we can set the target/distractor looks using the conditions
+      # sloped probability (defined above)
+      response_range <- which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] > (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
       
-      slope <- ifelse(condition == 'RelatedVerb', .25, .15)
-      randomness <- rnorm(data_options$sample_rate*4, .5, .07)
-    }, env = environment());
-    
-    env$dat
+      data[response_range, 'Window'] <- 'Response'
+      
+      if (condition == 'RelatedVerb') {
+        data[response_range, 'Target'] <- RelatedVerb
+      }
+      else {
+        data[response_range, 'Target'] <- UnrelatedVerb
+      }
+      
+      data[response_range, 'Target'] <- sapply(data[response_range, 'Target'], function (x) {
+        rbinom(1,1,as.numeric(x))
+      });
+    }
     
     # set AOI columns from active_aoi_factor
-    env$data$Target <- NA
-    env$data$Distractor <- NA
-    env$data[which(data[, data_options$active_aoi_factor] == 'Target'), 'Target'] <- 1
-    env$data[which(data[, data_options$active_aoi_factor] == 'Target'), 'Distractor'] <- 0
-    env$data[which(data[, data_options$active_aoi_factor] == 'Distractor'), 'Distractor'] <- 1
-    env$data[which(data[, data_options$active_aoi_factor] == 'Distractor'), 'Target'] <- 0
+    data[which(data[, 'Target'] == 1), data_options$active_aoi_factor] <- 'Target'
+    data[which(data[, 'Target'] == 1), 'Distractor'] <- 0
+    data[which(data[, 'Target'] == 0), data_options$active_aoi_factor] <- 'Distractor'
+    data[which(data[, 'Target'] == 0), 'Distractor'] <- 1
     
     # no AOI for trackloss
-    env$data[which(data[, data_options$trackloss_factor] == 1), data_options$active_aoi_factor] <- NA
-    env$data[which(data[, data_options$trackloss_factor] == 1), 'Target'] <- NA
-    env$data[which(data[, data_options$trackloss_factor] == 1), 'Distractor'] <- NA
-
-  }, env = environment())
+    data[which(data[, data_options$trackloss_factor] == 1), data_options$active_aoi_factor] <- NA
+    data[which(data[, data_options$trackloss_factor] == 1), 'Target'] <- NA
+    data[which(data[, data_options$trackloss_factor] == 1), 'Distractor'] <- NA
+  }
   
+  # verify and format dataset
+  data <- verify_dataset(data, data_options, silent = T)
   
-  
-  # generate random trackloss by participants
+  data$Condition <- factor(data$Condition)
+  data$Window <- factor(data$Window)
+  data[, data_options$active_aoi_factor] <- factor(data[, data_options$active_aoi_factor])
   
   data
 }
@@ -1057,7 +1112,7 @@ bin_data <- function(data, data_options, bin_samples, factors, dv) {
 # @param integer height Height of plot in pixels
 #
 # @return null Saves file to workingdirectory/output_file
-plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, factor = 'Condition', title = 'Looking', y_title = 'Proportion', x_title = 'Time (ms)', type = 'empirical', vertical_lines = c(), bin_size = 100, x_gap = 500, width = 1000, height = 600) {
+plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, factor = 'Condition', title = 'Looking', y_title = 'Proportion', x_title = 'Time (ms)', type = 'empirical', vertical_lines = c(), bin_time = 100, x_gap = 500, width = 1000, height = 600) {
   # require dependencies
   require('ggplot2', quietly = TRUE)
   require('ggthemes', quietly = TRUE)
@@ -1072,8 +1127,8 @@ plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, fa
   data$TimeAlign <- data[, data_options$time_factor] - min(data[, data_options$time_factor])
   
   # aggregate by participants, factor, and time
-  data <- aggregate(data.frame(data[, dv]), by = list(data[, data_options$participant_factor], data[, factor], data$TimeAlign), FUN = mean)  
-  
+  data <- aggregate(data.frame(data[, dv]), by = list(data[, data_options$participant_factor], data[, factor], data$TimeAlign), FUN = mean, na.rm = T)  
+
   # rename columns
   # call the participant column 'ParticipantName' because it will be called in spaghetti()
   # and its easier to just have it with this name
