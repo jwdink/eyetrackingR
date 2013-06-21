@@ -276,7 +276,7 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
   RelatedVerb <- y
   
   # and again...
-  log_target <- rep(log(seq(1,16), 5000),each=((data_options$sample_rate*4)/16))
+  log_target <- rep(log(seq(1,16), 20000),each=((data_options$sample_rate*4)/16))
   error <- rnorm((data_options$sample_rate*4),0,.25)
   y <- .5 + log_target + error
   y[which(y > 1.0)] <- 1.0
@@ -1321,7 +1321,7 @@ spaghetti = function(
   melted$errbargroup = as.factor(as.character(melted$errbargroup))
   
   # aggregate over subjects so they don't contribute multiple points to a given bin
-  melted <- with(melted,aggregate(value, by = list(ParticipantName,TimePlot,eval(parse(text=colorvariable)),variable,errbargroup), FUN = mean))
+  melted <- with(melted,aggregate(value, by = list(ParticipantName,TimePlot,eval(parse(text=colorvariable)),variable,errbargroup), FUN = mean, na.rm = T))
   colnames(melted) <- c('ParticipantName','TimePlot',colorvariable,'variable','errbargroup','value')
   
   # create the base plot
@@ -1331,7 +1331,7 @@ spaghetti = function(
     {
       if (is.na(linevariable))
       {
-        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="mean"))
+        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="mean",na.rm = T))
         colnames(agr) = c("TimePlot",colorvariable,"errbargroup","value")		
         
         agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="se"))$x
@@ -1342,7 +1342,7 @@ spaghetti = function(
       } else {			
         if (is.na(sizevariable))
         {
-          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="mean"))
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="mean",na.rm = T))
           colnames(agr) = c("TimePlot",colorvariable,linevariable,"errbargroup","value")
           
           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="se"))$x	
@@ -1351,7 +1351,7 @@ spaghetti = function(
           limits = aes(ymin=YMin,ymax=YMax)		
           p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable))
         } else {
-          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="mean"))
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="mean",na.rm = T))
           colnames(agr) = c("TimePlot",colorvariable,linevariable,sizevariable,"errbargroup","value")
           
           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="se"))$x
@@ -1394,7 +1394,7 @@ spaghetti = function(
     {
       if (is.na(linevariable))
       {
-        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean"))
+        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = T))
         colnames(agr) = c("TimePlot",colorvariable,"errbargroup",facetvariable,"value")		
         agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x
         agr$YMin = agr$value - agr$SE
@@ -1404,7 +1404,7 @@ spaghetti = function(
       } else {			
         if (is.na(sizevariable))
         {
-          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean"))
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = T))
           colnames(agr) = c("TimePlot",colorvariable,linevariable,"errbargroup",facetvariable,"value")
           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x	
           agr$YMin = agr$value - agr$SE
@@ -1412,7 +1412,7 @@ spaghetti = function(
           limits = aes(ymin=YMin,ymax=YMax)		
           p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable)) #+
         } else {
-          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean"))
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = T))
           colnames(agr) = c("TimePlot",colorvariable,linevariable,sizevariable,"errbargroup",facetvariable,"value")
           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x
           agr$YMin = agr$value - agr$SE
@@ -1476,7 +1476,7 @@ spaghetti = function(
   
   if (addVerticalLine != FALSE)
   {
-    means <- with(data,aggregate(NewAdj, by=list(eval(parse(text=colorvariable))), FUN=mean))
+    means <- with(data,aggregate(NewAdj, by=list(eval(parse(text=colorvariable))), FUN=mean,na.rm = T))
     row.names(means) <- means$Group.1
     means <- means[order(means$Group.1),]
     
