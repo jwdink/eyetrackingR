@@ -278,7 +278,7 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
   Related <- y
   
   # and again...
-  error <- rnorm((data_options$sample_rate*4),0,.15)
+  error <- rnorm((data_options$sample_rate*4),0,.07)
   y <- .55 + error
   y[which(y > 1.0)] <- 1.0
   y[which(y < 0)] <- 0
@@ -390,7 +390,10 @@ clean_by_factor <- function (data, data_options, factor, allowed_levels) {
 # @return dataframe data
 treat_outside_looks_as_trackloss <- function(data, data_options) {
   # if the active AOI column is empty or NA, set the trackloss column as 1
-  data[which(data[, data_options$active_aoi_factor] == ''), data_options$trackloss_factor] <- 1
+  if (sum(which(data[, data_options$active_aoi_factor] == '')) > 0) {
+    data[which(data[, data_options$active_aoi_factor] == ''), data_options$trackloss_factor] <- 1
+  }
+  
   data[is.na(data[, data_options$active_aoi_factor]), data_options$trackloss_factor] <- 1
 
   data
@@ -577,7 +580,7 @@ time_analysis <- function (data, data_options, bin_time = 250, dv = NA, factors 
     dv = data_options$default_dv
   }
   
-  if (is.na(factors)) {
+  if (length(factors) < 2 && is.na(factors)) {
     factors = data_options$default_factors
   }
   
@@ -869,7 +872,7 @@ window_analysis <- function(data, data_options, dv = NA, factors = NA) {
     dv = data_options$default_dv
   }
   
-  if (is.na(factors)) {
+  if (length(factors) < 2 && is.na(factors)) {
     factors = data_options$default_factors
   }
   
@@ -1018,7 +1021,7 @@ sequential_bins_analysis <- function(data, data_options, bin_size = 250, dv = NA
 # @return dataframe first_looks
 first_looks_analysis <- function(data, data_options, factors = NA) {
   # use defaults if unset
-  if (is.na(factors)) {
+  if (length(factors) < 2 && is.na(factors)) {
     factors = data_options$default_factors
   }
   
@@ -1036,7 +1039,7 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
   looks <- looks[order(looks[, data_options$participant_factor], looks[, factors], looks[, data_options$trial_factor], looks$StartTime, looks$EndTime), ]
   
   # add the FixationNum column
-  looks$FixationNum <- 0
+  looks$RankSequence <- 0
   
   max_fixations <- length(unique(looks[, data_options$active_aoi_factor]))
   fixation_vector <- c(1:max_fixations)
@@ -1050,25 +1053,28 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
       for (factor_level in unique(looks[, factor])) {
         for (trial in trials) {
           rows <- length(looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'RankSequence'])
-          looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'RankSequence'] <- fixation_vector[0:rows]
+          
+          if (rows > 0) {
+            looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'RankSequence'] <- fixation_vector[0:rows]
+          }
         }
       }
     }
   }
   
   # get all first looks
-  first_looks <- looks[which(looks$RankSequence == 1), 1:8]
-  colnames(first_looks)[7] <- 'FirstAOI'
-  colnames(first_looks)[8] <- 'FirstStartTime'
+  first_looks <- looks[which(looks$RankSequence == 1), 1:5]
+  colnames(first_looks)[4] <- 'FirstAOI'
+  colnames(first_looks)[5] <- 'FirstStartTime'
   
   # get all second looks
-  second_looks <- looks[which(looks$RankSequence == 2), 1:9]
-  colnames(second_looks)[7] <- 'SecondAOI'
-  colnames(second_looks)[8] <- 'SecondStartTime'
-  colnames(second_looks)[9] <- 'SecondEndTime'
+  second_looks <- looks[which(looks$RankSequence == 2), 1:6]
+  colnames(second_looks)[4] <- 'SecondAOI'
+  colnames(second_looks)[5] <- 'SecondStartTime'
+  colnames(second_looks)[6] <- 'SecondEndTime'
   
   # merge first and second looks, getting rid of non-switch trials
-  merged <- merge(first_looks, second_looks, by = c(colnames(first_looks)[1:6]))
+  merged <- merge(first_looks, second_looks, by = c(colnames(first_looks)[1:3]))
   
   # calculate switch time
   merged$SwitchTime <- merged$SecondStartTime - merged$FirstStartTime
@@ -1088,7 +1094,7 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
 # @return dataframe looks
 get_looks <- function (data, data_options, smoothing = 1, factors = NA) {
   # set defaults if necessary
-  if (is.na(factors)) {
+  if (length(factors) < 2 && is.na(factors)) {
     factors <- data_options$default_factors
   }
   
