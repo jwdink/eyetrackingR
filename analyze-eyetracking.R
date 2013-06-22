@@ -119,7 +119,7 @@ verify_dataset <- function(data, data_options, silent = F) {
       message('verify_dataset','Sample column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
     }
     
-    data[, data_options$sample_factor] <- factor(data[, data_options$sample_factor])
+    data[, data_options$sample_factor] <- as.character(as.numeric(data[, data_options$sample_factor]))
   }
   
   # trial factor should be a factor
@@ -886,9 +886,14 @@ window_analysis <- function(data, data_options, dv = NA, factors = NA) {
     original_classes[factor_name] = class(data[, factor_name])
   }
   
+  # set all rows of the var that are NA to 0, so we don't get errors in calculating a mean
+  # if we have rows like this, we have to assume they meant to keep trackloss, even though
+  # keep_trackloss() would have already set NA to 0...
+  data[is.na(data[, dv]), dv] <- 0
+  
   # collapse across trials within subjects
-  test_sum <- aggregate(data[dv], by = data[c(data_options$participant_factor,data_options$trial_factor,factors)], FUN = 'sum')
-  test_length <- aggregate(data[dv], by = data[c(data_options$participant_factor,data_options$trial_factor,factors)], FUN = 'length')
+  test_sum <- aggregate(data[dv], by = data[c(data_options$participant_factor,factors, data_options$trial_factor)], FUN = 'sum')
+  test_length <- aggregate(data[dv], by = data[c(data_options$participant_factor, factors, data_options$trial_factor)], FUN = 'length')
   
   # transform our collapsed dataset into something pretty
   test <- data.frame(test_sum[c(data_options$participant_factor,data_options$trial_factor,factors)], test_sum[dv], test_length[dv])
@@ -939,7 +944,7 @@ window_analysis <- function(data, data_options, dv = NA, factors = NA) {
 # @param character.vector A vector of factor columns
 #
 # @return dataframe window_data
-sequential_bins_analysis <- function(data, data_options, bin_size = 250, dv = NA, factor) {
+sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA, factor) {
   # use defaults if unset
   if (is.na(dv)) {
     dv = data_options$default_dv
@@ -964,13 +969,13 @@ sequential_bins_analysis <- function(data, data_options, bin_size = 250, dv = NA
   }
   
   # create ArcSin column
-  bySubj$ArcSin <- asin(sqrt(bySubj$BinMean))
+  binned$ArcSin <- asin(sqrt(binned$BinMean))
   
   # test each consecutive bin
   bins <- max(binned$Bin)
   
-  results <- data.frame(matrix(nrow = bins, ncol = 7))
-  colnames(results) <- c('Bin','StartTime','EndTime','Participants','SameDifferent','p-value','ANOVA')
+  results <- data.frame(matrix(nrow = bins, ncol = 9))
+  colnames(results) <- c('Bin','StartTime','EndTime','Participants','SameDifferent','p-value','df_num','df_den','F')
   
   for (bin in 0:bins) {
     # subset data into bin
@@ -990,7 +995,11 @@ sequential_bins_analysis <- function(data, data_options, bin_size = 250, dv = NA
     frm <- paste('ArcSin',factor,sep=" ~ ")
     
     aov <- aov(formula(frm), data = bin_data)
-    p_value <- summary(aov)[[1]][["Pr(>F)"]]
+    p_value <- round(summary(aov)[[1]][["Pr(>F)"]][1],3)
+    
+    if (p_value == 0) {
+      p_value <- .001
+    }
     
     if (p_value <= .05) {
       samedifferent <- 'different'
@@ -1001,7 +1010,7 @@ sequential_bins_analysis <- function(data, data_options, bin_size = 250, dv = NA
     
     participants <- length(levels(factor(bin_data[, data_options$participant_factor])))
     
-    results[bin + 1, ] <- c(bin, round((bin*bin_size_in_samples*(1000/data_options$sample_rate)),0), round(((bin*bin_size_in_frames + bin_size_in_frames)*(1000/data_options$sample_rate)),0), participants, samedifferent, p_value, '')
+    results[bin + 1, ] <- c(bin, round((bin*bin_size_in_samples*(1000/data_options$sample_rate)),0), round(((bin*bin_size_in_samples + bin_size_in_samples)*(1000/data_options$sample_rate)),0), participants, samedifferent, p_value, summary(aov)[[1]][['Df']][1], summary(aov)[[1]][['Df']][2], summary(aov)[[1]][['F value']][1])
   }
   
   results
@@ -1224,45 +1233,47 @@ bin_data <- function(data, data_options, bin_samples, factors, dv) {
   # set all rows of the var that are NA to 0, so we don't get errors in calculating a mean
   # if we have rows like this, we have to assume they meant to keep trackloss, even though
   # keep_trackloss() would have already set NA to 0...
-  df[is.na(df[,dv]), dv] <- 0
+  data[is.na(data[, dv]), dv] <- 0
   
   # after we subset the data and our "zero" point is actually, say, 8000 samples from the 
   # phase onset, we run into trouble if we ask it to bin by a number of frames
   # that does not go into the minimum value evenly.  So, let's re-calibrate our sample_factor column
   # with a nice clean zero point.
-  if (min(df[,sample_factor]) > 0) {
-    df[,sample_factor] <- df[,sample_factor] - min(df[,sample_factor])
+  data[, sample_factor] <- as.numeric(as.character(data[, sample_factor]))
+  
+  if (min(data[,sample_factor]) > 0) {
+    data[,sample_factor] <- data[,sample_factor] - min(data[,sample_factor])
   }
     
   # If binsize=3, then 0,1,2 will go to 0; 3,4,5 will go to 1, and so on. 
   message('bin_data', sprintf("Dividing values in column %s by bin size %d and rounding down... \n", dv, bin_samples))        
-  df[,sample_factor] <- floor(df[,sample_factor] / bin_samples)
+  data[,sample_factor] <- floor(data[,sample_factor] / bin_samples)
   
   # Collapse all rows where constants+timevar columns are the same 
-  message('bin_data', sprintf("Processing column %s, in groups where the following columns have the same value:\n", cvar))
+  message('bin_data', sprintf("Processing column %s, in groups where the following columns have the same value:\n", dv))
   message('bin_data', sprintf("    %s\n", paste(c(factors, sample_factor), collapse=", ")))
   cat("    mean... ")
-  df.mean   <- aggregate(df[, dv], by=df[c(factors, sample_factor)], 'mean')
-  names(df.mean)[names(df.mean) == dv]     <- "BinMean"
+  data.mean   <- aggregate(data[, dv], by=data[c(factors, sample_factor)], 'mean')
+  names(data.mean)[names(data.mean) == dv]     <- "BinMean"
   
   # Get the number of rows in each bin
   message('bin_data', " bin size... ")
-  df.length <- aggregate(df[, dv], by=df[c(factors, sample_factor)], 'length')
-  names(df.length)[names(df.length) == dv] <- "BinSize"
+  data.length <- aggregate(data[, dv], by=data[c(factors, sample_factor)], 'length')
+  names(data.length)[names(data.length) == dv] <- "BinSize"
   
   # Get the sum of the rows
   message('bin_data', " sum... \n")
-  df.sum    <- aggregate(df[, dv], by=df[c(factors, sample_factor)], 'sum')
-  names(df.sum)   [names(df.sum)   == dv] <- "BinSum"
+  data.sum    <- aggregate(data[, dv], by=data[c(factors, sample_factor)], 'sum')
+  names(data.sum)   [names(data.sum)   == dv] <- "BinSum"
   
   message('bin_data', "Merging data frames for mean, bin size, and sum...\n")
-  dfb <- merge(df.mean, df.length, c(factors, sample_factor))
-  dfb <- merge(dfb,     df.sum,    c(factors, sample_factor))
+  datab <- merge(data.mean, data.length, c(factors, sample_factor))
+  datab <- merge(datab,     data.sum,    c(factors, sample_factor))
   
   # Sort by all columns, from left to right
-  dfb <- dfb[ do.call(order, as.list(dfb)), ]
+  datab <- datab[ do.call(order, as.list(datab)), ]
   
-  dfb
+  datab
 }
 
 # plot_data()
