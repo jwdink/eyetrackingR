@@ -92,7 +92,7 @@ verify_dataset <- function(data, data_options, silent = F) {
   }
   if (class(data[, data_options$participant_factor]) != 'factor') {
     if (silent == F) {
-      message('verify_dataset','Participants column should be a factor. Check that the field was imported properly, i.e., without empty rows.');
+      message('verify_dataset','WARNING! Participants column should be a factor. Check that the field was imported properly, i.e., without empty rows.');
     }
     
     data[, data_options$participant_factor] <- factor(data[, data_options$participant_factor])
@@ -104,7 +104,7 @@ verify_dataset <- function(data, data_options, silent = F) {
   }
   if (class(data[, data_options$time_factor]) != 'numeric') {
     if (silent == F) {
-      message('verify_dataset','Time column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+      message('verify_dataset','WARNING! Time column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
     }
     
     data[, data_options$time_factor] <- factor(data[, data_options$time_factor])
@@ -116,10 +116,10 @@ verify_dataset <- function(data, data_options, silent = F) {
   }
   if (class(data[, data_options$sample_factor]) != 'numeric') {
     if (silent == F) {
-      message('verify_dataset','Sample column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+      message('verify_dataset','WARNING! Sample column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
     }
     
-    data[, data_options$sample_factor] <- as.character(as.numeric(data[, data_options$sample_factor]))
+    data[, data_options$sample_factor] <- as.numeric(as.character(data[, data_options$sample_factor]))
   }
   
   # trial factor should be a factor
@@ -128,7 +128,7 @@ verify_dataset <- function(data, data_options, silent = F) {
   }
   if (class(data[, data_options$trial_factor]) != 'factor') {
     if (silent == F) {
-      message('verify_dataset','Trial column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
+      message('verify_dataset','WARNING! Trial column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
     }
     
     data[, data_options$trial_factor] <- factor(data[, data_options$trial_factor])
