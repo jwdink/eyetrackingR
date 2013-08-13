@@ -290,8 +290,7 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
     row_range <- seq((((x - 1)*(data_options$sample_rate*8*6))+1),(x*data_options$sample_rate*8*6))
     
     participant_id <- paste('SUBJ_',x,sep="")
-    condition <- ifelse(x <= floor(length(participants) / 2), 'Related','NotRelated')
-    
+    condition <- ifelse(x <= floor(length(participants) / 2), 'Knower','NonKnower')
     data[row_range, data_options$participant_factor] <- participant_id
     data[row_range, 'Age'] <- round(rnorm(1,24,.25), 2)
     data[row_range, 'Condition'] <- condition
@@ -322,7 +321,7 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
       
       data[response_range, 'Window'] <- 'Response'
       
-      if (condition == 'Related') {
+      if (condition == 'Knower') {
         data[response_range, 'Target'] <- Related
       }
       else {
@@ -390,7 +389,7 @@ clean_by_factor <- function (data, data_options, factor, allowed_levels) {
 # @return dataframe data
 treat_outside_looks_as_trackloss <- function(data, data_options) {
   # if the active AOI column is empty or NA, set the trackloss column as 1
-  if (sum(which(data[, data_options$active_aoi_factor] == '')) > 0) {
+  if (length(which(data[, data_options$active_aoi_factor] == '')) > 0) {
     data[which(data[, data_options$active_aoi_factor] == ''), data_options$trackloss_factor] <- 1
   }
   
@@ -505,7 +504,7 @@ final_trial_counts <- function(data, data_options, window_start = NA, window_end
   # subset data by the optional window parameters
   data <- subset_by_window(data, data_options, window_start, window_end)
   
-  excluding_trackloss <- data[is.na(data[, data_options$trackloss_factor]), ]
+  excluding_trackloss <- data[which(data[, data_options$trackloss_factor] == 0 | is.na(data[, data_options$trackloss_factor])), ]
   
   # count looking frames by trials/babies
   looking <- aggregate(excluding_trackloss[, data_options$participant_factor], by = list(excluding_trackloss[, data_options$participant_factor],excluding_trackloss[, data_options$trial_factor]), 'length')
@@ -513,7 +512,7 @@ final_trial_counts <- function(data, data_options, window_start = NA, window_end
   
   # count trials by babies
   trials_committed <- aggregate(looking[, data_options$trial_factor], by = list(looking[, data_options$participant_factor]), 'length')
-  colnames(trials_committed) <- c(data_options$participantfactor,'Trials')
+  colnames(trials_committed) <- c(data_options$participant_factor,'Trials')
   
   trials_committed
 }
@@ -1400,7 +1399,6 @@ spaghetti = function(
   plotwidth=800, # width of the plot in pixels
   plotheight=450, # height of the plot in pixels
   fname=NA, # file name (quoted). if left NA, generates a filename for pdf that is not generalized	
-  fileformat="png", # can be one of "png" or "pdf"
   showplot=FALSE, # don't print plot by default (save straight to file instead). If TRUE, will both print plot in quartz window and print plot to file
   
   # parameters deleted by Brock
@@ -1551,7 +1549,7 @@ spaghetti = function(
         geom_line(aes_string(group="errbargroup"),size=I(2))
       if (errbars)
       {
-        p = p + geom_errorbar(limits,linetype=I(1))	
+        p = p + geom_errorbar(limits, size = .4, width = 50)	
       }
       
     } else
@@ -1639,23 +1637,34 @@ spaghetti = function(
   }
   
   # extra stuff that's common to all plots
-  if (analysiswindow) { onset = onset + analysisonset }
+  if (analysiswindow) {
+    onset = onset + analysisonset
+  }
   
-  p <- p + theme_few()
+  p <- p +
+       theme_bw(base_family = "Arial", base_size = 16) +
+       scale_color_grey(
+          guide = guide_legend(title = NULL)
+          ) +
+       theme(legend.position = c(.9,.9)) +
+       theme(axis.title.x = element_text(vjust=-0.3)) + # move x-axis label lower
+       theme(axis.title.y = element_text(vjust=.33)) + # move y-axis label left
+       theme(panel.grid.minor = element_blank()) + # no grids
+       theme(panel.grid.major = element_blank()) + # no borders
+       theme(panel.border = element_blank()) +
+       theme(axis.line = element_line(color = 'black')) + # put axis lines back
+       coord_cartesian(ylim=c(0.0,1.0)) +  
+       scale_y_continuous(y_title, breaks = seq(0,1,by=.1)) +
+       scale_x_continuous(x_title,breaks=seq(0 + timeAdjust,upperlimit + timeAdjust,by=xbreakstep)) 
   
-  p <- p + scale_y_continuous(y_title) +
-    coord_cartesian(ylim=c(0.0,1.0)) +	
-    scale_y_continuous(y_title, breaks = seq(0,1,by=.1)) +
-    scale_x_continuous(x_title,breaks=seq(0 + timeAdjust,upperlimit + timeAdjust,by=xbreakstep)) 
   if (addOnsetLine)
   {
-    p = p + geom_vline(xintercept=onset, colour="black",size=I(1.5),legend=FALSE)
+    p <- p + geom_vline(xintercept=onset, colour="black",size=I(1.5),legend=FALSE)
   }
   if (!is.na(colormapping))	
   {
     p = p +	
       scale_colour_manual(values=colormapping[sort(as.character(unique(melted[,colorvariable]))),]$Color)
-    
   }
   
   if (addVerticalLine != FALSE)
@@ -1690,18 +1699,18 @@ spaghetti = function(
   
   
   # set options
-  p <- p +
-    opts(
-      legend.text = theme_text(size = 12),
-      axis.text.x = theme_text(size=12),
-      axis.text.y = theme_text(size=12,hjust=1),
-      axis.title.x = theme_text(size=14,vjust=.05),
-      axis.title.y = theme_text(size=14,angle=90,vjust=0.25),
-      legend.background=theme_rect(fill="white"),
-      strip.text.x = theme_text(size=14),
-      title = graphTitle,
-      plot.title = theme_text(size=18, lineheight=.8, face="bold", vjust=1.5)
-    ) 
+  # p <- p +
+  #  opts(
+  #    legend.text = theme_text(size = 12),
+  #    axis.text.x = theme_text(size=12),
+  #    axis.text.y = theme_text(size=12,hjust=1),
+  #    axis.title.x = theme_text(size=14,vjust=.05),
+  #    axis.title.y = theme_text(size=14,angle=90,vjust=0.25),
+  #    legend.background=theme_rect(fill="white"),
+  #    strip.text.x = theme_text(size=14),
+  #    title = graphTitle,
+  #    plot.title = theme_text(size=18, lineheight=.8, face="bold", vjust=1.5)
+  #  ) 
   
   if (!is.na(vertical_lines)) {
     for (i in 1:length(vertical_lines)) {
@@ -1717,15 +1726,14 @@ spaghetti = function(
   if (showplot) { print(p) }
   # print plot to file	
   print(paste("printing to",fname))	
-  if (fileformat == "png")
-  {
-    png(file=fname, width=plotwidth, height=plotheight)
-  } else {
-    if (fileformat == "pdf")
-    {
-      pdf(file=fname, width=plotwidth, height=plotheight)
-    }
-  }
+  
+  tiff(filename = fname,
+         width = plotwidth, height = plotheight,
+         units = "px", pointsize = 15,
+         bg = "white", res = 400,
+         compression = "lzw",
+         type = c("cairo"))
+  
   print(p)
   dev.off()
   
