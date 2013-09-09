@@ -1337,6 +1337,7 @@ plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, fa
       region=c(dv),
       sample=bin_time,
       downsample="bin",
+      vertical_lines = vertical_lines,
       upperlimit=max(data$TimeAlign),
       xbreakstep=x_gap,
       plottype=type,
