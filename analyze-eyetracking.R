@@ -1644,9 +1644,7 @@ spaghetti = function(
   
   p <- p +
        theme_bw(base_family = "Arial", base_size = 16) +
-       scale_color_grey(
-          guide = guide_legend(title = NULL)
-          ) +
+       scale_colour_hue(l = 60, c = 150, h.start = 0, guide = guide_legend(title = NULL)) +
        theme(legend.position = c(.9,.9)) +
        theme(axis.title.x = element_text(vjust=-0.3)) + # move x-axis label lower
        theme(axis.title.y = element_text(vjust=.33)) + # move y-axis label left
