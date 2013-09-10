@@ -4,8 +4,8 @@
 # History, project, and data files
 .R*
 *.Rproj
-graph.png
-workspace.Rdata
+graph*.png
+workspace*
 
 # Example code in package build process
 *-Ex.R
