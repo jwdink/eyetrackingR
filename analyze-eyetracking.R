@@ -967,8 +967,15 @@ sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA
     binned$Bin <- binned$Bin - min_bin
   }
   
-  # create ArcSin column
-  binned$ArcSin <- asin(sqrt(binned$BinMean))
+  # create ArcSin column if we are doing proportions
+  if (min(binned$BinMean > 0) && max(binned$BinMean) < 1.0) {
+    binned$ArcSin <- asin(sqrt(binned$BinMean))
+    cat("Transforming with Arcsine...\n")
+  }
+  else {
+    binned$ArcSin <- binned$BinMean
+    cat("Not transforming - does not appear to be proportional data...")
+  }
   
   # test each consecutive bin
   bins <- max(binned$Bin)
@@ -986,7 +993,7 @@ sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA
     # make sure that we have at least 2 levels of the factor
     # in this bin
     num_levels <- length(levels(bin_data[, factor]))
-    
+  
     if (num_levels <= 1) {
       next
     }
@@ -994,7 +1001,13 @@ sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA
     frm <- paste('ArcSin',factor,sep=" ~ ")
     
     aov <- aov(formula(frm), data = bin_data)
-    p_value <- round(summary(aov)[[1]][["Pr(>F)"]][1],3)
+    
+    if (is.numeric(summary(aov)[[1]][["Pr(>F)"]][1])) {
+      p_value <- round(summary(aov)[[1]][["Pr(>F)"]][1],3)
+    }
+    else {
+      next
+    }
     
     if (p_value == 0) {
       p_value <- .001
@@ -1711,7 +1724,7 @@ spaghetti = function(
   #    plot.title = theme_text(size=18, lineheight=.8, face="bold", vjust=1.5)
   #  ) 
   
-  if (!is.na(vertical_lines)) {
+  if (length(vertical_lines) > 0 && !is.na(vertical_lines)) {
     for (i in 1:length(vertical_lines)) {
       line <- vertical_lines[i]
       
