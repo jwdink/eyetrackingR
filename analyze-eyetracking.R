@@ -941,9 +941,10 @@ window_analysis <- function(data, data_options, dv = NA, factors = NA) {
 # @param integer bin_time The time (ms) to fit into each bin
 # @param string dv The dependent variable column
 # @param character.vector A vector of factor columns
+# @param boolean within_subjects
 #
 # @return dataframe window_data
-sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA, factor) {
+sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA, factor, within_subjects = F) {
   # use defaults if unset
   if (is.na(dv)) {
     dv = data_options$default_dv
@@ -968,7 +969,7 @@ sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA
   }
   
   # create ArcSin column if we are doing proportions
-  if (min(binned$BinMean > 0) && max(binned$BinMean) < 1.0) {
+  if (min(binned$BinMean >= 0) && max(binned$BinMean) <= 1.0) {
     binned$ArcSin <- asin(sqrt(binned$BinMean))
     cat("Transforming with Arcsine...\n")
   }
@@ -1000,13 +1001,27 @@ sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA
     
     frm <- paste('ArcSin',factor,sep=" ~ ")
     
-    aov <- aov(formula(frm), data = bin_data)
+    if (within_subjects == TRUE) {
+      frm <- paste(frm, ' + Error(ParticipantName)', sep='')
+    }
     
-    if (is.numeric(summary(aov)[[1]][["Pr(>F)"]][1])) {
-      p_value <- round(summary(aov)[[1]][["Pr(>F)"]][1],3)
+    model <- aov(formula(frm), data = bin_data)
+    
+    if (!is.numeric(summary(model)[[1]][["Pr(>F)"]][1]) && !is.numeric(summary(model)[[1]][[1]][["Pr(>F)"]][1])) {
+      # no p-value available
+      next
+    }
+    else if (within_subjects == TRUE) {
+      p_value <- round(summary(model)[[1]][[1]][["Pr(>F)"]][[1]],3)
+      df_num <- summary(model)[[1]][[1]][['Df']][[1]]
+      df_den <- summary(model)[[1]][[1]][['Df']][[2]]
+      F_value <- summary(model)[[1]][[1]][['F value']][[1]]
     }
     else {
-      next
+      p_value <- round(summary(model)[[1]][["Pr(>F)"]][[1]],3)
+      df_num <- summary(model)[[1]][['Df']][[1]]
+      df_den <- summary(model)[[1]][['Df']][[2]]
+      F_value <- summary(model)[[1]][['F value']][[1]]
     }
     
     if (p_value == 0) {
@@ -1022,7 +1037,7 @@ sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA
     
     participants <- length(levels(factor(bin_data[, data_options$participant_factor])))
     
-    results[bin + 1, ] <- c(bin, round((bin*bin_size_in_samples*(1000/data_options$sample_rate)),0), round(((bin*bin_size_in_samples + bin_size_in_samples)*(1000/data_options$sample_rate)),0), participants, samedifferent, p_value, summary(aov)[[1]][['Df']][1], summary(aov)[[1]][['Df']][2], summary(aov)[[1]][['F value']][1])
+    results[bin + 1, ] <- c(bin, round((bin*bin_size_in_samples*(1000/data_options$sample_rate)),0), round(((bin*bin_size_in_samples + bin_size_in_samples)*(1000/data_options$sample_rate)),0), participants, samedifferent, p_value, df_num, df_den, F_value)
   }
   
   results
@@ -1047,7 +1062,7 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
   }
   
   # get the looks dataframe
-  looks <- get_looks(data, data_options, factors)
+  looks <- get_looks(data, data_options, factors = c(factors))
   
   # first, let's clean up the looks dataframe
   
@@ -1103,13 +1118,14 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
   merged
 }
 
-# get_looks(data, data_options)
+# get_looks(data, data_options, smoothing, factors)
 #
 # Find all looks to AOIs in a dataset and describe them. This function fills in 1-sample gaps
 # caused by trackloss between sequential gazes to the same location.
 #
 # @param dataframe data
 # @param list data_options
+# @param boolean smoothing
 # @param character.vector factors
 #
 # @return dataframe looks
@@ -1196,6 +1212,7 @@ get_looks <- function (data, data_options, smoothing = 1, factors = NA) {
   
   looks
 }
+
 
 # subset_by_window ()
 #
@@ -1657,7 +1674,7 @@ spaghetti = function(
   
   p <- p +
        theme_bw(base_family = "Arial", base_size = 16) +
-       scale_colour_hue(l = 60, c = 150, h.start = 0, guide = guide_legend(title = NULL)) +
+       scale_colour_hue(l = 60, c = 150, h.start = 0) +
        theme(legend.position = c(.9,.9)) +
        theme(axis.title.x = element_text(vjust=-0.3)) + # move x-axis label lower
        theme(axis.title.y = element_text(vjust=.33)) + # move y-axis label left
@@ -1665,8 +1682,8 @@ spaghetti = function(
        theme(panel.grid.major = element_blank()) + # no borders
        theme(panel.border = element_blank()) +
        theme(axis.line = element_line(color = 'black')) + # put axis lines back
-       coord_cartesian(ylim=c(0.0,1.0)) +  
-       scale_y_continuous(y_title, breaks = seq(0,1,by=.1)) +
+       coord_cartesian(ylim=c(0.2,.8)) +  
+       scale_y_continuous(y_title, breaks = c(0.2,.5,.8)) +
        scale_x_continuous(x_title,breaks=seq(0 + timeAdjust,upperlimit + timeAdjust,by=xbreakstep)) 
   
   if (addOnsetLine)
