@@ -1677,13 +1677,13 @@ spaghetti = function(
        scale_colour_hue(l = 60, c = 150, h.start = 0) +
        theme(legend.position = c(.9,.9)) +
        theme(axis.title.x = element_text(vjust=-0.3)) + # move x-axis label lower
-       theme(axis.title.y = element_text(vjust=.33)) + # move y-axis label left
+       theme(axis.title.y = element_text(vjust=1.15)) + # move y-axis label left
        theme(panel.grid.minor = element_blank()) + # no grids
        theme(panel.grid.major = element_blank()) + # no borders
        theme(panel.border = element_blank()) +
        theme(axis.line = element_line(color = 'black')) + # put axis lines back
-       coord_cartesian(ylim=c(0.2,.8)) +  
-       scale_y_continuous(y_title, breaks = c(0.2,.5,.8)) +
+       coord_cartesian(ylim=c(0,1)) +  
+       scale_y_continuous(y_title, breaks = c(0, .25, .5, .75, 1)) +
        scale_x_continuous(x_title,breaks=seq(0 + timeAdjust,upperlimit + timeAdjust,by=xbreakstep)) 
   
   if (addOnsetLine)
@@ -1756,12 +1756,10 @@ spaghetti = function(
   # print plot to file	
   print(paste("printing to",fname))	
   
-  tiff(filename = fname,
+  png(filename = fname,
          width = plotwidth, height = plotheight,
-         units = "px", pointsize = 15,
-         bg = "white", res = 400,
-         compression = "lzw",
-         type = c("cairo"))
+         units = "px",
+         res = 400)
   
   print(p)
   dev.off()
