@@ -69,7 +69,7 @@ set_data_options <- function(
 # @param list data_options
 #
 # @return null
-summarize_data <- function (data, data_options) {
+summarize_dataset <- function (data, data_options) {
   cat("Dataset Summary -----------------------------\n")
   cat(paste("Total Rows:\t\t",nrow(data),"\n",sep=""))
   cat(paste("Participants:\t\t",length(levels(factor(data[, data_options$participant_factor]))),"\n",sep=""))
