@@ -1081,8 +1081,8 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
   fixation_vector <- c(1:max_fixations)
   
   subjectnums <- unique(looks[, data_options$participant_factor])
-  trials      <- unique(looks$Trial)
-  scenetypes  <- unique(looks$SceneType)
+  trials      <- unique(looks[, data_options$trial_factor])
+  scenetypes  <- unique(looks[, data_options$active_aoi_factor])
   
   for (subjectnum in subjectnums) {
     for (factor in factors) {
