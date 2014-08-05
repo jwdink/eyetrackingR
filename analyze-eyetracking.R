@@ -35,6 +35,9 @@
 # @param character.vector default_factors The default columns for your indepdent variables, used if unspecified in *_analysis() methods
 #
 # @return list of configuration options
+
+require(plyr)
+
 set_data_options <- function(
                         sample_rate = 60,
                         participant_factor = 'ParticipantName',
@@ -1068,11 +1071,12 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
   
   # aggregate by participants > trials > AOIs and take the
   # MIN(frames) values for each scenetype
-  looks <- aggregate(data.frame(looks$StartTime,looks$EndTime), by = list(looks[, data_options$participant_factor], looks[, factors], looks[, data_options$trial_factor], looks[, data_options$active_aoi_factor]), FUN = 'min')
-  colnames(looks) <- c(data_options$participant_factor,factors,data_options$trial_factor,data_options$active_aoi_factor,'StartTime','EndTime')
   
+  looks <- ddply(looks, c(data_options$participant_factor, factors, data_options$trial_factor, data_options$active_aoi_factor), summarise, StartTime = min(StartTime), EndTime = min(EndTime))
+
   # re-sort
-  looks <- looks[order(looks[, data_options$participant_factor], looks[, factors], looks[, data_options$trial_factor], looks$StartTime, looks$EndTime), ]
+  sort_names <- c(data_options$participant_factor, factors, data_options$trial_factor, "StartTime", "EndTime")
+  looks <- looks[do.call("order", looks[sort_names]), ]
   
   # add the FixationNum column
   looks$RankSequence <- 0
@@ -1099,18 +1103,19 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
   }
   
   # get all first looks
-  first_looks <- looks[which(looks$RankSequence == 1), 1:5]
-  colnames(first_looks)[4] <- 'FirstAOI'
-  colnames(first_looks)[5] <- 'FirstStartTime'
+  index <- length(factors)
+  first_looks <- looks[which(looks$RankSequence == 1), 1:(4+index)]
+  colnames(first_looks)[3+index] <- 'FirstAOI'
+  colnames(first_looks)[4+index] <- 'FirstStartTime'
   
   # get all second looks
-  second_looks <- looks[which(looks$RankSequence == 2), 1:6]
-  colnames(second_looks)[4] <- 'SecondAOI'
-  colnames(second_looks)[5] <- 'SecondStartTime'
-  colnames(second_looks)[6] <- 'SecondEndTime'
+  second_looks <- looks[which(looks$RankSequence == 2), 1:(5+index)]
+  colnames(second_looks)[3+index] <- 'SecondAOI'
+  colnames(second_looks)[4+index] <- 'SecondStartTime'
+  colnames(second_looks)[5+index] <- 'SecondEndTime'
   
   # merge first and second looks, getting rid of non-switch trials
-  merged <- merge(first_looks, second_looks, by = c(colnames(first_looks)[1:3]))
+  merged <- merge(first_looks, second_looks, by = c(colnames(first_looks)[1:(2+index)]))
   
   # calculate switch time
   merged$SwitchTime <- merged$SecondStartTime - merged$FirstStartTime
