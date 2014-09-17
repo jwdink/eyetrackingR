@@ -1123,6 +1123,205 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
   merged
 }
 
+# bootstrapped_splines(data, data_options, factor, within_subj, samples, resolution, alpha)
+#
+# Bootstrap splines from a time_analysis() file. Returns a plottable time series dataframe with means for each
+# level of Factor (i.e., each condition), as well as a time series dataframe which shows the points of divergence
+# throughout the time window.
+#
+# @param dataframe data Your clean dataset
+# @param list data_options Standard list of options for manipulating dataset
+# @param string factor What factor to split by? Maximum two conditions!
+# @param boolean within_subj Are the two conditions within or between subjects?
+# @param int samples How many (re)samples to take?
+# @param float resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
+# @param float alpha p-value when the groups are sufficiently "diverged"
+#
+# @return list(samples, divergence)
+bootstrapped_splines <- function (data, data_options, factor = '', within_subj = F, samples=1000, resolution=10, alpha = .05) {
+  # define sampler for splines...
+  spline_sampler <- function (dataframe, data_options, resolution) {
+    if (rbinom(1,1,.1) == 1) {
+      cat('.')
+    }
+    
+    run_original <- dataframe
+    
+    # get subjects
+    run_subjects <- unique(run_original[, data_options$participant_factor])
+    
+    # get timepoints
+    run_times <- unique(run_original$t1)
+    run_times <- run_times[order(run_times)]
+    
+    # randomly sample N subjects (with replacement from data)
+    run_sampled <- sample(run_subjects, length(run_subjects), replace = T)
+    
+    # create a dataset of ParticipantName,t1,BinMean for each sampled subject (including duplicates)
+    run_rows <- length(run_sampled) * length(run_times)
+    run_data <- data.frame(matrix(nrow=run_rows,ncol=2))
+    colnames(run_data) <- c(data_options$participant_factor,'t1')
+    run_data[, data_options$participant_factor] <- rep(run_sampled, each=length(run_times))
+    run_data$t1 <- rep(run_times, times=length(run_subjects))
+    
+    run_data <- merge(run_data, run_original[, c(data_options$participant_factor,'t1','BinMean')], by = c(data_options$participant_factor,'t1'))
+    
+    # spline! 
+    run_spline <- with(run_data, smooth.spline(t1, BinMean))
+    
+    # get interpolated spline predictions for total time at .01 (hundredth of a second scale)
+    run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
+    run_predictions <- predict(run_spline, run_predicted_times)
+    
+    run_predictions$y
+  }
+  
+  # process arguments
+  
+  # convert resolution to seconds
+  resolution = resolution / 1000;
+  
+  # validate variables
+  if (factor == '') {
+    error('bootstrapped_splines','No factor specified. Must specify a factor with 2 levels.')
+  }
+  
+  if (length(unique(data[, factor])) != 2) {
+    error('bootstrapped_splines','Factor must have 2 levels.')
+  }
+  
+  # this dataframe will hold our final dataset
+  combined_bootstrapped_data <- data.frame()
+  
+  # between-subjects:
+  if (within_subj == FALSE) {
+    for (label in levels(data[, factor])) {
+      subsetted_data <- data[which(data[, factor] == label), ]
+      
+      cat('Sampling actual distribution...')
+      bootstrapped_data <- replicate(samples, spline_sampler(subsetted_data, data_options, resolution))
+      bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
+      
+      sample_rows <- paste('Sample', c(1:samples), sep="")
+      
+      colnames(bootstrapped_data) <- sample_rows
+      
+      bootstrapped_data[, factor] <- label
+      bootstrapped_data$t1 <- seq(min(unique(subsetted_data$t1)), max(unique(subsetted_data$t1)), by=resolution)
+      bootstrapped_data$mean <- 0
+      bootstrapped_data$se <- 0
+      bootstrapped_data$CI025 <- 0
+      bootstrapped_data$CI975 <- 0
+      
+      bootstrapped_data <- bootstrapped_data[, c(factor,'t1','mean','se','CI025','CI975',sample_rows)]
+      
+      # se is the SD of the sample
+      bootstrapped_data$se <- apply(bootstrapped_data[, sample_rows], 1, sd)
+      bootstrapped_data$mean <- apply(bootstrapped_data[, sample_rows], 1, mean)
+      bootstrapped_data$CI025 <- bootstrapped_data$mean - 1.96*bootstrapped_data$se
+      bootstrapped_data$CI975 <- bootstrapped_data$mean + 1.96*bootstrapped_data$se
+      #bootstrapped_data$CI025 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.025) })
+      #bootstrapped_data$CI975 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.975) })
+      
+      combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+    }
+  }
+  else {
+    # within-subjects:
+    
+    # for within-subjects, we need to calculate the difference between
+    # level 1 and 2 of the factor for each subject before sampling splines
+    library(reshape2)
+    data <- dcast(data, as.formula(paste(paste(data_options$participant_factor,'t1',sep=" + "),factor,sep=' ~ ')), value.var='BinMean', fun.aggregate = mean, drop = T)
+    
+    # re-calculate BinMean as the DIFFERENCE between the two labels
+    data$BinMean <- data[, 3] - data[, 4]
+    
+    # remove all samples where BinMean == NA
+    data <- data[!is.na(data$BinMean), ]
+    
+    cat('Sampling')
+    bootstrapped_data <- replicate(samples, spline_sampler(data, data_options, resolution))
+    bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
+    
+    sample_rows <- paste('Sample', c(1:samples), sep="")
+    
+    colnames(bootstrapped_data) <- sample_rows
+    
+    bootstrapped_data$t1 <- seq(min(unique(data$t1)), max(unique(data$t1)), by=resolution)
+    bootstrapped_data$mean <- 0
+    bootstrapped_data$se <- 0
+    bootstrapped_data$CI025 <- 0
+    bootstrapped_data$CI975 <- 0
+    
+    bootstrapped_data <- bootstrapped_data[, c('t1','mean','se','CI025','CI975',sample_rows)]
+    
+    # se is the SD of the sample
+    bootstrapped_data$se <- apply(bootstrapped_data[, sample_rows], 1, sd)
+    bootstrapped_data$mean <- apply(bootstrapped_data[, sample_rows], 1, mean)
+    #bootstrapped_data$CI025 <- bootstrapped_data$mean - 1.96*bootstrapped_data$se
+    #bootstrapped_data$CI975 <- bootstrapped_data$mean + 1.96*bootstrapped_data$se
+    bootstrapped_data$CI025 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.025) })
+    bootstrapped_data$CI975 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.975) })
+    
+    combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+  }
+  
+  # between-subjects:
+  
+  if (within_subj == FALSE) {
+    bootstrapped_diverged <- combined_bootstrapped_data[, c(factor,'t1','mean','se')]
+    
+    # first, we need to calculate the difference between the two groups at each point
+    library(reshape2)
+    
+    # get mean for each level of factor
+    bootstrapped_diverged_mean <- dcast(bootstrapped_diverged, paste('t1',factor,sep=' ~ '), value.var = 'mean', fun.aggregate = mean, drop = T)
+    
+    # get se for each level of factor
+    bootstrapped_diverged_se <- dcast(bootstrapped_diverged, paste('t1',factor,sep=' ~ '), value.var = 'se', fun.aggregate = mean, drop = T)
+    colnames(bootstrapped_diverged_se) <- c('t1','Group1SE','Group2SE')
+    bootstrapped_diverged <- cbind(bootstrapped_diverged_mean, bootstrapped_diverged_se[, c('Group1SE','Group2SE')])
+    rm(bootstrapped_diverged_se)
+    
+    # calculate SD
+    N <- length(unique(data[, data_options$participant_factor]))
+    
+    bootstrapped_diverged$Group1SD <- bootstrapped_diverged$Group1SE*sqrt(N)
+    bootstrapped_diverged$Group2SD <- bootstrapped_diverged$Group2SE*sqrt(N)
+    
+    bootstrapped_diverged$PooledSDSquared <- (bootstrapped_diverged$Group1SD^2 + bootstrapped_diverged$Group2SD^2) / 2
+    bootstrapped_diverged$PooledSE <- sqrt(bootstrapped_diverged$PooledSDSquared)*sqrt((1/N) + (1/N))
+    
+    bootstrapped_diverged$t <- (abs(bootstrapped_diverged[, 3] - bootstrapped_diverged[, 2])) / bootstrapped_diverged$PooledSE
+    
+    required_t <- abs(qt((alpha/2), (N*2)-2))
+    
+    bootstrapped_diverged$Diverged <- 0
+    bootstrapped_diverged[which(bootstrapped_diverged$t >= required_t), 'Diverged'] <- 1
+  }  
+  else {
+    bootstrapped_diverged <- combined_bootstrapped_data[, c('t1','mean','se')]
+    
+    # within-subjects
+    # just do a comparison to 0 for difference (mean) and standard error
+    
+    bootstrapped_diverged$t <- bootstrapped_diverged$mean / bootstrapped_diverged$se
+    
+    N <- length(unique(data[, data_options$participant_factor]))
+    required_t <- abs(qt((alpha/2), (N*2)-2))
+    
+    bootstrapped_diverged$Diverged <- 0
+    bootstrapped_diverged[which(bootstrapped_diverged$t >= required_t), 'Diverged'] <- 1
+  }
+  
+  # return everything!
+  list(
+    samples = combined_bootstrapped_data,
+    divergence = bootstrapped_diverged
+  )
+}
+
 # get_looks(data, data_options, smoothing, factors)
 #
 # Find all looks to AOIs in a dataset and describe them. This function fills in 1-sample gaps
