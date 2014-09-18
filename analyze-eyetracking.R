@@ -1884,8 +1884,7 @@ spaghetti = function(
        theme(axis.title.y = element_text(vjust=1.15)) + # move y-axis label left
        theme(panel.grid.minor = element_blank()) + # no grids
        theme(panel.grid.major = element_blank()) + # no borders
-       theme(panel.border = element_blank()) +
-       theme(axis.line = element_line(color = 'black')) + # put axis lines back
+       theme(panel.border = element_rect(size=1, color='black')) +
        coord_cartesian(ylim=c(0,1)) +  
        scale_y_continuous(y_title, breaks = c(0, .25, .5, .75, 1)) +
        scale_x_continuous(x_title,breaks=seq(0 + timeAdjust,upperlimit + timeAdjust,by=xbreakstep)) 
