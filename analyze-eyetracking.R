@@ -1577,7 +1577,8 @@ plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, fa
       plottype=type,
       graphTitle=title,
       y_title = y_title,
-      x_title = x_title
+      x_title = x_title,
+      showplot=T
     )
 }
 
