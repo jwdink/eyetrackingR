@@ -1120,6 +1120,9 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
   # calculate switch time
   merged$SwitchTime <- merged$SecondStartTime - merged$FirstStartTime
   
+  # fixed columns
+  merged[, data_options$participant_factor] <- factor(merged[, data_options$participant_factor])
+  
   merged
 }
 
@@ -1139,6 +1142,10 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
 #
 # @return list(samples, divergence)
 bootstrapped_splines <- function (data, data_options, factor = '', within_subj = F, samples=1000, resolution=10, alpha = .05) {
+  # dependencies
+  library(dplyr, quietly=T)
+  library(data.table, quietly=T)
+  
   # define sampler for splines...
   spline_sampler <- function (dataframe, data_options, resolution) {
     if (rbinom(1,1,.1) == 1) {
@@ -1148,7 +1155,7 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     run_original <- dataframe
     
     # get subjects
-    run_subjects <- unique(run_original[, data_options$participant_factor])
+    run_subjects <- levels(run_original[, data_options$participant_factor])
     
     # get timepoints
     run_times <- unique(run_original$t1)
@@ -1159,15 +1166,22 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     
     # create a dataset of ParticipantName,t1,BinMean for each sampled subject (including duplicates)
     run_rows <- length(run_sampled) * length(run_times)
-    run_data <- data.frame(matrix(nrow=run_rows,ncol=2))
-    colnames(run_data) <- c(data_options$participant_factor,'t1')
+    run_data <- data.table(matrix(nrow=run_rows,ncol=2))
+    
+    # use data.table's setnames for speed increase
+    #colnames(run_data) <- c(data_options$participant_factor,'t1')
+    setnames(run_data,c(data_options$participant_factor,'t1'))
+    
     run_data[, data_options$participant_factor] <- rep(run_sampled, each=length(run_times))
     run_data$t1 <- rep(run_times, times=length(run_subjects))
     
-    run_data <- merge(run_data, run_original[, c(data_options$participant_factor,'t1','BinMean')], by = c(data_options$participant_factor,'t1'))
+    # replaced merge with inner_join() for speed increase
+    #run_data <- merge(run_data, run_original[, c(data_options$participant_factor,'t1','BinMean')], by = c(data_options$participant_factor,'t1'))
+    run_data <- inner_join(run_data, run_original[, c(data_options$participant_factor,'t1','BinMean')], by = c(data_options$participant_factor,'t1'))
     
     # spline! 
-    run_spline <- with(run_data, smooth.spline(t1, BinMean))
+    # with generalized cross-validation setting smoothing parameter
+    run_spline <- with(run_data, smooth.spline(t1, BinMean, cv=FALSE))
     
     # get interpolated spline predictions for total time at .01 (hundredth of a second scale)
     run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
@@ -1186,28 +1200,33 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     error('bootstrapped_splines','No factor specified. Must specify a factor with 2 levels.')
   }
   
-  if (length(unique(data[, factor])) != 2) {
+  if (length(levels(data[, factor])) != 2) {
     error('bootstrapped_splines','Factor must have 2 levels.')
   }
   
   # this dataframe will hold our final dataset
   combined_bootstrapped_data <- data.frame()
   
+  # re-factor Participant name column, so that levels() is accurate
+  data[, data_options$participant_factor] <- factor(data[, data_options$participant_factor])
+  
   # between-subjects:
   if (within_subj == FALSE) {
     for (label in levels(data[, factor])) {
       subsetted_data <- data[which(data[, factor] == label), ]
       
-      cat('Sampling actual distribution...')
+      cat('Sampling')
       bootstrapped_data <- replicate(samples, spline_sampler(subsetted_data, data_options, resolution))
       bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
       
       sample_rows <- paste('Sample', c(1:samples), sep="")
       
-      colnames(bootstrapped_data) <- sample_rows
+      # use data.table's setnames for speed
+      #colnames(bootstrapped_data) <- sample_rows
+      setnames(bootstrapped_data, sample_rows)
       
       bootstrapped_data[, factor] <- label
-      bootstrapped_data$t1 <- seq(min(unique(subsetted_data$t1)), max(unique(subsetted_data$t1)), by=resolution)
+      bootstrapped_data$t1 <- seq(min(subsetted_data$t1), max(subsetted_data$t1), by=resolution)
       bootstrapped_data$mean <- 0
       bootstrapped_data$se <- 0
       bootstrapped_data$CI025 <- 0
@@ -1223,7 +1242,9 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
       #bootstrapped_data$CI025 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.025) })
       #bootstrapped_data$CI975 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.975) })
       
-      combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+      # using dplyr's rbind_list or speed increase
+      #combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+      combined_bootstrapped_data <- rbind_list(combined_bootstrapped_data,bootstrapped_data)
     }
   }
   else {
@@ -1246,9 +1267,11 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     
     sample_rows <- paste('Sample', c(1:samples), sep="")
     
-    colnames(bootstrapped_data) <- sample_rows
+    # use data.table for speed increase
+    #colnames(bootstrapped_data) <- sample_rows
+    setnames(bootstrapped_data, sample_rows)
     
-    bootstrapped_data$t1 <- seq(min(unique(data$t1)), max(unique(data$t1)), by=resolution)
+    bootstrapped_data$t1 <- seq(min(data$t1), max(data$t1), by=resolution)
     bootstrapped_data$mean <- 0
     bootstrapped_data$se <- 0
     bootstrapped_data$CI025 <- 0
@@ -1259,12 +1282,14 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     # se is the SD of the sample
     bootstrapped_data$se <- apply(bootstrapped_data[, sample_rows], 1, sd)
     bootstrapped_data$mean <- apply(bootstrapped_data[, sample_rows], 1, mean)
-    #bootstrapped_data$CI025 <- bootstrapped_data$mean - 1.96*bootstrapped_data$se
-    #bootstrapped_data$CI975 <- bootstrapped_data$mean + 1.96*bootstrapped_data$se
-    bootstrapped_data$CI025 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.025) })
-    bootstrapped_data$CI975 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.975) })
+    bootstrapped_data$CI025 <- bootstrapped_data$mean - 1.96*bootstrapped_data$se
+    bootstrapped_data$CI975 <- bootstrapped_data$mean + 1.96*bootstrapped_data$se
+    #bootstrapped_data$CI025 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.025) })
+    #bootstrapped_data$CI975 <- apply(bootstrapped_data[, sample_rows], 1, function (x) { quantile(x,probs=.975) })
     
-    combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+    # use dplyr's rbind_list for speed increase
+    #combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+    combined_bootstrapped_data <- rbind_list(combined_bootstrapped_data,bootstrapped_data)
   }
   
   # between-subjects:
@@ -1285,7 +1310,7 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     rm(bootstrapped_diverged_se)
     
     # calculate SD
-    N <- length(unique(data[, data_options$participant_factor]))
+    N <- length(levels(data[, data_options$participant_factor]))
     
     bootstrapped_diverged$Group1SD <- bootstrapped_diverged$Group1SE*sqrt(N)
     bootstrapped_diverged$Group2SD <- bootstrapped_diverged$Group2SE*sqrt(N)
@@ -1308,7 +1333,7 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     
     bootstrapped_diverged$t <- bootstrapped_diverged$mean / bootstrapped_diverged$se
     
-    N <- length(unique(data[, data_options$participant_factor]))
+    N <- length(levels(data[, data_options$participant_factor]))
     required_t <- abs(qt((alpha/2), (N*2)-2))
     
     bootstrapped_diverged$Diverged <- 0
@@ -1461,6 +1486,8 @@ subset_by_window <- function (data, data_options, window_start = NA, window_end 
 #
 # @return dataframe binned_data
 bin_data <- function(data, data_options, bin_samples, factors, dv) {  
+  library(data.table, quietly=T)
+  
   sample_factor <- data_options$sample_factor
   
   # set all rows of the var that are NA to 0, so we don't get errors in calculating a mean
@@ -1485,23 +1512,30 @@ bin_data <- function(data, data_options, bin_samples, factors, dv) {
   # Collapse all rows where constants+timevar columns are the same 
   message('bin_data', sprintf("Processing column %s, in groups where the following columns have the same value:\n", dv))
   message('bin_data', sprintf("    %s\n", paste(c(factors, sample_factor), collapse=", ")))
-  cat("    mean... ")
+  message('bin_data', " mean... ")
   data.mean   <- aggregate(data[, dv], by=data[c(factors, sample_factor)], 'mean')
-  names(data.mean)[names(data.mean) == dv]     <- "BinMean"
+  #names(data.mean)[names(data.mean) == dv]     <- "BinMean"
+  setnames(data.mean, 'x', 'BinMean')
   
   # Get the number of rows in each bin
   message('bin_data', " bin size... ")
   data.length <- aggregate(data[, dv], by=data[c(factors, sample_factor)], 'length')
-  names(data.length)[names(data.length) == dv] <- "BinSize"
+  #names(data.length)[names(data.length) == dv] <- "BinSize"
+  setnames(data.length, 'x', 'BinSize')
   
   # Get the sum of the rows
   message('bin_data', " sum... \n")
   data.sum    <- aggregate(data[, dv], by=data[c(factors, sample_factor)], 'sum')
-  names(data.sum)   [names(data.sum)   == dv] <- "BinSum"
+  #names(data.sum)   [names(data.sum)   == dv] <- "BinSum"
+  setnames(data.sum, 'x', 'BinSum')
   
   message('bin_data', "Merging data frames for mean, bin size, and sum...\n")
-  datab <- merge(data.mean, data.length, c(factors, sample_factor))
-  datab <- merge(datab,     data.sum,    c(factors, sample_factor))
+  
+  #datab <- merge(data.mean, data.length, c(factors, sample_factor))
+  datab <- inner_join(data.mean, data.length, c(factors, sample_factor))
+  
+  #datab <- merge(datab,     data.sum,    c(factors, sample_factor))
+  datab <- inner_join(datab,     data.sum,    c(factors, sample_factor))
   
   # Sort by all columns, from left to right
   datab <- datab[ do.call(order, as.list(datab)), ]
