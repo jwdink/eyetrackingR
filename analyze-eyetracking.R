@@ -1166,13 +1166,15 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     
     # create a dataset of ParticipantName,t1,BinMean for each sampled subject (including duplicates)
     run_rows <- length(run_sampled) * length(run_times)
-    run_data <- data.table(matrix(nrow=run_rows,ncol=2))
+    run_data <- data.frame(matrix(nrow=run_rows,ncol=2))
     
     # use data.table's setnames for speed increase
     #colnames(run_data) <- c(data_options$participant_factor,'t1')
     setnames(run_data,c(data_options$participant_factor,'t1'))
     
     run_data[, data_options$participant_factor] <- rep(run_sampled, each=length(run_times))
+    run_data[, data_options$participant_factor] <- factor(run_data[, data_options$participant_factor])
+    
     run_data$t1 <- rep(run_times, times=length(run_subjects))
     
     # replaced merge with inner_join() for speed increase
@@ -1260,6 +1262,8 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     
     # remove all samples where BinMean == NA
     data <- data[!is.na(data$BinMean), ]
+    
+    data[, data_options$participant_factor] <- factor(data[, data_options$participant_factor])
     
     cat('Sampling')
     bootstrapped_data <- replicate(samples, spline_sampler(data, data_options, resolution))
@@ -1532,10 +1536,10 @@ bin_data <- function(data, data_options, bin_samples, factors, dv) {
   message('bin_data', "Merging data frames for mean, bin size, and sum...\n")
   
   #datab <- merge(data.mean, data.length, c(factors, sample_factor))
-  datab <- inner_join(data.mean, data.length, c(factors, sample_factor))
+  datab <- left_join(data.mean, data.length, by=c(factors, sample_factor))
   
   #datab <- merge(datab,     data.sum,    c(factors, sample_factor))
-  datab <- inner_join(datab,     data.sum,    c(factors, sample_factor))
+  datab <- left_join(datab, data.sum, by=c(factors, sample_factor))
   
   # Sort by all columns, from left to right
   datab <- datab[ do.call(order, as.list(datab)), ]
