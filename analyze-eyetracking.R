@@ -1351,6 +1351,204 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
   )
 }
 
+# bootstrapped_splines_nonparametric(data, data_options, factor, within_subj, samples, resolution, alpha)
+#
+# Bootstrap splines from a time_analysis() file. Returns a plottable time series dataframe with means for each
+# level of Factor (i.e., each condition), as well as a time series dataframe which shows the points of divergence
+# throughout the time window.
+#
+# PROBLEM: The standard errors returned by this function are questionable because they assume
+# that each participant is included at each time point. In some sense, they are (after the
+# smoothing spline is applied), but it makes spurious VISIBLE divergences at the beginnings/ends of trials
+# (when few participants are looking) much more likely. Importantly, the bootstrapping
+# procedure means that these apparent divergences are not actually significant, but it's a bit
+# confusing because visually they look significant.
+#
+# @param dataframe data Your clean dataset
+# @param list data_options Standard list of options for manipulating dataset
+# @param string factor What factor to split by? Maximum two conditions!
+# @param boolean within_subj Are the two conditions within or between subjects?
+# @param int samples How many (re)samples to take?
+# @param float resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
+# @param float alpha p-value when the groups are sufficiently "diverged"
+#
+# @return list(samples, divergence)
+bootstrapped_splines_nonparametric <- function (data, data_options, factor = '', within_subj = F, samples=1000, resolution=10, alpha = .05) {
+  # dependencies
+  library(plyr, quietly=T)
+  #library(data.table, quietly=T)
+  
+  # define spline function
+  fit_splines <- function (data) {
+    splines_set <- data.frame(matrix(nrow=length(seq(min(data$t1), max(data$t1), by=resolution)), ncol=(length(unique(data$ParticipantName)) + 3)))
+    colnames(splines_set) <- c('t1','Mean','SE',as.vector(unique(data$ParticipantName)))
+    splines_set$t1 <- seq(min(data$t1), max(data$t1), by=resolution)
+    
+    for (participant in unique(data$ParticipantName)) {
+      spline_model <- with(subset(data, ParticipantName == participant), smooth.spline(t1, BinMean, cv=FALSE))
+      
+      # get interpolated spline predictions for total time at desired resolution
+      splines_set[, participant] <- predict(spline_model, splines_set$t1)$y
+    }
+    
+    # we now have splines with the spline model for each participant
+    # calculate Mean and SE (i.e., SD/sqrt(N)) at each timepoint
+    
+    splines_set$Mean <- apply(splines_set[, as.vector(unique(data$ParticipantName))], 1, function (x) { mean(x) })
+    splines_set$SE <- apply(splines_set[, as.vector(unique(data$ParticipantName))], 1, function (x) { sd(x) / sqrt(length(x)) })
+    
+    splines_set
+  }
+  
+  # convert resolution to seconds
+  resolution = resolution / 1000;
+  
+  # validate variables
+  if (factor == '') {
+    error('bootstrapped_splines','No factor specified. Must specify a factor with 2 levels.')
+  }
+  
+  if (length(levels(data[, factor])) != 2) {
+    error('bootstrapped_splines','Factor must have 2 levels.')
+  }
+  
+  # re-factor Participant name column, so that levels() is accurate
+  data[, data_options$participant_factor] <- factor(data[, data_options$participant_factor])
+  
+  # between-subjects:
+  if (within_subj == FALSE) {
+    splines <- data.frame(matrix(nrow=length(seq(min(data$t1), max(data$t1), by=resolution)), ncol=(length(unique(data$ParticipantName)) + 6)))
+    colnames(splines) <- c('t1','Mean1','SE1','Mean2','SE2','MeanDifference',as.vector(unique(data$ParticipantName)))
+    splines$t1 <- seq(min(data$t1), max(data$t1), by=resolution)
+    
+    label_number <- 1
+    for (label in levels(data[, factor])) {
+      subsetted_data <- data[which(data[, factor] == label), ]
+      
+      # fit splines for each participant
+      spline_fits <- fit_splines(subsetted_data)
+      
+      # add to main splines dataframe
+      splines[, c(paste('Mean',label_number,sep=''), paste('SE',label_number,sep=''), as.vector(unique(subsetted_data$ParticipantName)))] <- spline_fits[, c('Mean','SE',as.vector(unique(subsetted_data$ParticipantName)))]
+      
+      # increment label_number
+      label_number <- label_number + 1
+    }
+    
+    # calculate MeanDifference at each point
+    splines$MeanDifference <- splines$Mean2 - splines$Mean1
+    
+    # we now have our spline fit for the real data
+    # let's random shuffle the condition labels and see how likely these divergences are
+    # by chance
+    
+    # this dataframe will hold each of the mean differences between conditions calculated
+    # at each timepoint after shuffling condition labels (i.e., by random chance)
+    bootstrapped_splines <- data.frame(matrix(nrow=length(seq(min(data$t1), max(data$t1), by=resolution)), ncol=(samples + 4)))
+    colnames(bootstrapped_splines) <- c('t1','RealDifference','p_value','Diverged',paste('Sample',c(1:samples),sep=''))
+    bootstrapped_splines$t1 <- seq(min(data$t1), max(data$t1), by=resolution)
+    bootstrapped_splines$RealDifference <- splines$MeanDifference
+    
+    for (i in 1:samples) {
+      # shuffle conditions
+      participants_assignments <- ddply(data, c('ParticipantName',factor), summarize, Mean = mean(BinMean))
+      participants_assignments[, factor] <- sample(participants_assignments[, factor], length(participants_assignments[, factor]))
+      
+      for (participant in as.vector(unique(data$ParticipantName))) {
+          new_condition <- participants_assignments[which(participants_assignments$ParticipantName == participant), factor]
+          data[which(data$ParticipantName == participant), factor] <- new_condition
+      }
+      
+      shuffled_splines <- data.frame(matrix(nrow=length(seq(min(data$t1), max(data$t1), by=resolution)), ncol=(length(unique(data$ParticipantName)) + 6)))
+      colnames(shuffled_splines) <- c('t1','Mean1','SE1','Mean2','SE2','MeanDifference',as.vector(unique(data$ParticipantName)))
+      
+      label_number <- 1
+      for (label in levels(data[, factor])) {
+        subsetted_data <- data[which(data[, factor] == label), ]
+        
+        # fit splines for each participant
+        spline_fits <- fit_splines(subsetted_data)
+        
+        # add to main splines dataframe
+        shuffled_splines[, c(paste('Mean',label_number,sep=''), paste('SE',label_number,sep=''), as.vector(unique(subsetted_data$ParticipantName)))] <- spline_fits[, c('Mean','SE',as.vector(unique(subsetted_data$ParticipantName)))]
+        
+        # increment label_number
+        label_number <- label_number + 1
+      }
+      
+      shuffled_splines$MeanDifference <- shuffled_splines$Mean2 - shuffled_splines$Mean1
+      
+      # now add to bootstrapped_splines where we keep track of these random differences
+      bootstrapped_splines[, paste('Sample',i,sep='')] <- shuffled_splines$MeanDifference
+    }
+    
+    # now how many times did a divergence this big happen by random chance with shuffled labels?
+    bootstrapped_splines$p_value <- apply(bootstrapped_splines[, c('RealDifference',paste('Sample',c(1:samples),sep=''))], 1, function(x) { length(x[which(abs(x) >= abs(x[1]))]) / length(x) }) # note this function includes an inherent +1 because it includes the RealDifference itself
+    bootstrapped_splines$Diverged <- ifelse(bootstrapped_splines$p_value < alpha, 1, 0)
+  }
+  else {
+    # within-subjects:
+    
+    # for within-subjects, we need to calculate the difference between
+    # level 1 and 2 of the factor for each subject before sampling splines
+    library(reshape2)
+    data <- dcast(data, as.formula(paste(paste(data_options$participant_factor,'t1',sep=" + "),factor,sep=' ~ ')), value.var='BinMean', fun.aggregate = mean, drop = T)
+    
+    # re-calculate BinMean as the DIFFERENCE between the two labels
+    data$BinMean <- data[, 3] - data[, 4]
+    
+    # remove all samples where BinMean == NA
+    data <- data[!is.na(data$BinMean), ]
+    
+    data[, data_options$participant_factor] <- factor(data[, data_options$participant_factor])
+    
+    # fit splines for each participant
+    splines <- fit_splines(data)
+    
+    # we now have our spline fit for the real data
+    # let's random shuffle the condition labels and see how likely these divergences are
+    # by chance
+    
+    # this dataframe will hold each of the mean differences between conditions calculated
+    # at each timepoint after shuffling condition labels (i.e., by random chance)
+    bootstrapped_splines <- data.frame(matrix(nrow=length(seq(min(data$t1), max(data$t1), by=resolution)), ncol=(samples + 4)))
+    colnames(bootstrapped_splines) <- c('t1','RealDifference','p_value','Diverged',paste('Sample',c(1:samples),sep=''))
+    bootstrapped_splines$t1 <- seq(min(data$t1), max(data$t1), by=resolution)
+    bootstrapped_splines$RealDifference <- splines$Mean
+    
+    for (i in 1:samples) {
+      # shuffle conditions
+      for (participant in as.vector(unique(data$ParticipantName))) {
+        if (rbinom(1,1,.5) == 1) {
+          # shuffle!
+          # all we actually have to do "shuffle" this data is flip the sign on the BinMean for this
+          # participant, because it's already cast down to a difference score
+          
+          data[which(data$ParticipantName == participant), 'BinMean'] <- -data[which(data$ParticipantName == participant), 'BinMean']
+        }
+        else {
+          # no shuffling here...
+        }
+      }
+      
+      spline_fits <- fit_splines(data)
+      
+      # now add to bootstrapped_splines where we keep track of these random differences
+      bootstrapped_splines[, paste('Sample',i,sep='')] <- spline_fits$Mean
+    }
+    
+    # now how many times did a divergence this big happen by random chance with shuffled labels?
+    bootstrapped_splines$p_value <- apply(bootstrapped_splines[, c('RealDifference',paste('Sample',c(1:samples),sep=''))], 1, function(x) { length(x[which(abs(x) >= abs(x[1]))]) / length(x) }) # note this function includes an inherent +1 because it includes the RealDifference itself
+    bootstrapped_splines$Diverged <- ifelse(bootstrapped_splines$p_value < alpha, 1, 0)
+  }
+  
+  # return everything!
+  list(
+    bootstrapped_splines = bootstrapped_splines,
+    splines = splines
+  )
+}
+
 # get_looks(data, data_options, smoothing, factors)
 #
 # Find all looks to AOIs in a dataset and describe them. This function fills in 1-sample gaps
@@ -1918,7 +2116,7 @@ spaghetti = function(
   p <- p +
        theme_bw(base_family = "Arial", base_size = 16) +
        scale_colour_hue(l = 60, c = 150, h.start = 0) +
-       theme(legend.position = c(.9,.9)) +
+       theme(legend.position = c(.86,.12)) +
        theme(axis.title.x = element_text(vjust=-0.3)) + # move x-axis label lower
        theme(axis.title.y = element_text(vjust=1.15)) + # move y-axis label left
        theme(panel.grid.minor = element_blank()) + # no grids
