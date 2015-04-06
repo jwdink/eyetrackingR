@@ -79,7 +79,7 @@ verify_dataset <- function(data, data_options, silent = FALSE) {
   as.numeric2 = function(x) as.numeric(as.character(x))
   check_then_convert = function(x, checkfunc, convertfunc, colname) { 
     if ( !checkfunc(x) ) {
-      warning('WARNING! ' , colname ,' column should be a factor. Check that the field was imported properly i.e. without empty rows.')
+      warning('Converting ' , colname ,' to proper type.')
       convertfunc(x)
     } else {
       x
@@ -106,65 +106,28 @@ verify_dataset <- function(data, data_options, silent = FALSE) {
 # # @param string dv
 # # @param character.vector factors
 # #
-# # @return null It prints to the screen
-# describe_data <- function(data, dv, factors = c()) {
-#   require('psych', quietly = TRUE)
-#   
-#   # check that factors exist
-#   if (length(factors) == 0) {
-#     error('describe_data','Factors argument missing.  Factors must be passed as charactero vector.')
-#   }
-#   
-#   # get column names
-#   columns <- colnames(data)
-#   
-#   describe_factors <- data.frame(matrix(ncol = length(factors), nrow = nrow(data)))
-#   
-#   for (i in 1:length(factors)) {
-#     factor <- factors[i]
-#     if (!1 %in% match(columns, factor)) {
-#       error('describe_data',paste(factor, ' factor missing from dataset.  Each factor must have a column in the data object.',sep=""))
-#     }
-#     else if (!is.factor(data[, factor])) {
-#       # factor it
-#       data[, factor] <- factor(data[, factor])
-#     }
-#     
-#     # add to dataframe
-#     describe_factors[, i] <- data[, factor]
-#   }
-#   
-#   cat(paste("DV: ",dv,"\n====================================================================================\n",sep=""))
-#   
-#   details <- by(data[, dv], describe_factors, describe_column)
-#   details <- capture.output(print(details, quote = FALSE))
-#   
-#   # we captured the print() output above because the normal formatting of our details
-#   # text is really off and I want it to look nice.  so we capture it and then manipulate
-#   # it with regex.
-#   details <- sub('(.*?)matrix\\.(.*?)\\:',' X1:',details)
-#   details <- sub('\\[1\\]\\s+',"",details)
-#   details <- sub('(-+)',"\n------------------------------------------------------------------------------------\n",details)
-#   details <- sub('X([0-9]+)\\: ([[:alnum:]]+)',"X\\1: \\2\n",details)
-#   details <- sub('\\n\\s+',"\n",details)
-#   
-#   cat(details)
-#   
-#   cat("\n\n")
-# }
-# 
-# # describe_column()
-# #
-# # Supports describe_data(), above
-# describe_column <- function (data) {
-#   output <- paste("[Mean]: ",round(mean(data, na.rm = TRUE),3),"      ",
-#                   "[SD]:   ",round(sd(data, na.rm = TRUE),3),"      ",
-#                   "[Var]:  ",round(var(data, na.rm = TRUE),3),"      ",
-#                   "[Min]:  ",round(min(data, na.rm = TRUE),3),"      ",
-#                   "[Max]:  ",round(max(data, na.rm = TRUE),3),"      ",sep="")
-#   
-#   output
-# }
+# # @return dataframe 
+
+describe_data = function(data, dv, factors) {
+  require(dplyr)
+  require(lazyeval)
+  
+  
+  to_summarise = c("mean(dv, na.rm= TRUE)",
+                      "sd(dv, na.rm= TRUE)",
+                      "var(dv, na.rm= TRUE)",
+                      "min(dv, na.rm= TRUE)",
+                      "max(dv, na.rm= TRUE)"
+  )
+  to_summarise = as.list( gsub(pattern = "dv", replacement = dv, x = to_summarise) )
+  to_summarise = lapply(X = to_summarise, FUN = function(x) as.formula(paste("~", x)) )
+  names(to_summarise) = c("Mean", "SD", "Var", "Min", "Max")
+  
+  data %>%
+    group_by_(.dots = as.list(factors)) %>%
+    summarise_(.dots = to_summarise)
+}
+
 # 
 # # generate_random_data()
 # #
