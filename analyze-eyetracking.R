@@ -75,6 +75,7 @@ set_data_options <- function(
 verify_dataset <- function(data, data_options, silent = FALSE) {
   
   out = data
+  class(out) = c("sample_data", class(out))
   
   as.numeric2 = function(x) as.numeric(as.character(x))
   check_then_convert = function(x, checkfunc, convertfunc, colname) { 
@@ -108,10 +109,9 @@ verify_dataset <- function(data, data_options, silent = FALSE) {
 # #
 # # @return dataframe 
 
-describe_data = function(data, dv, factors) {
+describe_data = function(data, data_options, dv = data_options$default_dv, factors = data_options$default_factors) {
   require(dplyr)
   require(lazyeval)
-  
   
   to_summarise = c("~mean(dv, na.rm= TRUE)",
                       "~sd(dv, na.rm= TRUE)",
@@ -127,7 +127,6 @@ describe_data = function(data, dv, factors) {
     group_by_(.dots = as.list(factors)) %>%
     summarise_(.dots = to_summarise)
 }
-
 
 # generate_random_data()
 #
@@ -278,6 +277,120 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
   
   data
 }
+
+# plot.data.frame()
+#
+# Doesn't allow you to plot eyetracking data unless it's been run through verify_dataset
+# 
+# @return null Returns an error
+
+plot.data.frame = function(...) stop("This data has not been verified for plotting. Run 'verify_dataset' on this data first.")
+
+# plot.sample_data()
+#
+# Plot a dv in the data by levels of a factor.
+#
+# @param dataframe data
+# @param list data_options
+# @param string dv
+# @param string factor
+# @param string type ('empirical' or 'smoothed')
+# @param integer time_bin_size Time (ms) to bin data by in plot
+#
+# @return list A ggplot list object  
+plot.sample_data <- function(x, 
+                             data_options, 
+                             dv = data_options$default_dv, 
+                             factor = data_options$default_factors, 
+                             type = 'empirical', 
+                             time_bin_size = 100) {
+
+  require('ggplot2')
+  data = x
+  
+  if ( data_options$sample_rate / time_bin_size > 100 ) {
+    cat("\nWarning: You've selected a very small time window relate to your sample rate. Could be very slow.", 
+        "Press enter to continue anyways, or Esc to cancel.")
+    readline(prompt = "...")
+  }
+  
+  if (type == 'empirical') {
+    
+    time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
+    group_by_arg = list(data_options$participant_factor, factor, "TimeBin")
+    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
+                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
+    
+    g = data %>%
+      mutate_(.dots =  time_bin_arg) %>%
+      group_by_(.dots =  group_by_arg) %>%
+      summarise_(.dots =  summarise_arg) %>%
+      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor)) +
+      stat_summary(fun.dat = mean_se) +
+      stat_summary(fun.y = mean, geom = "line")
+    
+    return(g)
+    
+  } else if (type == 'smoothed') {
+    
+    time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
+    group_by_arg = list(data_options$participant_factor, "TimeBin", factor)
+    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
+                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
+    
+    g = data %>%
+      mutate_(.dots =  time_bin_arg) %>%
+      group_by_(.dots =  group_by_arg) %>%
+      summarise_(.dots =  summarise_arg) %>%
+      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor)) +
+      geom_smooth(method = 'loess')
+    
+    return(g)
+    
+  }
+  
+  stop("'Type' arg not recognized. Must be 'smoothed' or 'empirical'.")
+  
+}
+
+# window_analysis()
+#
+# Collapse time across our entire window and do an analyis with subjects and items as random effects
+#
+# @param dataframe data
+# @param list data_options
+# @param string dv
+# @param character.vector factors
+#
+# @return lmerMod an lmer model
+window_analysis <- function(data, data_options, formula = NULL, dv = data_options$default_dv, factors = data_options$default_factors) {
+  require('dplyr')
+  require('lme4')
+  
+  
+  summarized = data %>% 
+    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, factors)) ) %>%
+    summarise_( .dots = list(SamplesInAOI = as.formula(paste0("~", "sum(", dv, ", na.rm= TRUE)")),
+                             SamplesTotal = as.formula(paste0("~", "length(", dv, ")"))) ) %>%
+    mutate(elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
+           wts  = ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ),
+           Prop = SamplesInAOI / SamplesTotal,
+           ArcSin = asin( sqrt( Prop ) )
+           )
+  
+  if (is.null(formula)) {
+    formula = as.formula( paste0("elog ~ ", 
+                         paste(factors, collapse = "+"), 
+                         " + (1 | ", data_options$participant_factor, ")",
+                         " + (1 | ", data_options$trial_factor, ")"
+                         ) )
+  } 
+  
+  lmer(formula = formula, data = summarized, weights = 1/wts)
+  
+}
+
+
 
 # # time_analysis()
 # #
@@ -573,81 +686,7 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 #     )
 # }
 # 
-# # window_analysis()
-# #
-# # Collapse time across our entire window and do an analyis with subjects and items as random effects
-# #
-# # @param dataframe data
-# # @param list data_options
-# # @param string dv
-# # @param character.vector factors
-# #
-# # @return dataframe window_data
-# window_analysis <- function(data, data_options, dv = NA, factors = NA) {
-#   # use defaults if unset
-#   if (is.na(dv)) {
-#     dv = data_options$default_dv
-#   }
-#   
-#   if (length(factors) < 2 && is.na(factors)) {
-#     factors = data_options$default_factors
-#   }
-#   
-#   # track the original column classes so we can reset these afterwards...
-#   original_classes = list()
-#   
-#   for (i in 1:length(factors)) {
-#     factor_name = factors[i]
-#     
-#     # save original class
-#     original_classes[factor_name] = class(data[, factor_name])
-#   }
-#   
-#   # set all rows of the var that are NA to 0, so we don't get errors in calculating a mean
-#   # if we have rows like this, we have to assume they meant to keep trackloss, even though
-#   # keep_trackloss() would have already set NA to 0...
-#   data[is.na(data[, dv]), dv] <- 0
-#   
-#   # collapse across trials within subjects
-#   test_sum <- aggregate(data[dv], by = data[c(data_options$participant_factor,factors, data_options$trial_factor)], FUN = 'sum')
-#   test_length <- aggregate(data[dv], by = data[c(data_options$participant_factor, factors, data_options$trial_factor)], FUN = 'length')
-#   
-#   # transform our collapsed dataset into something pretty
-#   test <- data.frame(test_sum[c(data_options$participant_factor,data_options$trial_factor,factors)], test_sum[dv], test_length[dv])
-#   
-#   colnames(test) <- c(data_options$participant_factor,data_options$trial_factor,factors,'y','N')
-#   
-#   # calculate elog, wts
-#   test$elog <- log( (test$y + .5) / (test$N - test$y + .5) )
-#   test$wts <- (1/(test$y + .5)) + (1/(test$N - test$y + .5))
-#   
-#   # calculate proportion
-#   test$Proportion <- test$y / test$N
-#   
-#   # do an arcsine root transformation
-#   test$ArcSin <- asin(sqrt(test$Proportion))
-#   
-#   # set column modes
-#   test[, data_options$participant_factor] <- factor(test[, data_options$participant_factor])
-#   test[, data_options$trial_factor] <- factor(test[, data_options$trial_factor])
-#   
-#   # above, we recorded original factor classes in 'original_classes'
-#   # if these are numeric, let's reset them
-#   # if they were characters/factors, we can set them as factors for the sake
-#   # of analysis
-#   
-#   for (factor_name in names(original_classes)) {
-#     original_class <- original_classes[[factor_name]]  
-#     if (original_class == 'numeric') {
-#       test[, factor_name] <- as.numeric(as.character(test[, factor_name]))
-#     }  
-#     else {
-#       test[, factor_name] <- factor(test[, factor_name])
-#     }
-#   }
-#   
-#   test
-# }
+
 # 
 # # sequential_bins_analysis()
 # #
@@ -1360,176 +1399,11 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 # }
 # 
 # 
-# # subset_by_window ()
-# #
-# # Return a subset of the dataframe by the window parameters
-# #
-# # @param dataframe data
-# # @param list data_options
-# # @param integer window_start
-# # @param integer window_end
-# #
-# # @return dataframe data
-# subset_by_window <- function (data, data_options, window_start = NA, window_end = NA) {
-#   # do we have a looking window?  if so, filter by one or both of the window parameters
-#   if (!is.na(window_start) & is.na(window_end)) {
-#     message('subset_by_window','Trimming data before window...')
-#     data <- data[which(data[, data_options$time_factor] >= window_start), ]
-#   }
-#   else if (is.na(window_start) & !is.na(window_end)) {
-#     message('subset_by_window','Trimming data after window window...')
-#     data <- data[which(data[, data_options$time_factor] <= window_end), ]
-#   }
-#   else if (!is.na(window_start) & !is.na(window_end)) {
-#     message('subset_by_window','Trimming data outside of window...')
-#     data <- data[which(data[, data_options$time_factor] >= window_start & data[, data_options$time_factor] <= window_end), ]
-#   }
-#   
-#   data
-# }
-# 
-# # bin_data ()
-# # 
-# # This function will bin values in one column, "dv", grouping by any number of "factors"
-# # and one "sample_factor" column. The sample_factor column is divided by bin_samples and rounded down to bin.
-# # All rows that have the same values for the new binned sample column and factors are grouped
-# # together. Within each group, the mean, length, and sum are calculated on the dv.
-# #
-# # @param dataframe data
-# # @param list data_options
-# # @param integer bin_samples How many samples to put in a single bin?
-# # @param character.vector factors A vector of factor columns to aggregate by
-# # @param string dv The column to act as the DV
-# #
-# # @return dataframe binned_data
-# bin_data <- function(data, data_options, bin_samples, factors, dv) {  
-#   library(data.table, quietly=TRUE)
-#   
-#   sample_factor <- data_options$sample_factor
-#   
-#   # set all rows of the var that are NA to 0, so we don't get errors in calculating a mean
-#   # if we have rows like this, we have to assume they meant to keep trackloss, even though
-#   # keep_trackloss() would have already set NA to 0...
-#   data[is.na(data[, dv]), dv] <- 0
-#   
-#   # after we subset the data and our "zero" point is actually, say, 8000 samples from the 
-#   # phase onset, we run into trouble if we ask it to bin by a number of frames
-#   # that does not go into the minimum value evenly.  So, let's re-calibrate our sample_factor column
-#   # with a nice clean zero point.
-#   data[, sample_factor] <- as.numeric(as.character(data[, sample_factor]))
-#   
-#   if (min(data[,sample_factor]) > 0) {
-#     data[,sample_factor] <- data[,sample_factor] - min(data[,sample_factor])
-#   }
-#     
-#   # If binsize=3, then 0,1,2 will go to 0; 3,4,5 will go to 1, and so on. 
-#   message('bin_data', sprintf("Dividing values in column %s by bin size %d and rounding down... \n", dv, bin_samples))        
-#   data[,sample_factor] <- floor(data[,sample_factor] / bin_samples)
-#   
-#   # Collapse all rows where constants+timevar columns are the same 
-#   message('bin_data', sprintf("Processing column %s, in groups where the following columns have the same value:\n", dv))
-#   message('bin_data', sprintf("    %s\n", paste(c(factors, sample_factor), collapse=", ")))
-#   message('bin_data', " mean... ")
-#   data.mean   <- aggregate(data[, dv], by=data[c(factors, sample_factor)], 'mean')
-#   #names(data.mean)[names(data.mean) == dv]     <- "BinMean"
-#   setnames(data.mean, 'x', 'BinMean')
-#   
-#   # Get the number of rows in each bin
-#   message('bin_data', " bin size... ")
-#   data.length <- aggregate(data[, dv], by=data[c(factors, sample_factor)], 'length')
-#   #names(data.length)[names(data.length) == dv] <- "BinSize"
-#   setnames(data.length, 'x', 'BinSize')
-#   
-#   # Get the sum of the rows
-#   message('bin_data', " sum... \n")
-#   data.sum    <- aggregate(data[, dv], by=data[c(factors, sample_factor)], 'sum')
-#   #names(data.sum)   [names(data.sum)   == dv] <- "BinSum"
-#   setnames(data.sum, 'x', 'BinSum')
-#   
-#   message('bin_data', "Merging data frames for mean, bin size, and sum...\n")
-#   
-#   #datab <- merge(data.mean, data.length, c(factors, sample_factor))
-#   datab <- left_join(data.mean, data.length, by=c(factors, sample_factor))
-#   
-#   #datab <- merge(datab,     data.sum,    c(factors, sample_factor))
-#   datab <- left_join(datab, data.sum, by=c(factors, sample_factor))
-#   
-#   # Sort by all columns, from left to right
-#   datab <- datab[ do.call(order, as.list(datab)), ]
-#   
-#   datab
-# }
-# 
 
 
-# plot_data()
-#
-# Plot a dv in the data by levels of a factor.
-#
-# @param dataframe data
-# @param list data_options
-# @param string dv
-# @param string factor
-# @param string type ('empirical' or 'smoothed')
-# @param integer time_bin_size Time (ms) to bin data by in plot
-#
-# @return null Saves file to workingdirectory/output_file
-plot_data <- function(data, data_options, dv = NULL, factor = NULL, type = 'empirical', time_bin_size = 100) {
 
-  require('ggplot2')
-  
-  # use default if unset
-  if (is.null(dv)) {
-    dv = data_options$default_dv
-  }
-  if (is.null(factor)) {
-    factor = data_options$default_factors[1]
-  }
-  
-  if ( data_options$sample_rate / time_bin_size > 100 ) {
-    cat("\nWarning: You've selected a very small time window relate to your sample rate. Could be very slow.", 
-        "Press enter to continue anyways, or Esc to cancel.")
-    readline(prompt = "...")
-  }
-  
-  if (type == 'empirical') {
-    
-    time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-    group_by_arg = list(data_options$participant_factor, factor, "TimeBin")
-    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
-                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
-    
-    g = data %>%
-      mutate_(.dots =  time_bin_arg) %>%
-      group_by_(.dots =  group_by_arg) %>%
-      summarise_(.dots =  summarise_arg) %>%
-      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor)) +
-      stat_summary(fun.dat = mean_se) +
-      stat_summary(fun.y = mean, geom = "line")
-    
-    return(g)
-    
-  } else if (type == 'smoothed') {
-    
-    time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-    group_by_arg = list(data_options$participant_factor, "TimeBin", factor)
-    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
-                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
-    
-    g = data %>%
-      mutate_(.dots =  time_bin_arg) %>%
-      group_by_(.dots =  group_by_arg) %>%
-      summarise_(.dots =  summarise_arg) %>%
-      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor)) +
-      geom_smooth(method = 'loess')
-    
-    return(g)
-    
-  }
-  
-  stop("'Type' arg not recognized. Must be 'smoothed' or 'empirical'.")
-  
-}
+
+
 
 # se <- function(x) {
 #   y <- x[!is.na(x)] # remove the missing values, if any
