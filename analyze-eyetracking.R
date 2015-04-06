@@ -1460,469 +1460,77 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 #   datab
 # }
 # 
-# # plot_data()
-# #
-# # Plot a dv in the data by levels of a factor.
-# #
-# # @param dataframe data
-# # @param list data_options
-# # @param string output_file (default: 'graph.png')
-# # @param string dv
-# # @param string factor
-# # @param string title
-# # @param string y_title
-# # @param string x_title
-# # @param string type ('empirical' or 'smoothed')
-# # @param vector vertical_lines A vector of timepoints to add a vertical black line
-# # @param integer bin_time Time (ms) to bin data by in plot
-# # @param integer x_gap Plot the time on the x-axis incrementing by this much
-# # @param integer width Width of plot in pixels
-# # @param integer height Height of plot in pixels
-# #
-# # @return null Saves file to workingdirectory/output_file
-# plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, factor = 'Condition', title = 'Looking', y_title = 'Proportion', x_title = 'Time (ms)', type = 'empirical', vertical_lines = c(), bin_time = 100, x_gap = 500, width = 1000, height = 600) {
-#   # require dependencies
-#   require('ggplot2', quietly = TRUE)
-#   require('ggthemes', quietly = TRUE)
-#   require('reshape2', quietly = TRUE)
-#   
-#   # use defaults if unset
-#   if (is.na(dv)) {
-#     dv = data_options$default_dv
-#   }
-#   
-#   # zero the time align
-#   data$TimeAlign <- data[, data_options$time_factor] - min(data[, data_options$time_factor])
-#   
-#   # aggregate by participants, factor, and time
-#   data <- aggregate(data.frame(data[, dv]), by = list(data[, data_options$participant_factor], data[, factor], data$TimeAlign), FUN = mean, na.rm = TRUE)  
-# 
-#   # rename columns
-#   # call the participant column 'ParticipantName' because it will be called in spaghetti()
-#   # and its easier to just have it with this name
-#   colnames(data) <- c('ParticipantName',factor,'TimeAlign',dv)
-#   
-#   # make sure the factor is a factor
-#   data[, factor] <- factor(data[, factor])
-#   
-#   # now pass off to the spaghetti function...
-#   spaghetti(
-#       data,
-#       fname=output_file,
-#       onset=0,
-#       addOnsetLine=FALSE,
-#       plotwidth=width,
-#       plotheight=height,
-#       meltids=c(data_options$participant_factor,"TimePlot",factor),
-#       meltfactors=c(factor),
-#       timeAlignVar="TimeAlign",
-#       colorvariable=factor,
-#       errbarvars=NA,
-#       srate=(1000/data_options$sample_rate),
-#       region=c(dv),
-#       sample=bin_time,
-#       downsample="bin",
-#       vertical_lines = vertical_lines,
-#       upperlimit=max(data$TimeAlign),
-#       xbreakstep=x_gap,
-#       plottype=type,
-#       graphTitle=title,
-#       y_title = y_title,
-#       x_title = x_title,
-#       showplot=TRUE
-#     )
-# }
-# 
-# # spaghetti()
-# #
-# # Plot eyetracking data in a spaghetti plot
-# #
-# spaghetti = function(
-#   # version 0.1
-#   # written by jdegen@bcs.rochester.edu
-#   # 01/11/2012
-#   
-#   # modified by Brock Ferguson
-#   #   * set default options for this library
-#   #   * made default formatting better
-#   #   * added better formatting options, like titles
-#   #   * aggregated across subjects within a given bin so that they don't contribute
-#   #     multiple datapoints and lower the standard error
-#   
-#   # assumes that there are no rows where the value in the column coding region that is currently being looked at is empty. ie for ExAnalysis data.frames: rp_RegionType != ""
-#   data,
-#   meltids=c("TimeFromMovieOnset"), # vector of column names (as strings) to melt the dataset by (i.e. that you want to have the option of plotting by)
-#   meltfactors, # the variables in meltids that are factors. Necessary for as.factor(as.character) calls  	
-#   region=c("Target"), # vector of regions - region names must be column names in data
-#   colorvariable=NA, # variable you want to assign different colors by
-#   colormapping=NA, # a data.frame with two factor columns. One column with name of variable you want to map different colors to. One called "Color" with the color for each factor level. Data.frame row names must be levels of mapping variable, and data.frame must be sorted by mapping variable. 
-#   linevariable=NA, # variable (column name in data), levels of which you want to plot in different line types. Currently support only for two levels.
-#   sizevariable=NA, # variable (column name in data), levels of which you want to plot in different sizes. you can't specify a sizevariable if you haven't specified a linevariable. Currently support only for two levels.
-#   facetvariable=NA, # variable (column name in data), levels of which you want to plot in different grids. uses facet_wrap.
-#   errbars=TRUE, # plot error bars by default	
-#   errbarvars=NA, # vector of column names (as strings) in the melted dataset, the combination of which error bars are to be calculated from (only relevant if drawing ribbons/error bars)
-#   dataid="DataID", # name of the variable in the data.frame that uniquely codes samples. downsampling assumes that the data.frame is ordered by this variable, and that sample i and sample i+1 are in fact taken at sampling points t and t+1 (where t is the time step defined by the sampling frequency of the tracker, e.g. 4ms is the default for the EyeLink 500)
-#   sample=20, # ms to downsample to
-#   downsample="down", # down: downsample. bin: bin data into time bins of size sample
-#   srate=4, # sampling rate in ms. 4ms is the default for the EyeLink 500	
-#   half="both", # only generalized for half="both". if half = "first" or "second", assumes number of trials in my color_gumballs dataset
-#   exclude=NA, # don't exclude data by default. if exclude is list of vectors of character strings, interpret character strings as levels of the variables denoted by the names of the list elements and exclude those from data. e.g. exclude=list(Var1=c("a","b"),Var2=c("1")). only works with factors.
-#   onset = 100, # time that 0-point of linguistic event of interest should be aligned to, in ms
-#   upperlimit = 5133, # upper limit on x axis (time in ms)
-#   timeAlignVar=NA, # column that contains time variable that you want to align by (ie you want to align at the 0 point of that variable)
-#   addOnsetLine=TRUE, # add a vertical line at linguistic event onset
-#   addVerticalLine=FALSE, # add a second vertical line at eg mean onset of another event. provide name of that time variable where 0 is the onset of that event, e.g. "Time_rel_stim_Adjective"
-#   extraVerticalType="collapsed", # one of "individual" or "collapsed". Either prints mean onset of each level of the additional linguistic event of interest (individual) or overall mean (sollapsed).
-#   #	onsetReg=c("competitor","target"), # regions that can have been looked to at onset of linguistic event of interest
-#   plottype="empirical", # one of "empirical" or "smoothed". The former plots empirical means (without error bars), the latter plots smoothed predicted means based on y~x. If you want to change the formula for the smoother, set form.
-#   form=formula("y~x"), # formula to pass to smoother. 
-#   method = "auto", # method for smoother to use. can be e.g. lm, glm, loess, etc. see stat_smooth for details
-#   #	aggregateby=FALSE, # if downsample == "bin" and aggregateby is a string, proportions will be computed for timewindows of size sample and aggregated by aggregateby (eg "Subject")
-#   analysiswindow=FALSE, # don't plot analysis window by default. when TRUE, not yet generalized. maybe add extra argument of c(window_start,window_end) times, relative to onset of linguistic event of interest?
-#   analysisonset=0, 
-#   extraopts=FALSE, # don't change the text size etc defaults. when TRUE, sets legend text size to 20, axis text size to 15, axis title size to 20, legend background to white, and panel label size to 20
-#   #	align="qonset", # figure out if you can generalize this at all
-#   xbreakstep=200, # size of tick mark spacing on x-axis
-#   plotwidth=800, # width of the plot in pixels
-#   plotheight=450, # height of the plot in pixels
-#   fname=NA, # file name (quoted). if left NA, generates a filename for pdf that is not generalized	
-#   showplot=FALSE, # don't print plot by default (save straight to file instead). If TRUE, will both print plot in quartz window and print plot to file
-#   
-#   # parameters deleted by Brock
-#   # graphdir="./", # path to directory where graph will be saved
-#   
-#   # parameters added by Brock
-#   graphTitle = "Looking Proportions",
-#   y_title = 'Proportion Looking',
-#   x_title = 'Time (ms)',
-#   timeAdjust = 0,
-#   vertical_lines = NA, # e.g., c(15000,20000)
-#   ...
-# )
-# {
-#   # remove data based on specified factor levels	
-#   if (!is.na(exclude))
-#   {
-#     for (e in names(exclude))
-#     {
-#       data = data[!data[,e] %in% exclude[[e]],]
-#       print(paste("removed levels:",exclude[[e]],"of variable",e))
-#     }
-#     print(paste("after removing factor levels:",nrow(data)))
-#   }
-#   
-#   # remove first/second half
-#   if (half == "first")
-#   {
-#     data <- subset(data, TrialNumber <= 120/2)
-#     print(paste("after removing second half:",nrow(data)))
-#   }
-#   if (half == "second")
-#   {
-#     data <- subset(data, TrialNumber > 120/2)
-#     print(paste("after removing first half:",nrow(data)))		
-#   }		
-#   
-#   # create time variable to plot on x axis and remove samples not in desired time window
-#   print(paste("event onset at", onset))
-#   data$TimePlot = data[,timeAlignVar] + onset
-#   
-#   if (addVerticalLine != FALSE) { data$NewAdj = onset + (data[,timeAlignVar] - data[,addVerticalLine]) }
-#   data = subset(data, TimePlot >= 0 & TimePlot <= upperlimit)
-#   print(paste("after removing samples before sentence onset and after upper limit:",nrow(data)))
-#   
-#   if (downsample == "bin")
-#   {
-#     print(paste("binning into time bins of",sample,"ms"))
-#     data$TimePlot <- (data$TimePlot %/% sample) * sample
-#     print(paste("after binning data:",nrow(data)))		
-#   } else {
-#     if (downsample == "down")	
-#     {
-#       print(paste("downsampling to",sample,"ms"))	
-#       data <- data[as.numeric(as.character(data[,"TimePlot"])) %% (sample/srate) == 0,]
-#       print(paste("after downsampling:",nrow(data)))			
-#     }
-#   }
-#   
-#   if (is.na(fname)) 
-#   { 
-#     if (fileformat == "png")
-#     {
-#       fname = "spaghettiplot.png" 
-#     } else {
-#       if (fileformat == "pdf")	
-#       {
-#         fname = "spaghettiplot.pdf"
-#       }
-#     }	
-#   }
-#   
-#   # create a reduced dataset containing only the data you need
-#   for (me in meltfactors)
-#   {
-#     data[,me] = as.factor(as.character(data[,me]))
-#   }
-#   melted = melt(data,id = meltids,measure=region)
-#   melted$value = as.numeric(as.character(melted$value))
-#   
-#   i=0
-#   texty=c()
-#   
-#   if (is.na(errbarvars))
-#   {
-#     errbarvars = c(colorvariable,linevariable,sizevariable,facetvariable)
-#     errbarvars = errbarvars[!is.na(errbarvars)]
-#   }
-#   
-#   for (v in errbarvars)
-#   {
-#     if (i==0)
-#     {
-#       texty=paste(texty,paste("data[,\"",v,"\"]",sep=""),sep="")
-#       i=1
-#     } else {
-#       texty=paste(texty,paste("data[,\"",v,"\"]",sep=""),sep=",")			
-#     }
-#   }
-#   texty=paste("paste(",texty,")",sep="")
-#   melted$errbargroup = eval(parse(text=texty))
-#   melted$errbargroup = as.factor(as.character(melted$errbargroup))
-#   
-#   # aggregate over subjects so they don't contribute multiple points to a given bin
-#   melted <- with(melted,aggregate(value, by = list(ParticipantName,TimePlot,eval(parse(text=colorvariable)),variable,errbargroup), FUN = mean, na.rm = TRUE))
-#   colnames(melted) <- c('ParticipantName','TimePlot',colorvariable,'variable','errbargroup','value')
-#   
-#   # create the base plot
-#   if (is.na(facetvariable))
-#   {
-#     if (plottype == "empirical")
-#     {
-#       if (is.na(linevariable))
-#       {
-#         agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="mean",na.rm = TRUE))
-#         colnames(agr) = c("TimePlot",colorvariable,"errbargroup","value")		
-#         
-#         agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="se"))$x
-#         agr$YMin = agr$value - agr$SE
-#         agr$YMax = agr$value + agr$SE
-#         limits = aes(ymin=YMin,ymax=YMax)					
-#         p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable))
-#       } else {			
-#         if (is.na(sizevariable))
-#         {
-#           agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="mean",na.rm = TRUE))
-#           colnames(agr) = c("TimePlot",colorvariable,linevariable,"errbargroup","value")
-#           
-#           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="se"))$x	
-#           agr$YMin = agr$value - agr$SE
-#           agr$YMax = agr$value + agr$SE
-#           limits = aes(ymin=YMin,ymax=YMax)		
-#           p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable))
-#         } else {
-#           agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="mean",na.rm = TRUE))
-#           colnames(agr) = c("TimePlot",colorvariable,linevariable,sizevariable,"errbargroup","value")
-#           
-#           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="se"))$x
-#           agr$YMin = agr$value - agr$SE
-#           agr$YMax = agr$value + agr$SE
-#           limits = aes(ymin=YMin,ymax=YMax)						
-#           
-#           p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable,size=sizevariable)) +
-#             scale_size_manual(values=c(3,1.5))	
-#         }
-#       }
-#       p = p +
-#         geom_line(aes_string(group="errbargroup"),size=I(2))
-#       if (errbars)
-#       {
-#         p = p + geom_errorbar(limits, size = .4, width = 50)	
-#       }
-#       
-#     } else
-#     {
-#       if (is.na(linevariable))
-#       {
-#         p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable))
-#       } else {
-#         if (is.na(sizevariable))
-#         {
-#           p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable))			
-#         } else {
-#           p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable,size=sizevariable))						
-#         }
-#       }
-#       p = p +
-#         stat_smooth(aes_string(group="errbargroup",fill=colorvariable),size=I(1.5),method=method,formula=form)
-#       if (!is.na(colormapping)) {
-#         p = p + scale_fill_manual(values=colormapping[sort(as.character(unique(melted[,colorvariable]))),]$Color)
-#       }				
-#     }
-#   } else {
-#     if (plottype == "empirical")
-#     {
-#       if (is.na(linevariable))
-#       {
-#         agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = TRUE))
-#         colnames(agr) = c("TimePlot",colorvariable,"errbargroup",facetvariable,"value")		
-#         agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x
-#         agr$YMin = agr$value - agr$SE
-#         agr$YMax = agr$value + agr$SE
-#         limits = aes(ymin=YMin,ymax=YMax)					
-#         p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable)) #+
-#       } else {			
-#         if (is.na(sizevariable))
-#         {
-#           agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = TRUE))
-#           colnames(agr) = c("TimePlot",colorvariable,linevariable,"errbargroup",facetvariable,"value")
-#           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x	
-#           agr$YMin = agr$value - agr$SE
-#           agr$YMax = agr$value + agr$SE
-#           limits = aes(ymin=YMin,ymax=YMax)		
-#           p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable)) #+
-#         } else {
-#           agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = TRUE))
-#           colnames(agr) = c("TimePlot",colorvariable,linevariable,sizevariable,"errbargroup",facetvariable,"value")
-#           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x
-#           agr$YMin = agr$value - agr$SE
-#           agr$YMax = agr$value + agr$SE
-#           limits = aes(ymin=YMin,ymax=YMax)						
-#           
-#           p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable,size=sizevariable)) +
-#             scale_size_manual(values=c(3,1.5))	
-#         }
-#       }
-#       p = p +
-#         geom_line(aes(group=errbargroup),size=I(1))
-#       if (errbars)
-#       {
-#         p = p + geom_errorbar(limits,linetype=I(1))	
-#       }
-#       
-#     } else
-#     {
-#       if (is.na(linevariable))
-#       {
-#         p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable))
-#       } else {
-#         if (is.na(sizevariable))
-#         {
-#           p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable))			
-#         } else {
-#           p = ggplot(melted, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable,size=sizevariable))						
-#         }
-#       }
-#       p = p +
-#         stat_smooth(aes_string(group="errbargroup",fill=colorvariable),size=I(1.5))
-#       if (!is.na(colormapping)) {
-#         p = p + scale_fill_manual(values=colormapping[sort(as.character(unique(melted[,colorvariable]))),]$Color)			
-#       }	
-#     }
-#     form = as.formula(paste("~",facetvariable,sep=""))
-#     p = p +
-#       facet_wrap(form)			
-#   }
-#   
-#   # extra stuff that's common to all plots
-#   if (analysiswindow) {
-#     onset = onset + analysisonset
-#   }
-#   
-#   p <- p +
-#        theme_bw(base_family = "Arial", base_size = 16) +
-#        scale_colour_hue(l = 60, c = 150, h.start = 0) +
-#        theme(legend.position = c(.86,.12)) +
-#        theme(axis.title.x = element_text(vjust=-0.3)) + # move x-axis label lower
-#        theme(axis.title.y = element_text(vjust=1.15)) + # move y-axis label left
-#        theme(panel.grid.minor = element_blank()) + # no grids
-#        theme(panel.grid.major = element_blank()) + # no borders
-#        theme(panel.border = element_rect(size=1, color='black')) +
-#        coord_cartesian(ylim=c(0,1)) +  
-#        scale_y_continuous(y_title, breaks = c(0, .25, .5, .75, 1)) +
-#        scale_x_continuous(x_title,breaks=seq(0 + timeAdjust,upperlimit + timeAdjust,by=xbreakstep)) 
-#   
-#   if (addOnsetLine)
-#   {
-#     p <- p + geom_vline(xintercept=onset, colour="black",size=I(1.5),legend=FALSE)
-#   }
-#   if (!is.na(colormapping))	
-#   {
-#     p = p +	
-#       scale_colour_manual(values=colormapping[sort(as.character(unique(melted[,colorvariable]))),]$Color)
-#   }
-#   
-#   if (addVerticalLine != FALSE)
-#   {
-#     means <- with(data,aggregate(NewAdj, by=list(eval(parse(text=colorvariable))), FUN=mean,na.rm = TRUE))
-#     row.names(means) <- means$Group.1
-#     means <- means[order(means$Group.1),]
-#     
-#     if (extraVerticalType == "individual")
-#     {
-#       for (i in 1:length(means$x))
-#       {
-#         xi <- means$x[i]
-#         if (analysiswindow) { xi <- xi + analysisonset }
-#         if (!is.na(colormapping))
-#         {
-#           co <- as.character(colormapping[as.character(means$Group.1[i]),]$Color)
-#         } else {
-#           co <- "black"
-#         }
-#         p <- p + geom_vline(xintercept=xi, colour=I(co),size=I(1.5),legend=FALSE)
-#       }
-#     } else {
-#       if (extraVerticalType == "collapsed")	
-#       {
-#         xi <- mean(means$x)				
-#         if (analysiswindow) { xi <- xi + analysisonset }
-#         p <- p + geom_vline(xintercept=xi, colour="black", size=I(1.5),legend=FALSE)
-#       }
-#     }
-#   }
-#   
-#   
-#   # set options
-#   # p <- p +
-#   #  opts(
-#   #    legend.text = theme_text(size = 12),
-#   #    axis.text.x = theme_text(size=12),
-#   #    axis.text.y = theme_text(size=12,hjust=1),
-#   #    axis.title.x = theme_text(size=14,vjust=.05),
-#   #    axis.title.y = theme_text(size=14,angle=90,vjust=0.25),
-#   #    legend.background=theme_rect(fill="white"),
-#   #    strip.text.x = theme_text(size=14),
-#   #    title = graphTitle,
-#   #    plot.title = theme_text(size=18, lineheight=.8, face="bold", vjust=1.5)
-#   #  ) 
-#   
-#   if (length(vertical_lines) > 0 && !is.na(vertical_lines)) {
-#     for (i in 1:length(vertical_lines)) {
-#       line <- vertical_lines[i]
-#       
-#       cat("line: ")
-#       cat(line)
-#       
-#       p = p + geom_vline(xintercept=line, colour="black",size=I(1.5))
-#     }
-#   }
-#   
-#   if (showplot) { print(p) }
-#   # print plot to file	
-#   print(paste("printing to",fname))	
-#   
-#   png(filename = fname,
-#          width = plotwidth, height = plotheight,
-#          units = "px",
-#          res = 400)
-#   
-#   print(p)
-#   dev.off()
-#   
-#   rm(p)
-#   gc() 
-# }
-# 
+
+
+# plot_data()
+#
+# Plot a dv in the data by levels of a factor.
+#
+# @param dataframe data
+# @param list data_options
+# @param string dv
+# @param string factor
+# @param string type ('empirical' or 'smoothed')
+# @param integer time_bin_size Time (ms) to bin data by in plot
+#
+# @return null Saves file to workingdirectory/output_file
+plot_data <- function(data, data_options, dv = NULL, factor = NULL, type = 'empirical', time_bin_size = 100) {
+
+  require('ggplot2')
+  
+  # use default if unset
+  if (is.null(dv)) {
+    dv = data_options$default_dv
+  }
+  if (is.null(factor)) {
+    factor = data_options$default_factors[1]
+  }
+  
+  if ( data_options$sample_rate / time_bin_size > 100 ) {
+    cat("\nWarning: You've selected a very small time window relate to your sample rate. Could be very slow.", 
+        "Press enter to continue anyways, or Esc to cancel.")
+    readline(prompt = "...")
+  }
+  
+  if (type == 'empirical') {
+    
+    time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
+    group_by_arg = list(data_options$participant_factor, factor, "TimeBin")
+    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
+                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
+    
+    g = data %>%
+      mutate_(.dots =  time_bin_arg) %>%
+      group_by_(.dots =  group_by_arg) %>%
+      summarise_(.dots =  summarise_arg) %>%
+      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor)) +
+      stat_summary(fun.dat = mean_se) +
+      stat_summary(fun.y = mean, geom = "line")
+    
+    return(g)
+    
+  } else if (type == 'smoothed') {
+    
+    time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
+    group_by_arg = list(data_options$participant_factor, "TimeBin", factor)
+    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
+                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
+    
+    g = data %>%
+      mutate_(.dots =  time_bin_arg) %>%
+      group_by_(.dots =  group_by_arg) %>%
+      summarise_(.dots =  summarise_arg) %>%
+      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor)) +
+      geom_smooth(method = 'loess')
+    
+    return(g)
+    
+  }
+  
+  stop("'Type' arg not recognized. Must be 'smoothed' or 'empirical'.")
+  
+}
+
 # se <- function(x) {
 #   y <- x[!is.na(x)] # remove the missing values, if any
 #   sqrt(var(as.vector(y))/length(y))
