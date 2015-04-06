@@ -113,14 +113,14 @@ describe_data = function(data, dv, factors) {
   require(lazyeval)
   
   
-  to_summarise = c("mean(dv, na.rm= TRUE)",
-                      "sd(dv, na.rm= TRUE)",
-                      "var(dv, na.rm= TRUE)",
-                      "min(dv, na.rm= TRUE)",
-                      "max(dv, na.rm= TRUE)"
+  to_summarise = c("~mean(dv, na.rm= TRUE)",
+                      "~sd(dv, na.rm= TRUE)",
+                      "~var(dv, na.rm= TRUE)",
+                      "~min(dv, na.rm= TRUE)",
+                      "~max(dv, na.rm= TRUE)"
   )
-  to_summarise = as.list( gsub(pattern = "dv", replacement = dv, x = to_summarise) )
-  to_summarise = lapply(X = to_summarise, FUN = function(x) as.formula(paste("~", x)) )
+  to_summarise = as.list( gsub(pattern = "dv", replacement = dv, x = to_summarise) ) %>%
+    lapply(as.formula)
   names(to_summarise) = c("Mean", "SD", "Var", "Min", "Max")
   
   data %>%
@@ -128,363 +128,157 @@ describe_data = function(data, dv, factors) {
     summarise_(.dots = to_summarise)
 }
 
-# 
-# # generate_random_data()
-# #
-# # Generate a random set of looking time data
-# #
-# # @param list data_options
-# # @param integer seed (optional)
-# #
-# # @return dataframe data
-# generate_random_data <- function (data_options, seed = NA, num_participants = 20) {
-#   # if we have a seed, set it so that we can generate a consistent dataset
-#   # perhaps to follow along in a tutorial
-#   if (!is.na(seed)) {
-#     set.seed(seed)
-#   }
-#   
-#   # Experiment design
-#   #
-#   # Looking while listening, look to target
-#   # 
-#   # Will children look towards objects thematically associated with the heard word?
-#   #
-#   # Conditions:
-#   #     Related, one of the objects is related to the word
-#   #     NotRelated, no thematic matches
-#   
-#   # set participants
-#   participants <- c(1:num_participants)
-#   
-#   # Rows
-#   #
-#   # We will have 8 seconds of total looking in each of our 6 trials for 20 participants
-#   #   baseline: 4 seconds
-#   #   response: 4 seconds
-#   
-#   num_rows <- data_options$sample_rate*8*6*max(participants)
-#   
-#   # Columns
-#   #
-#   # ParticipantName
-#   # Age
-#   # Condition
-#   # TrialNum
-#   # Trial
-#   # Window
-#   # Time
-#   # Sample
-#   # Trackloss
-#   # ActiveAOI (Target, Distractor)
-#   # Target
-#   # Distractor
-#   
-#   data <- data.frame(matrix(nrow = num_rows, ncol = 12))
-#   colnames(data) <- c(data_options$participant_factor, 'Age', 'Condition', 'TrialNum', data_options$trial_factor, 'Window', data_options$time_factor, data_options$sample_factor, data_options$trackloss_factor, data_options$active_aoi_factor, 'Target', 'Distractor')
-#   
-#   # calculate the general slopes by condition
-#   
-#   # break the response period into 16 phases, and use a log function to
-#   # increase the likelihood of a look towards the Target
-#   log_target <- rep(log(seq(1,16), 100000),each=((data_options$sample_rate*4)/16))
-#   
-#   # add some error
-#   error <- rnorm((data_options$sample_rate*4),0,.15)
-#   
-#   # calculate looking to target (>.5 == a target look)
-#   y <- .5 + log_target + error
-#   
-#   # fix ceiling/floor hits
-#   y[which(y > 1.0)] <- 1.0
-#   y[which(y < 0)] <- 0
-#   
-#   Related <- y
-#   
-#   # and again...
-#   error <- rnorm((data_options$sample_rate*4),0,.07)
-#   y <- .55 + error
-#   y[which(y > 1.0)] <- 1.0
-#   y[which(y < 0)] <- 0
-#   
-#   NotRelated <- y
-#   
-#   for (x in participants) {
-#     # this participant's data will live in these rows
-#     row_range <- seq((((x - 1)*(data_options$sample_rate*8*6))+1),(x*data_options$sample_rate*8*6))
-#     
-#     participant_id <- paste('SUBJ_',x,sep="")
-#     condition <- ifelse(x <= floor(length(participants) / 2), 'Knower','NonKnower')
-#     data[row_range, data_options$participant_factor] <- participant_id
-#     data[row_range, 'Age'] <- round(rnorm(1,24,.25), 2)
-#     data[row_range, 'Condition'] <- condition
-#     data[row_range, 'TrialNum'] <- rep(c(1:6),each=(data_options$sample_rate*8))
-#     data[row_range, data_options$trial_factor] <- rep(c('Chimpanzee','Bowl','Speaker','Woman','Pen','Basketball'),each=(data_options$sample_rate*8))
-#     data[row_range, data_options$sample_factor] <- rep(c(1:(data_options$sample_rate*8)),times=6)
-#     data[row_range, data_options$time_factor] <- (data[row_range, data_options$sample_factor]-1)*(1000/data_options$sample_rate)
-#     
-#     # generate trackloss probability for this participant
-#     trackloss_probability <- runif(1,.1,0.35)
-#     
-#     data[row_range, data_options$trackloss_factor] <- rbinom((data_options$sample_rate*8*6),1,trackloss_probability)
-#     
-#     # for baseline, they have a 50% chance of looking to the target or distractor
-#     data[row_range, data_options$active_aoi_factor] <- 0
-#     
-#     # AOI assignment is by trial
-#     for (y in 1:6) {
-#       # for baseline, let's just give everyone a 50/50 chance
-#       baseline_range <- which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] <= (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
-#       
-#       data[baseline_range, 'Window'] <- 'Baseline'
-#       data[baseline_range, 'Target'] <- ifelse(rbinom((data_options$sample_rate*4),1,0.5) == 1,1,0)
-#       
-#       # for response, we can set the target/distractor looks using the conditions
-#       # sloped probability (defined above)
-#       response_range <- which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] > (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
-#       
-#       data[response_range, 'Window'] <- 'Response'
-#       
-#       if (condition == 'Knower') {
-#         data[response_range, 'Target'] <- Related
-#       }
-#       else {
-#         data[response_range, 'Target'] <- NotRelated
-#       }
-#       
-#       data[response_range, 'Target'] <- sapply(data[response_range, 'Target'], function (x) {
-#         rbinom(1,1,as.numeric(x))
-#       });
-#     }
-#     
-#     # set AOI columns from active_aoi_factor
-#     data[which(data[, 'Target'] == 1), data_options$active_aoi_factor] <- 'Target'
-#     data[which(data[, 'Target'] == 1), 'Distractor'] <- 0
-#     data[which(data[, 'Target'] == 0), data_options$active_aoi_factor] <- 'Distractor'
-#     data[which(data[, 'Target'] == 0), 'Distractor'] <- 1
-#     
-#     # no AOI for trackloss
-#     data[which(data[, data_options$trackloss_factor] == 1), data_options$active_aoi_factor] <- NA
-#     data[which(data[, data_options$trackloss_factor] == 1), 'Target'] <- NA
-#     data[which(data[, data_options$trackloss_factor] == 1), 'Distractor'] <- NA
-#   }
-#   
-#   # verify and format dataset
-#   data <- verify_dataset(data, data_options, silent = TRUE)
-#   
-#   data$Condition <- factor(data$Condition)
-#   data$Window <- factor(data$Window)
-#   data[, data_options$active_aoi_factor] <- factor(data[, data_options$active_aoi_factor])
-#   
-#   data
-# }
-# 
-# # clean_by_factor()
-# #
-# # Clean a dataset by only retaining rows that match one of several values
-# # on a specified factor. For example, you may have a column of MovieName and
-# # only want to retain timeperiods where the participant was watching "TestMovie.mov".
-# # Or, you may have a column Phase and only be interested in the "Baseline" and
-# # "Test" phases.
-# #
-# # @param dataframe data; e.g., master_clean
-# # @param list data_options, e.g., data_options
-# # @param string factor; e.g., 'MovieName'
-# # @param character.vector allowed_levels; e.g., c('Movie1','Movie2')
-# #
-# # @return dataframe data
-# clean_by_factor <- function (data, data_options, factor, allowed_levels) {
-#   # refactor column to ensure it is indeed a factor
-#   data[, factor] <- factor(data[, factor])
-#   
-#   # subset data by rows that meet the criterion
-#   data <- subset(data, data[,factor] %in% allowed_levels)
-# 
-#   data
-# }
-# 
-# # treat_outside_looks_as_trackloss()
-# #
-# # Treat looks outside of any AOIs as trackloss.
-# #
-# # @param dataframe data
-# # @param list data_options
-# #
-# # @return dataframe data
-# treat_outside_looks_as_trackloss <- function(data, data_options) {
-#   # if the active AOI column is empty or NA, set the trackloss column as 1
-#   if (length(which(data[, data_options$active_aoi_factor] == '')) > 0) {
-#     data[which(data[, data_options$active_aoi_factor] == ''), data_options$trackloss_factor] <- 1
-#   }
-#   
-#   data[is.na(data[, data_options$active_aoi_factor]), data_options$trackloss_factor] <- 1
-# 
-#   data
-# }
-# 
-# # get_trackloss_data()
-# #
-# # Describe the type of trackloss in our data or, more specifically, within a subsetted time
-# # window of our data.
-# #
-# # @param dataframe data
-# # @param list data_options
-# # @param integer window_start optional
-# # @param integer window_end optional
-# #
-# # @return list(trackloss, trials_committed)
-# get_trackloss_data <- function(data, data_options, window_start = NA, window_end = NA) {
-#   # subset data by the optional window parameters
-#   data <- subset_by_window(data, data_options, window_start, window_end)
-#   
-#   # count looking frames by trials/babies
-#   looking <- aggregate(data[, data_options$trackloss_factor], by = list(data[, data_options$participant_factor], data[, data_options$trial_factor]), 'sum', na.rm = TRUE)
-#   
-#   # count total datapoints by trials/babies
-#   total <- aggregate(data[, data_options$participant_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'length')
-#   looking$TotalFrames <- total[, 3]
-#   
-#   colnames(looking) <- c(data_options$participant_factor, data_options$trial_factor,'SamplesLooking','TotalSamples')
-#   
-#   # now flip the SamplesLooking column, as it currently counts the trackloss (not good frames)
-#   looking$SamplesLooking <- looking$TotalSamples - looking$SamplesLooking
-#   
-#   # add new columns for convenience
-#   looking$TracklossSamples <- looking$TotalSamples - looking$SamplesLooking
-#   looking$TracklossProportion <- looking$TracklossSamples / (looking$TotalSamples)
-#   
-#   # count trials by babies to see which were excluded just by not finishing the experiment
-#   # or not looking AT ALL (prior to trackloss scrubbing)
-#   looking_no_zeroes <- looking[which(looking$SamplesLooking > 0), ]
-#   trials_committed <- aggregate(looking_no_zeroes[, data_options$trial_factor], by = list(looking_no_zeroes[, data_options$participant_factor]), 'length')
-#   colnames(trials_committed) <- c(data_options$participant_factor,'Trials')
-#   
-#   list (
-#       trackloss = looking,
-#       trials_committed = trials_committed
-#     )
-# }
-# 
-# # clean_by_trackloss()
-# #
-# # Clean our master file by removing data from trials that contain less than a
-# # specified number of non-trackloss samples.
-# #
-# # @param dataframe data
-# # @param list data_options
-# # @param integer window_start optional
-# # @param integer window_end optional
-# # @param integer minimum_samples
-# #
-# # @return dataframe data
-# clean_by_trackloss <- function(data, data_options, window_start = NA, window_end = NA, minimum_samples = NA) {
-#   # copy this object as we will want to manipulate it later.
-#   # we are going to cut the original data by the window dimensions but
-#   # want to return the full dataset.
-#   raw_data <- data
-#   
-#   # subset data by the optional window parameters
-#   data <- subset_by_window(data, data_options, window_start, window_end)
-#   
-#   looking <- aggregate(data[, data_options$trackloss_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'sum', na.rm = TRUE)
-#   
-#   # count total datapoints by trials/babies
-#   total <- aggregate(data[, data_options$participant_factor], by = list(data[, data_options$participant_factor],data[, data_options$trial_factor]), 'length')
-#   looking$TotalSamples <- total[, 3]
-#   
-#   colnames(looking) <- c(data_options$participant_factor,data_options$trial_factor,'SamplesLooking','TotalSamples')
-#   
-#   # now flip the SamplesLooking column, as it currently counts the trackloss (not good samples)
-#   looking$SamplesLooking <- looking$TotalSamples - looking$SamplesLooking
-#   
-#   # which should be removed?
-#   message('clean_by_trackloss','Calculating trials to be dropped...')
-#   trackloss_trials <- looking[which(looking$SamplesLooking < minimum_samples), ]
-#   
-#   message('clean_by_trackloss',paste('Dropping ',nrow(trackloss_trials),' trials...',sep=""))
-#   
-#   if (nrow(trackloss_trials) > 0) {
-#     for (i in 1:nrow(trackloss_trials)) {
-#       row <- trackloss_trials[i, ]
-#       
-#       raw_data <- raw_data[-which(raw_data[, data_options$trial_factor] == as.character(row[, data_options$trial_factor]) & raw_data[, data_options$participant_factor] == as.character(row[, data_options$participant_factor])), ]
-#     }
-#   }
-#   
-#   raw_data
-# }
-# 
-# # final_trial_counts()
-# #
-# # Calculate how many trials were committed to our analysis by each participant
-# #
-# # @param dataframe data
-# # @param list data_options
-# # @param integer window_start
-# # @param integer window_end
-# #
-# # @return dataframe trials_committed
-# final_trial_counts <- function(data, data_options, window_start = NA, window_end = NA) {
-#   # subset data by the optional window parameters
-#   data <- subset_by_window(data, data_options, window_start, window_end)
-#   
-#   excluding_trackloss <- data[which(data[, data_options$trackloss_factor] == 0 | is.na(data[, data_options$trackloss_factor])), ]
-#   
-#   # count looking frames by trials/babies
-#   looking <- aggregate(excluding_trackloss[, data_options$participant_factor], by = list(excluding_trackloss[, data_options$participant_factor],excluding_trackloss[, data_options$trial_factor]), 'length')
-#   colnames(looking) <- c(data_options$participant_factor,data_options$trial_factor,'SamplesLooking')
-#   
-#   # count trials by babies
-#   trials_committed <- aggregate(looking[, data_options$trial_factor], by = list(looking[, data_options$participant_factor]), 'length')
-#   colnames(trials_committed) <- c(data_options$participant_factor,'Trials')
-#   
-#   trials_committed
-# }
-# 
-# # keep_trackloss()
-# #
-# # Keep individual trackloss points by making sure all AOI
-# # columns are accurate.
-# #
-# # @param dataframe data
-# # @param list data_options
-# #
-# # @return dataframe data
-# keep_trackloss <- function(data, data_options) {
-#   scenes <- levels(data[, data_options$active_aoi_factor])
-#   
-#   # the idea here is to set all AOI columns to 0 where they are currently NA
-#   # so that we can get accurate proportions across the column.
-#   # if we didn't do this, we would get proportions that exclude the NA rows
-#   # (as if we were excluding trackloss)
-#   for (i in 1:length(scenes)) {
-#     scene <- scenes[i]
-#     
-#     if (scene != '') {     
-#       if (length(data[is.na(data[,scene]), scene]) > 0) {
-#         data[is.na(data[,scene]), scene] <- 0
-#       }
-#     }
-#   }
-#   
-#   data
-# }
-# 
-# # remove_trackloss()
-# #
-# # Remove individual trackloss points by removing all rows with the
-# # trackloss column set as 1.
-# #
-# # @param dataframe data
-# # @param list data_options
-# # 
-# # @return dataframe data
-# remove_trackloss <- function(data, data_options) {
-#   data <- data[-which(data[, data_options$trackloss_factor] == 1), ]
-#   
-#   data
-# }
-# 
+
+# generate_random_data()
+#
+# Generate a random set of looking time data
+#
+# @param list data_options
+# @param integer seed (optional)
+#
+# @return dataframe data
+generate_random_data <- function (data_options, seed = NA, num_participants = 20) {
+  # if we have a seed, set it so that we can generate a consistent dataset
+  # perhaps to follow along in a tutorial
+  if (!is.na(seed)) {
+    set.seed(seed)
+  }
+  
+  # Experiment design
+  #
+  # Looking while listening, look to target
+  # 
+  # Will children look towards objects thematically associated with the heard word?
+  #
+  # Conditions:
+  #     Related, one of the objects is related to the word
+  #     NotRelated, no thematic matches
+  
+  # set participants
+  participants <- c(1:num_participants)
+  
+  # Rows
+  #
+  # We will have 8 seconds of total looking in each of our 6 trials for 20 participants
+  #   baseline: 4 seconds
+  #   response: 4 seconds
+  
+  num_rows <- data_options$sample_rate*8*6*max(participants)
+  
+  # Columns
+  #
+  # ParticipantName
+  # Age
+  # Condition
+  # TrialNum
+  # Trial
+  # Window
+  # Time
+  # Sample
+  # Trackloss
+  # ActiveAOI (Target, Distractor)
+  # Target
+  # Distractor
+  
+  data <- data.frame(matrix(nrow = num_rows, ncol = 12))
+  colnames(data) <- c(data_options$participant_factor, 'Age', 'Condition', 'TrialNum', data_options$trial_factor, 'Window', data_options$time_factor, data_options$sample_factor, data_options$trackloss_factor, data_options$active_aoi_factor, 'Target', 'Distractor')
+  
+  # calculate the general slopes by condition
+  
+  # break the response period into 16 phases, and use a log function to
+  # increase the likelihood of a look towards the Target
+  log_target <- rep(log(seq(1,16), 100000),each=((data_options$sample_rate*4)/16))
+  
+  # add some error
+  error <- rnorm((data_options$sample_rate*4),0,.15)
+  
+  # calculate looking to target (>.5 == a target look)
+  y <- .5 + log_target + error
+  
+  # fix ceiling/floor hits
+  y[which(y > 1.0)] <- 1.0
+  y[which(y < 0)] <- 0
+  
+  Related <- y
+  
+  # and again...
+  error <- rnorm((data_options$sample_rate*4),0,.07)
+  y <- .55 + error
+  y[which(y > 1.0)] <- 1.0
+  y[which(y < 0)] <- 0
+  
+  NotRelated <- y
+  
+  for (x in participants) {
+    # this participant's data will live in these rows
+    row_range <- seq((((x - 1)*(data_options$sample_rate*8*6))+1),(x*data_options$sample_rate*8*6))
+    
+    participant_id <- paste('SUBJ_',x,sep="")
+    condition <- ifelse(x <= floor(length(participants) / 2), 'Knower','NonKnower')
+    data[row_range, data_options$participant_factor] <- participant_id
+    data[row_range, 'Age'] <- round(rnorm(1,24,.25), 2)
+    data[row_range, 'Condition'] <- condition
+    data[row_range, 'TrialNum'] <- rep(c(1:6),each=(data_options$sample_rate*8))
+    data[row_range, data_options$trial_factor] <- rep(c('Chimpanzee','Bowl','Speaker','Woman','Pen','Basketball'),each=(data_options$sample_rate*8))
+    data[row_range, data_options$sample_factor] <- rep(c(1:(data_options$sample_rate*8)),times=6)
+    data[row_range, data_options$time_factor] <- (data[row_range, data_options$sample_factor]-1)*(1000/data_options$sample_rate)
+    
+    # generate trackloss probability for this participant
+    trackloss_probability <- runif(1,.1,0.35)
+    
+    data[row_range, data_options$trackloss_factor] <- rbinom((data_options$sample_rate*8*6),1,trackloss_probability)
+    
+    # for baseline, they have a 50% chance of looking to the target or distractor
+    data[row_range, data_options$active_aoi_factor] <- 0
+    
+    # AOI assignment is by trial
+    for (y in 1:6) {
+      # for baseline, let's just give everyone a 50/50 chance
+      baseline_range <- which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] <= (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
+      
+      data[baseline_range, 'Window'] <- 'Baseline'
+      data[baseline_range, 'Target'] <- ifelse(rbinom((data_options$sample_rate*4),1,0.5) == 1,1,0)
+      
+      # for response, we can set the target/distractor looks using the conditions
+      # sloped probability (defined above)
+      response_range <- which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] > (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
+      
+      data[response_range, 'Window'] <- 'Response'
+      
+      if (condition == 'Knower') {
+        data[response_range, 'Target'] <- Related
+      }
+      else {
+        data[response_range, 'Target'] <- NotRelated
+      }
+      
+      data[response_range, 'Target'] <- sapply(data[response_range, 'Target'], function (x) {
+        rbinom(1,1,as.numeric(x))
+      });
+    }
+    
+    # set AOI columns from active_aoi_factor
+    data[which(data[, 'Target'] == 1), data_options$active_aoi_factor] <- 'Target'
+    data[which(data[, 'Target'] == 1), 'Distractor'] <- 0
+    data[which(data[, 'Target'] == 0), data_options$active_aoi_factor] <- 'Distractor'
+    data[which(data[, 'Target'] == 0), 'Distractor'] <- 1
+    
+    # no AOI for trackloss
+    data[which(data[, data_options$trackloss_factor] == 1), data_options$active_aoi_factor] <- NA
+    data[which(data[, data_options$trackloss_factor] == 1), 'Target'] <- NA
+    data[which(data[, data_options$trackloss_factor] == 1), 'Distractor'] <- NA
+  }
+  
+  # verify and format dataset
+  data <- verify_dataset(data, data_options, silent = TRUE)
+  
+  data$Condition <- factor(data$Condition)
+  data$Window <- factor(data$Window)
+  data[, data_options$active_aoi_factor] <- factor(data[, data_options$active_aoi_factor])
+  
+  data
+}
+
 # # time_analysis()
 # #
 # # Create a dataset that is ready for time-based analyses, either a linear
