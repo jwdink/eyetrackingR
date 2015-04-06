@@ -88,56 +88,31 @@ summarize_dataset <- function (data, data_options) {
 # @param boolean silent
 #
 # @return dataframe data
-verify_dataset <- function(data, data_options, silent = F) {
-  # participant column should be a factor
-  if (silent == F) {
-    message('verify_dataset', paste('Participant factor: ', data_options$participant_factor, sep=""))
-  }
-  if (class(data[, data_options$participant_factor]) != 'factor') {
-    if (silent == F) {
-      message('verify_dataset','WARNING! Participants column should be a factor. Check that the field was imported properly, i.e., without empty rows.');
+
+verify_dataset <- function(data, data_options, silent = FALSE) {
+  
+  out = data
+  
+  as.numeric2 = function(x) as.numeric(as.character(x))
+  check_then_convert = function(x, checkfunc, convertfunc, colname) { 
+    if ( !checkfunc(x) ) {
+      warning('WARNING! ' , colname ,' column should be a factor. Check that the field was imported properly i.e. without empty rows.')
+      convertfunc(x)
+    } else {
+      x
     }
-    
-    data[, data_options$participant_factor] <- factor(data[, data_options$participant_factor])
+  }
+  col_type_converter = list("participant_factor" = function(x) check_then_convert(x, is.factor, as.factor, "Participants"),
+                            "time_factor"        = function(x) check_then_convert(x, is.numeric, as.numeric2, "Time"),
+                            "sample_factor"      = function(x) check_then_convert(x, is.numeric, as.numeric2, "Sample"),
+                            "trial_factor"       = function(x) check_then_convert(x, is.factor, as.factor, "Trial")
+                            )
+  for (col in names(col_type_converter) ) {
+    out[[ data_options[[col]] ]] = col_type_converter[[col]]( out[[ data_options[[col]] ]] )
   }
   
-  # time factor should be numeric
-  if (silent == F) {
-    message('verify_dataset', paste('Time factor: ', data_options$time_factor, sep=""))
-  }
-  if (class(data[, data_options$time_factor]) != 'numeric') {
-    if (silent == F) {
-      message('verify_dataset','WARNING! Time column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
-    }
-    
-    data[, data_options$time_factor] <- factor(data[, data_options$time_factor])
-  }
+  return( out )
   
-  # sample factor should also be numeric
-  if (silent == F) {
-    message('verify_dataset', paste('Sample factor: ', data_options$sample_factor, sep=""))
-  }
-  if (class(data[, data_options$sample_factor]) != 'numeric') {
-    if (silent == F) {
-      message('verify_dataset','WARNING! Sample column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
-    }
-    
-    data[, data_options$sample_factor] <- as.numeric(as.character(data[, data_options$sample_factor]))
-  }
-  
-  # trial factor should be a factor
-  if (silent == F) {
-    message('verify_dataset', paste('Trial factor: ', data_options$trial_factor, sep=""))
-  }
-  if (class(data[, data_options$trial_factor]) != 'factor') {
-    if (silent == F) {
-      message('verify_dataset','WARNING! Trial column should be numeric. Check that the field was imported properly, i.e., without empty rows.');
-    }
-    
-    data[, data_options$trial_factor] <- factor(data[, data_options$trial_factor])
-  }
-  
-  data
 }
 
 # describe_data ()
@@ -349,7 +324,7 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
   }
   
   # verify and format dataset
-  data <- verify_dataset(data, data_options, silent = T)
+  data <- verify_dataset(data, data_options, silent = TRUE)
   
   data$Condition <- factor(data$Condition)
   data$Window <- factor(data$Window)
@@ -947,7 +922,7 @@ window_analysis <- function(data, data_options, dv = NA, factors = NA) {
 # @param boolean within_subjects
 #
 # @return dataframe window_data
-sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA, factor, within_subjects = F) {
+sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA, factor, within_subjects = FALSE) {
   # use defaults if unset
   if (is.na(dv)) {
     dv = data_options$default_dv
@@ -1141,10 +1116,10 @@ first_looks_analysis <- function(data, data_options, factors = NA) {
 # @param float alpha p-value when the groups are sufficiently "diverged"
 #
 # @return list(samples, divergence)
-bootstrapped_splines <- function (data, data_options, factor = '', within_subj = F, samples=1000, resolution=10, alpha = .05) {
+bootstrapped_splines <- function (data, data_options, factor = '', within_subj = FALSE, samples=1000, resolution=10, alpha = .05) {
   # dependencies
-  library(dplyr, quietly=T)
-  library(data.table, quietly=T)
+  library(dplyr, quietly=TRUE)
+  library(data.table, quietly=TRUE)
   
   # define sampler for splines...
   spline_sampler <- function (dataframe, data_options, resolution) {
@@ -1162,7 +1137,7 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     run_times <- run_times[order(run_times)]
     
     # randomly sample N subjects (with replacement from data)
-    run_sampled <- sample(run_subjects, length(run_subjects), replace = T)
+    run_sampled <- sample(run_subjects, length(run_subjects), replace = TRUE)
     
     # create a dataset of ParticipantName,t1,BinMean for each sampled subject (including duplicates)
     run_rows <- length(run_sampled) * length(run_times)
@@ -1219,7 +1194,7 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
       
       cat('Sampling')
       bootstrapped_data <- replicate(samples, spline_sampler(subsetted_data, data_options, resolution))
-      bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
+      bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
       
       sample_rows <- paste('Sample', c(1:samples), sep="")
       
@@ -1255,7 +1230,7 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     # for within-subjects, we need to calculate the difference between
     # level 1 and 2 of the factor for each subject before sampling splines
     library(reshape2)
-    data <- dcast(data, as.formula(paste(paste(data_options$participant_factor,'t1',sep=" + "),factor,sep=' ~ ')), value.var='BinMean', fun.aggregate = mean, drop = T)
+    data <- dcast(data, as.formula(paste(paste(data_options$participant_factor,'t1',sep=" + "),factor,sep=' ~ ')), value.var='BinMean', fun.aggregate = mean, drop = TRUE)
     
     # re-calculate BinMean as the DIFFERENCE between the two labels
     data$BinMean <- data[, 3] - data[, 4]
@@ -1267,7 +1242,7 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     
     cat('Sampling')
     bootstrapped_data <- replicate(samples, spline_sampler(data, data_options, resolution))
-    bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
+    bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
     
     sample_rows <- paste('Sample', c(1:samples), sep="")
     
@@ -1305,10 +1280,10 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
     library(reshape2)
     
     # get mean for each level of factor
-    bootstrapped_diverged_mean <- dcast(bootstrapped_diverged, paste('t1',factor,sep=' ~ '), value.var = 'mean', fun.aggregate = mean, drop = T)
+    bootstrapped_diverged_mean <- dcast(bootstrapped_diverged, paste('t1',factor,sep=' ~ '), value.var = 'mean', fun.aggregate = mean, drop = TRUE)
     
     # get se for each level of factor
-    bootstrapped_diverged_se <- dcast(bootstrapped_diverged, paste('t1',factor,sep=' ~ '), value.var = 'se', fun.aggregate = mean, drop = T)
+    bootstrapped_diverged_se <- dcast(bootstrapped_diverged, paste('t1',factor,sep=' ~ '), value.var = 'se', fun.aggregate = mean, drop = TRUE)
     colnames(bootstrapped_diverged_se) <- c('t1','Group1SE','Group2SE')
     bootstrapped_diverged <- cbind(bootstrapped_diverged_mean, bootstrapped_diverged_se[, c('Group1SE','Group2SE')])
     rm(bootstrapped_diverged_se)
@@ -1373,10 +1348,10 @@ bootstrapped_splines <- function (data, data_options, factor = '', within_subj =
 # @param float alpha p-value when the groups are sufficiently "diverged"
 #
 # @return list(samples, divergence)
-bootstrapped_splines_nonparametric <- function (data, data_options, factor = '', within_subj = F, samples=1000, resolution=10, alpha = .05) {
+bootstrapped_splines_nonparametric <- function (data, data_options, factor = '', within_subj = FALSE, samples=1000, resolution=10, alpha = .05) {
   # dependencies
-  library(plyr, quietly=T)
-  #library(data.table, quietly=T)
+  library(plyr, quietly=TRUE)
+  #library(data.table, quietly=TRUE)
   
   # define spline function
   fit_splines <- function (data) {
@@ -1492,7 +1467,7 @@ bootstrapped_splines_nonparametric <- function (data, data_options, factor = '',
     # for within-subjects, we need to calculate the difference between
     # level 1 and 2 of the factor for each subject before sampling splines
     library(reshape2)
-    data <- dcast(data, as.formula(paste(paste(data_options$participant_factor,'t1',sep=" + "),factor,sep=' ~ ')), value.var='BinMean', fun.aggregate = mean, drop = T)
+    data <- dcast(data, as.formula(paste(paste(data_options$participant_factor,'t1',sep=" + "),factor,sep=' ~ ')), value.var='BinMean', fun.aggregate = mean, drop = TRUE)
     
     # re-calculate BinMean as the DIFFERENCE between the two labels
     data$BinMean <- data[, 3] - data[, 4]
@@ -1688,7 +1663,7 @@ subset_by_window <- function (data, data_options, window_start = NA, window_end 
 #
 # @return dataframe binned_data
 bin_data <- function(data, data_options, bin_samples, factors, dv) {  
-  library(data.table, quietly=T)
+  library(data.table, quietly=TRUE)
   
   sample_factor <- data_options$sample_factor
   
@@ -1780,7 +1755,7 @@ plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, fa
   data$TimeAlign <- data[, data_options$time_factor] - min(data[, data_options$time_factor])
   
   # aggregate by participants, factor, and time
-  data <- aggregate(data.frame(data[, dv]), by = list(data[, data_options$participant_factor], data[, factor], data$TimeAlign), FUN = mean, na.rm = T)  
+  data <- aggregate(data.frame(data[, dv]), by = list(data[, data_options$participant_factor], data[, factor], data$TimeAlign), FUN = mean, na.rm = TRUE)  
 
   # rename columns
   # call the participant column 'ParticipantName' because it will be called in spaghetti()
@@ -1795,7 +1770,7 @@ plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, fa
       data,
       fname=output_file,
       onset=0,
-      addOnsetLine=F,
+      addOnsetLine=FALSE,
       plotwidth=width,
       plotheight=height,
       meltids=c(data_options$participant_factor,"TimePlot",factor),
@@ -1814,7 +1789,7 @@ plot_data <- function(data, data_options, output_file = 'graph.png', dv = NA, fa
       graphTitle=title,
       y_title = y_title,
       x_title = x_title,
-      showplot=T
+      showplot=TRUE
     )
 }
 
@@ -1975,7 +1950,7 @@ spaghetti = function(
   melted$errbargroup = as.factor(as.character(melted$errbargroup))
   
   # aggregate over subjects so they don't contribute multiple points to a given bin
-  melted <- with(melted,aggregate(value, by = list(ParticipantName,TimePlot,eval(parse(text=colorvariable)),variable,errbargroup), FUN = mean, na.rm = T))
+  melted <- with(melted,aggregate(value, by = list(ParticipantName,TimePlot,eval(parse(text=colorvariable)),variable,errbargroup), FUN = mean, na.rm = TRUE))
   colnames(melted) <- c('ParticipantName','TimePlot',colorvariable,'variable','errbargroup','value')
   
   # create the base plot
@@ -1985,7 +1960,7 @@ spaghetti = function(
     {
       if (is.na(linevariable))
       {
-        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="mean",na.rm = T))
+        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="mean",na.rm = TRUE))
         colnames(agr) = c("TimePlot",colorvariable,"errbargroup","value")		
         
         agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup),FUN="se"))$x
@@ -1996,7 +1971,7 @@ spaghetti = function(
       } else {			
         if (is.na(sizevariable))
         {
-          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="mean",na.rm = T))
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="mean",na.rm = TRUE))
           colnames(agr) = c("TimePlot",colorvariable,linevariable,"errbargroup","value")
           
           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup),FUN="se"))$x	
@@ -2005,7 +1980,7 @@ spaghetti = function(
           limits = aes(ymin=YMin,ymax=YMax)		
           p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable))
         } else {
-          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="mean",na.rm = T))
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="mean",na.rm = TRUE))
           colnames(agr) = c("TimePlot",colorvariable,linevariable,sizevariable,"errbargroup","value")
           
           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup),FUN="se"))$x
@@ -2048,7 +2023,7 @@ spaghetti = function(
     {
       if (is.na(linevariable))
       {
-        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = T))
+        agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = TRUE))
         colnames(agr) = c("TimePlot",colorvariable,"errbargroup",facetvariable,"value")		
         agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x
         agr$YMin = agr$value - agr$SE
@@ -2058,7 +2033,7 @@ spaghetti = function(
       } else {			
         if (is.na(sizevariable))
         {
-          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = T))
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = TRUE))
           colnames(agr) = c("TimePlot",colorvariable,linevariable,"errbargroup",facetvariable,"value")
           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x	
           agr$YMin = agr$value - agr$SE
@@ -2066,7 +2041,7 @@ spaghetti = function(
           limits = aes(ymin=YMin,ymax=YMax)		
           p = ggplot(agr, aes_string(x="TimePlot",y="value",color=colorvariable,linetype=linevariable)) #+
         } else {
-          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = T))
+          agr <- with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="mean",na.rm = TRUE))
           colnames(agr) = c("TimePlot",colorvariable,linevariable,sizevariable,"errbargroup",facetvariable,"value")
           agr$SE = with(melted, aggregate(value,by=list(TimePlot,eval(parse(text=colorvariable)),eval(parse(text=linevariable)),eval(parse(text=sizevariable)),errbargroup,eval(parse(text=facetvariable))),FUN="se"))$x
           agr$YMin = agr$value - agr$SE
@@ -2138,7 +2113,7 @@ spaghetti = function(
   
   if (addVerticalLine != FALSE)
   {
-    means <- with(data,aggregate(NewAdj, by=list(eval(parse(text=colorvariable))), FUN=mean,na.rm = T))
+    means <- with(data,aggregate(NewAdj, by=list(eval(parse(text=colorvariable))), FUN=mean,na.rm = TRUE))
     row.names(means) <- means$Group.1
     means <- means[order(means$Group.1),]
     
