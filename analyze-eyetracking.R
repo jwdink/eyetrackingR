@@ -431,14 +431,16 @@ window_analysis <- function(data,
 # @param list data_options
 # @param integer time_bin_size The time (ms) to fit into each bin
 # @param string dv The dependent variable column
-# @param character.vector factors A vector of factor columns
+# @param character.vector factor A vector of factor columns
+# @param character.vector factor_levels A vector of length two that specifies which factor-levels to compare 
 #
 # @return dataframe 
 sequential_bins_analysis <- function(data, 
                                      data_options, 
                                      time_bin_size = 250, 
                                      dv = data_options$default_dv, 
-                                     factors = data_options$default_factors) 
+                                     factor = data_options$default_factors[1],
+                                     factor_levels = NULL)
 {
   
   require('dplyr')
@@ -446,12 +448,12 @@ sequential_bins_analysis <- function(data,
   require('broom')
   
   ## Helpers: ===== ===== ===== ===== =====
-  make_lmer = function(measurevar, groupvars, partvar, itemvar) {
+  make_lmer = function(measurevar, groupvar, partvar, itemvar) {
     
     formula_string = paste0("measurevar ~ ", 
-                            paste0("groupvars", "[['", names(groupvars), "']]", collapse = " + "), 
-                            " + (1|partvar)",
-                            " + (1|itemvar)")
+                            "groupvar", 
+                            " + (1|partvar)")#,
+                            #" + (1|itemvar)") # probably overkill
     
     failsafe_lmer = failwith(default = NULL, f = lmer, quiet = TRUE)
     
@@ -473,27 +475,38 @@ sequential_bins_analysis <- function(data,
   
   ## Main: ===== ===== ===== ===== =====
   
-  for (f in factors) {
-    if (!is.factor(data[[f]])) stop("All factors must be of type 'factor.' ", 
-                                    "This function does not handle continous predictors.")
+  if (!is.factor(data[[factor]])) stop("Factor must be of type 'factor.' ", 
+                                       "This function does not handle continous predictors.")
+  
+  if (is.null(factor_levels)) {
+    if (length(unique(data[[factor]])) > 2 ) {
+      stop("If factor has more than two levels, ",
+           "you must specify which you are interested in comparing with 'factor_levels' arg.")
+    } else {
+      factor_levels = levels(data[[factor]])
+    }
   }
   
   # Create NSE Args:
   time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-  group_by_arg = as.list(c(data_options$participant_factor, data_options$item_factor, factors, "TimeBin"))
+  group_by_arg = as.list(c(data_options$participant_factor, data_options$item_factor, factor, "TimeBin"))
   summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
                        StartTime = as.formula( paste0("~", data_options$time_factor, "[1]")),
                        EndTime = as.formula( paste0("~", data_options$time_factor, "[n()]"))
   )
+  filter_by_factor_arg = list(as.formula(paste0("~ ", factor, "%in% factor_levels")))
+  relevel_factor_arg = list(as.formula(paste0("~as.factor(as.character(", factor, "))" ) ) )
+  names(relevel_factor_arg) = factor
   
-  factors_string = paste0("'",factors ,"' = ", ".$", factors, collapse = ", ")
   lmer_args = paste0("(.$ArcSin, ",
-                     "list(", factors_string, "), ", 
+                     ".$", factor, ",",
                      ".$", data_options$participant_factor, ", ",
                      ".$", data_options$item_factor, ")" )
   
   # Summarise by TimeBin:
   summarised = data %>%
+    filter_(.dots = filter_by_factor_arg) %>% 
+    mutate_(.dots = relevel_factor_arg ) %>%
     mutate_(.dots = time_bin_arg) %>%
     group_by_(.dots =  group_by_arg) %>%
     summarise_(.dots =  summarise_arg) %>%
@@ -521,12 +534,8 @@ sequential_bins_analysis <- function(data,
   
   # Conf:
   confidence_intervals = lapply(X = models$LmerModel, FUN = get_conf_int)
-  for (i in 1:length(factors) ) {
-    out[[paste(factors[i],"CILower",sep="_")]] = 
-      sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, i+1,1)) 
-    out[[paste(factors[i],"CIUpper",sep="_")]] = 
-      sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, i+1,2)) 
-  }
+  out[[paste(factor,"CILower",sep="_")]] = sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, 2,1)) 
+  out[[paste(factor,"CIUpper",sep="_")]] = sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, 2,2)) 
   
   # Tidy:
   out$ModelSummary = sapply(models$LmerModel, FUN = function(x) tidy(x, effects = 'fixed') ) 

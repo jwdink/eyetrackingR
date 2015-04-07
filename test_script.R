@@ -40,11 +40,13 @@ drop1(fit_window, test= "Chisq")
 
 # sequential
 df_ia$Response = as.factor(df_ia$Response)
+df_ia$image = as.factor(df_ia$image)
 df_seq = sequential_bins_analysis(data = filter(df_ia, TimeInTrial > 0, TimeInTrial < 7500), 
-                                   data_options, 
-                                   time_bin_size = 100, 
-                                   dv= 'AOI_Head', 
-                                   factors = c('Condition') )
+                                  data_options, 
+                                  time_bin_size = 250, 
+                                  dv= 'AOI_Head', 
+                                  factor = 'Condition',
+)
 
 plot(df_seq, data_options, factor="Condition")
 
