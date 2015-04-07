@@ -328,7 +328,7 @@ plot.sample_data <- function(x,
       mutate_(.dots =  time_bin_arg) %>%
       group_by_(.dots =  group_by_arg) %>%
       summarise_(.dots =  summarise_arg) %>%
-      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor)) +
+      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor, color = factor)) +
       stat_summary(fun.dat = mean_se) +
       stat_summary(fun.y = mean, geom = "line")
     
@@ -345,7 +345,7 @@ plot.sample_data <- function(x,
       mutate_(.dots =  time_bin_arg) %>%
       group_by_(.dots =  group_by_arg) %>%
       summarise_(.dots =  summarise_arg) %>%
-      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor)) +
+      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor, color = factor)) +
       geom_smooth(method = 'loess')
     
     return(g)
