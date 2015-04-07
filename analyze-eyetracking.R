@@ -367,9 +367,7 @@ plot.sample_data <- function(data,
 plot.seq_bin <- function(data, data_options) {
   
   require('ggplot2')
-  
-  if (length(factor) != 1) stop("Length of 'factor' must be 1")
-  
+    
   ci_cols = grep(pattern = paste0("_CI"), x = colnames(data), value = TRUE )
 
   ggplot(data = data, aes(x = StartTime, y = 0)) +
@@ -387,14 +385,14 @@ plot.seq_bin <- function(data, data_options) {
 # @param dataframe data
 # @param list data_options
 # @param string dv
-# @param character.vector factors
+# @param character.vector group_factors
 # @param numeric.vector window
 #
 # @return dataframe
 window_analysis <- function(data, 
                             data_options, 
                             dv = data_options$default_dv, 
-                            factors = data_options$default_factors,
+                            group_factors = data_options$default_factors,
                             window = NULL
                             ) {
   require('dplyr')
@@ -407,7 +405,7 @@ window_analysis <- function(data,
     filter_(.dots = list( paste0(data_options$time_factor, " >= ", window[1]),
                           paste0(data_options$time_factor, " <= ", window[2]))
     ) %>%
-    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factor, factors)) ) %>%
+    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factor, group_factors)) ) %>%
     summarise_( .dots = list(SamplesInAOI = as.formula(paste0("~", "sum(", dv, ", na.rm= TRUE)")),
                              SamplesTotal = as.formula(paste0("~", "length(", dv, ")"))) ) %>%
     mutate(elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
@@ -430,7 +428,7 @@ window_analysis <- function(data,
 # @param list data_options
 # @param integer time_bin_size The time (ms) to fit into each bin
 # @param string dv The dependent variable column
-# @param character.vector factor A vector of factor columns
+# @param character.vector group_factor 
 # @param character.vector factor_levels A vector of length two that specifies which factor-levels to compare 
 #
 # @return dataframe 
@@ -438,7 +436,7 @@ sequential_bins_analysis <- function(data,
                                      data_options, 
                                      time_bin_size = 250, 
                                      dv = data_options$default_dv, 
-                                     factor = data_options$default_factors[1],
+                                     group_factor = data_options$default_factors[1],
                                      factor_levels = NULL,
                                      return_full_model = FALSE)
 {
@@ -448,9 +446,13 @@ sequential_bins_analysis <- function(data,
   require('broom')
   
   ## Helpers: ===== ===== ===== ===== =====
-
+  lmer_helper = function(tb) {
+    failsafe_lmer = failwith(default = NA, lmer)
+    failsafe_lmer(formula = as.formula(formula_string), data = filter(summarised, TimeBin==tb) )
+  }
   extract_conf_ints = function(object, pnum, lh) {
-    out = confint(object)[pnum, lh]
+    cat("|")
+    out = confint(object, method = "Wald")[pnum, lh]
     if (is.null(out)) {
       return(NA)
     } else {
@@ -460,29 +462,29 @@ sequential_bins_analysis <- function(data,
   
   ## Main: ===== ===== ===== ===== =====
   
-  if (!is.factor(data[[factor]])) stop("Factor must be of type 'factor.' ", 
+  if (!is.factor(data[[group_factor]])) stop("group_factor must be of type 'factor.' ", 
                                        "This function does not handle continous predictors.")
   
   if (is.null(factor_levels)) {
-    if (length(unique(data[[factor]])) > 2 ) {
+    if (length(unique(data[[group_factor]])) > 2 ) {
       stop("If factor has more than two levels, ",
            "you must specify which you are interested in comparing with 'factor_levels' arg.")
     } else {
-      factor_levels = levels(data[[factor]])
+      factor_levels = levels(data[[group_factor]])
     }
   }
   
   # Create NSE Args:
   time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-  group_by_arg = as.list(c(data_options$participant_factor, factor, "TimeBin"))
+  group_by_arg = as.list(c(data_options$participant_factor, data_options$item_factor, group_factor, "TimeBin"))
   summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
                        StartTime = as.formula( paste0("~", data_options$time_factor, "[1]")),
                        EndTime = as.formula( paste0("~", data_options$time_factor, "[n()]"))
   )
-  filter_by_factor_arg = list(as.formula(paste0("~ ", factor, "%in% factor_levels")))
+  filter_by_factor_arg = list(as.formula(paste0("~ ", group_factor, "%in% factor_levels")))
   
   lmer_args = paste0("(.$ArcSin, ",
-                     ".$", factor, ",",
+                     ".$", group_factor, ",",
                      ".$", data_options$participant_factor, ", ",
                      ".$", data_options$item_factor, ")" )
   
@@ -496,9 +498,8 @@ sequential_bins_analysis <- function(data,
     ungroup()
   
   # Generate Models:
-  LM_Model = lapply(X = unique(summarised$TimeBin), FUN = function(tb) {
-    lm(formula = as.formula(paste0("ArcSin ~ ", factor)), data = filter(summarised, TimeBin==tb) )
-  })
+  formula_string = paste0("ArcSin ~ ", group_factor, " + ", "(1|", data_options$participant_factor, ")")
+  LM_Model = lapply(X = unique(summarised$TimeBin), FUN = lmer_helper)
   models = summarised %>%
     group_by_(.dots = list("StartTime","EndTime") ) %>%
     summarise(Temp = 1) %>%
@@ -509,19 +510,19 @@ sequential_bins_analysis <- function(data,
   out = select(models, -LM_Model, -Temp)
   
   # Conf:
-  out[[paste(factor,"CILower",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
-  out[[paste(factor,"CIUpper",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
+  out[[paste(group_factor,"CILower",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
+  out[[paste(group_factor,"CIUpper",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
   
   # Diff:
   out$Difference = 
-    (out[[paste(factor,"CILower",sep="_")]] > 0) |
-    (out[[paste(factor,"CIUpper",sep="_")]] < 0) 
+    (out[[paste(group_factor,"CILower",sep="_")]] > 0) |
+    (out[[paste(group_factor,"CIUpper",sep="_")]] < 0) 
   
   # Tidy:
   if (return_full_model) {
     out$Model = models$LM_Model
   } else {
-    out$Model = lapply(models$LM_Model, FUN = tidy ) 
+    out$Model = lapply(models$LM_Model, FUN = function(x) tidy(x, effects="fixed") ) 
   }
   
   # Return:
