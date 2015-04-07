@@ -301,58 +301,57 @@ plot.data.frame = function(...) stop("This data has not been verified for plotti
 # @param integer time_bin_size Time (ms) to bin data by in plot
 #
 # @return list A ggplot list object  
-plot.sample_data <- function(x, 
+plot.sample_data <- function(data, 
                              data_options, 
                              dv = data_options$default_dv, 
-                             factor = data_options$default_factors[1], 
+                             group_factor = data_options$default_factors[1],
+                             facet_factor = NULL,
                              type = 'empirical', 
-                             time_bin_size = 100) {
+                             time_bin_size = 100,
+                             quiet = FALSE) {
   
   require('ggplot2')
-  data = x
   
-  if ( data_options$sample_rate / time_bin_size > 100 ) {
+  if ( data_options$sample_rate / time_bin_size > 100 & !quiet) {
     cat("\nWarning: You've selected a very small time window relate to your sample rate. Could be very slow.", 
         "Press enter to continue anyways, or Esc to cancel.")
     readline(prompt = "...")
   }
   
+  time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
+    group_by_arg = as.list(c(data_options$participant_factor, group_factor, facet_factor, "TimeBin"))
+    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
+                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
+    
+  
   if (type == 'empirical') {
     
-    time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-    group_by_arg = list(data_options$participant_factor, factor, "TimeBin")
-    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
-                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
-    
     g = data %>%
       mutate_(.dots =  time_bin_arg) %>%
       group_by_(.dots =  group_by_arg) %>%
       summarise_(.dots =  summarise_arg) %>%
-      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor, color = factor)) +
+      ggplot(aes_string(x = "Time", y = "PropLooking", group = group_factor, color = group_factor)) +
       stat_summary(fun.dat = mean_se) +
       stat_summary(fun.y = mean, geom = "line")
-    
-    return(g)
-    
+
   } else if (type == 'smoothed') {
-    
-    time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-    group_by_arg = list(data_options$participant_factor, "TimeBin", factor)
-    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
-                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
-    
+
     g = data %>%
       mutate_(.dots =  time_bin_arg) %>%
       group_by_(.dots =  group_by_arg) %>%
       summarise_(.dots =  summarise_arg) %>%
-      ggplot(aes_string(x = "Time", y = "PropLooking", group = factor, color = factor)) +
+      ggplot(aes_string(x = "Time", y = "PropLooking", group = group_factor, color = group_factor)) +
       geom_smooth(method = 'loess')
     
-    return(g)
-    
+  } else {
+    stop("'Type' arg not recognized. Must be 'smoothed' or 'empirical'.")
   }
   
-  stop("'Type' arg not recognized. Must be 'smoothed' or 'empirical'.")
+  if (!is.null(facet_factor)) {
+    g = g + facet_wrap(as.formula(paste0("~", facet_factor)))
+  }
+  
+  return(g)
   
 }
 
@@ -365,13 +364,13 @@ plot.sample_data <- function(x,
 # @param list factor
 #
 # @return list A ggplot list object  
-plot.seq_bin <- function(data, data_options, factor) {
+plot.seq_bin <- function(data, data_options) {
   
   require('ggplot2')
   
   if (length(factor) != 1) stop("Length of 'factor' must be 1")
   
-  ci_cols = grep(pattern = paste0(factor, "_CI"), x = colnames(data), value = TRUE )
+  ci_cols = grep(pattern = paste0("_CI"), x = colnames(data), value = TRUE )
 
   ggplot(data = data, aes(x = StartTime, y = 0)) +
     geom_ribbon(aes_string(ymin=ci_cols[1], ymax=ci_cols[2]), alpha=0.5) +
@@ -440,7 +439,8 @@ sequential_bins_analysis <- function(data,
                                      time_bin_size = 250, 
                                      dv = data_options$default_dv, 
                                      factor = data_options$default_factors[1],
-                                     factor_levels = NULL)
+                                     factor_levels = NULL,
+                                     return_full_model = FALSE)
 {
   
   require('dplyr')
@@ -448,24 +448,9 @@ sequential_bins_analysis <- function(data,
   require('broom')
   
   ## Helpers: ===== ===== ===== ===== =====
-  make_lmer = function(measurevar, groupvar, partvar, itemvar) {
-    
-    formula_string = paste0("measurevar ~ ", 
-                            "groupvar", 
-                            " + (1|partvar)")#,
-                            #" + (1|itemvar)") # probably overkill
-    
-    failsafe_lmer = failwith(default = NULL, f = lmer, quiet = TRUE)
-    
-    fit = failsafe_lmer(formula = as.formula(formula_string) ) 
-    return(fit)
-  }
-  get_conf_int = function(model) {
-    failsafe_confint = failwith(default = data.frame(), f = confint.merMod, quiet = TRUE)
-    return( failsafe_confint(model, method = "Wald") )
-  }
+
   extract_conf_ints = function(object, pnum, lh) {
-    out = object[pnum, lh]
+    out = confint(object)[pnum, lh]
     if (is.null(out)) {
       return(NA)
     } else {
@@ -489,14 +474,12 @@ sequential_bins_analysis <- function(data,
   
   # Create NSE Args:
   time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-  group_by_arg = as.list(c(data_options$participant_factor, data_options$item_factor, factor, "TimeBin"))
+  group_by_arg = as.list(c(data_options$participant_factor, factor, "TimeBin"))
   summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
                        StartTime = as.formula( paste0("~", data_options$time_factor, "[1]")),
                        EndTime = as.formula( paste0("~", data_options$time_factor, "[n()]"))
   )
   filter_by_factor_arg = list(as.formula(paste0("~ ", factor, "%in% factor_levels")))
-  relevel_factor_arg = list(as.formula(paste0("~as.factor(as.character(", factor, "))" ) ) )
-  names(relevel_factor_arg) = factor
   
   lmer_args = paste0("(.$ArcSin, ",
                      ".$", factor, ",",
@@ -506,7 +489,6 @@ sequential_bins_analysis <- function(data,
   # Summarise by TimeBin:
   summarised = data %>%
     filter_(.dots = filter_by_factor_arg) %>% 
-    mutate_(.dots = relevel_factor_arg ) %>%
     mutate_(.dots = time_bin_arg) %>%
     group_by_(.dots =  group_by_arg) %>%
     summarise_(.dots =  summarise_arg) %>%
@@ -514,28 +496,21 @@ sequential_bins_analysis <- function(data,
     ungroup()
   
   # Generate Models:
+  LM_Model = lapply(X = unique(summarised$TimeBin), FUN = function(tb) {
+    lm(formula = as.formula(paste0("ArcSin ~ ", factor)), data = filter(summarised, TimeBin==tb) )
+  })
   models = summarised %>%
     group_by_(.dots = list("StartTime","EndTime") ) %>%
-    do_(.dots = list(LmerModel = as.formula(paste0("~make_lmer", lmer_args)) ) ) %>%
-    ungroup() 
+    summarise(Temp = 1) %>%
+    ungroup() %>%
+    mutate(LM_Model = LM_Model)
   
   # Generate Output:
-  out = select(models, -LmerModel)
-  
-  # AIC:
-  out$AIC = sapply(models$LmerModel, FUN = function(x) {
-    out = glance(x)$AIC
-    if (is.null(out)) {
-      return(NA)
-    } else {
-      return(out)
-    }
-  } )
+  out = select(models, -LM_Model, -Temp)
   
   # Conf:
-  confidence_intervals = lapply(X = models$LmerModel, FUN = get_conf_int)
-  out[[paste(factor,"CILower",sep="_")]] = sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, 2,1)) 
-  out[[paste(factor,"CIUpper",sep="_")]] = sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, 2,2)) 
+  out[[paste(factor,"CILower",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
+  out[[paste(factor,"CIUpper",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
   
   # Diff:
   out$Difference = 
@@ -543,8 +518,11 @@ sequential_bins_analysis <- function(data,
     (out[[paste(factor,"CIUpper",sep="_")]] < 0) 
   
   # Tidy:
-  out$ModelSummary = sapply(models$LmerModel, FUN = function(x) tidy(x, effects = 'fixed') ) 
-  
+  if (return_full_model) {
+    out$Model = models$LM_Model
+  } else {
+    out$Model = lapply(models$LM_Model, FUN = tidy ) 
+  }
   
   # Return:
   class(out) = c("seq_bin", class(out))
@@ -848,198 +826,7 @@ sequential_bins_analysis <- function(data,
 # }
 # 
 
-# 
-# # sequential_bins_analysis()
-# #
-# # Analyze bins sequentially looking for a main effect of a single factor.
-# # Uses the Arcsin-square root transformation on the DV.
-# #
-# # @param dataframe data
-# # @param list data_options
-# # @param integer bin_time The time (ms) to fit into each bin
-# # @param string dv The dependent variable column
-# # @param character.vector A vector of factor columns
-# # @param boolean within_subjects
-# #
-# # @return dataframe window_data
-# sequential_bins_analysis <- function(data, data_options, bin_time = 250, dv = NA, factor, within_subjects = FALSE) {
-#   # use defaults if unset
-#   if (is.na(dv)) {
-#     dv = data_options$default_dv
-#   }
-#   
-#   # calculate the number of samples to place in a bin based on
-#   # the amount of time (ms) we want in a bin (bin_time)
-#   bin_size_in_samples <- round(bin_time / (1000 / data_options$sample_rate),0)
-#   
-#   # bin by participant
-#   binned <- bin_data(data, data_options, bin_size_in_samples, c(data_options$participant_factor,factor), dv)
-#   
-#   # rename columns
-#   colnames(binned) <- c(data_options$participant_factor,factor,'Bin','BinMean','N','y')
-#   
-#   # because we may have exclude trial time before our window, let's adjust our bin numbers
-#   # so they start at 0
-#   min_bin <- min(binned[, 'Bin'])
-#   
-#   if (min_bin > 0) {
-#     binned$Bin <- binned$Bin - min_bin
-#   }
-#   
-#   # create ArcSin column if we are doing proportions
-#   if (min(binned$BinMean >= 0) && max(binned$BinMean) <= 1.0) {
-#     binned$ArcSin <- asin(sqrt(binned$BinMean))
-#     cat("Transforming with Arcsine...\n")
-#   }
-#   else {
-#     binned$ArcSin <- binned$BinMean
-#     cat("Not transforming - does not appear to be proportional data...")
-#   }
-#   
-#   # test each consecutive bin
-#   bins <- max(binned$Bin)
-#   
-#   results <- data.frame(matrix(nrow = bins, ncol = 9))
-#   colnames(results) <- c('Bin','StartTime','EndTime','Participants','SameDifferent','p-value','df_num','df_den','F')
-#   
-#   for (bin in 0:bins) {
-#     # subset data into bin
-#     bin_data <- binned[which(binned$Bin == bin), ]
-#     
-#     # re-factor the column
-#     bin_data[, factor] <- factor(bin_data[, factor])
-#     
-#     # make sure that we have at least 2 levels of the factor
-#     # in this bin
-#     num_levels <- length(levels(bin_data[, factor]))
-#   
-#     if (num_levels <= 1) {
-#       next
-#     }
-#     
-#     frm <- paste('ArcSin',factor,sep=" ~ ")
-#     
-#     if (within_subjects == TRUE) {
-#       frm <- paste(frm, ' + Error(ParticipantName)', sep='')
-#     }
-#     
-#     model <- aov(formula(frm), data = bin_data)
-#     
-#     if (!is.numeric(summary(model)[[1]][["Pr(>F)"]][1]) && !is.numeric(summary(model)[[1]][[1]][["Pr(>F)"]][1])) {
-#       # no p-value available
-#       next
-#     }
-#     else if (within_subjects == TRUE) {
-#       p_value <- round(summary(model)[[1]][[1]][["Pr(>F)"]][[1]],3)
-#       df_num <- summary(model)[[1]][[1]][['Df']][[1]]
-#       df_den <- summary(model)[[1]][[1]][['Df']][[2]]
-#       F_value <- summary(model)[[1]][[1]][['F value']][[1]]
-#     }
-#     else {
-#       p_value <- round(summary(model)[[1]][["Pr(>F)"]][[1]],3)
-#       df_num <- summary(model)[[1]][['Df']][[1]]
-#       df_den <- summary(model)[[1]][['Df']][[2]]
-#       F_value <- summary(model)[[1]][['F value']][[1]]
-#     }
-#     
-#     if (p_value == 0) {
-#       p_value <- .001
-#     }
-#     
-#     if (p_value <= .05) {
-#       samedifferent <- 'different'
-#     }
-#     else {
-#       samedifferent <- 'same'
-#     }
-#     
-#     participants <- length(levels(factor(bin_data[, data_options$participant_factor])))
-#     
-#     results[bin + 1, ] <- c(bin, round((bin*bin_size_in_samples*(1000/data_options$sample_rate)),0), round(((bin*bin_size_in_samples + bin_size_in_samples)*(1000/data_options$sample_rate)),0), participants, samedifferent, p_value, df_num, df_den, F_value)
-#   }
-#   
-#   results
-# }
-# 
-# # first_looks_analysis()
-# #
-# # Look at an analysis of switches/stays on a dv AOI based on a subject's
-# # first AND second looks. You can see if subjects are faster to switch
-# # from AOI X to AOI Y than the reverse (implying they are moving nonrandomly
-# # towards AOI Y)
-# #
-# # @param dataframe data
-# # @param list data_options
-# # @param character.vector factors
-# #
-# # @return dataframe first_looks
-# first_looks_analysis <- function(data, data_options, factors = NA) {
-#   # use defaults if unset
-#   if (length(factors) < 2 && is.na(factors)) {
-#     factors = data_options$default_factors
-#   }
-#   
-#   # get the looks dataframe
-#   looks <- get_looks(data, data_options, factors = c(factors))
-#   
-#   # first, let's clean up the looks dataframe
-#   
-#   # aggregate by participants > trials > AOIs and take the
-#   # MIN(frames) values for each scenetype
-#   
-#   looks <- ddply(looks, c(data_options$participant_factor, factors, data_options$trial_factor, data_options$active_aoi_factor), summarise, StartTime = min(StartTime), EndTime = min(EndTime))
-# 
-#   # re-sort
-#   sort_names <- c(data_options$participant_factor, factors, data_options$trial_factor, "StartTime", "EndTime")
-#   looks <- looks[do.call("order", looks[sort_names]), ]
-#   
-#   # add the FixationNum column
-#   looks$RankSequence <- 0
-#   
-#   max_fixations <- length(unique(looks[, data_options$active_aoi_factor]))
-#   fixation_vector <- c(1:max_fixations)
-#   
-#   subjectnums <- unique(looks[, data_options$participant_factor])
-#   trials      <- unique(looks[, data_options$trial_factor])
-#   scenetypes  <- unique(looks[, data_options$active_aoi_factor])
-#   
-#   for (subjectnum in subjectnums) {
-#     for (factor in factors) {
-#       for (factor_level in unique(looks[, factor])) {
-#         for (trial in trials) {
-#           rows <- length(looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'RankSequence'])
-#           
-#           if (rows > 0) {
-#             looks[which(looks[, data_options$participant_factor] == subjectnum & looks[, factor] == factor_level & looks[, data_options$trial_factor] == trial), 'RankSequence'] <- fixation_vector[0:rows]
-#           }
-#         }
-#       }
-#     }
-#   }
-#   
-#   # get all first looks
-#   index <- length(factors)
-#   first_looks <- looks[which(looks$RankSequence == 1), 1:(4+index)]
-#   colnames(first_looks)[3+index] <- 'FirstAOI'
-#   colnames(first_looks)[4+index] <- 'FirstStartTime'
-#   
-#   # get all second looks
-#   second_looks <- looks[which(looks$RankSequence == 2), 1:(5+index)]
-#   colnames(second_looks)[3+index] <- 'SecondAOI'
-#   colnames(second_looks)[4+index] <- 'SecondStartTime'
-#   colnames(second_looks)[5+index] <- 'SecondEndTime'
-#   
-#   # merge first and second looks, getting rid of non-switch trials
-#   merged <- merge(first_looks, second_looks, by = c(colnames(first_looks)[1:(2+index)]))
-#   
-#   # calculate switch time
-#   merged$SwitchTime <- merged$SecondStartTime - merged$FirstStartTime
-#   
-#   # fixed columns
-#   merged[, data_options$participant_factor] <- factor(merged[, data_options$participant_factor])
-#   
-#   merged
-# }
+
 # 
 # # bootstrapped_splines(data, data_options, factor, within_subj, samples, resolution, alpha)
 # #
