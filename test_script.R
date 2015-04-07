@@ -38,15 +38,13 @@ drop1(fit_window, test= "Chisq")
 
 # sequential
 df_ia$Response = as.factor(df_ia$Response)
-fit_seq = sequential_bins_analysis(data = filter(df_ia, TimeInTrial > 0, TimeInTrial < 7500), 
+df_seq = sequential_bins_analysis(data = filter(df_ia, TimeInTrial > 0, TimeInTrial < 7500), 
                                    data_options, 
                                    time_bin_size = 100, 
                                    dv= 'AOI_Head', 
                                    factors = c('Condition') )
 
-plot(x = fit_seq$StartTime, y = fit_seq$Condition_CIUpper, type="l")
-lines(x = fit_seq$StartTime, y = fit_seq$Condition_CILower)
-abline(h=0)
+plot(df_seq, data_options, factor="Condition")
 
 
 

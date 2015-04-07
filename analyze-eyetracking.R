@@ -356,6 +356,31 @@ plot.sample_data <- function(x,
   
 }
 
+# plot.seq_bin()
+#
+# Plot the confidence intervals that result from running a sequential bin analysis
+#
+# @param dataframe data
+# @param list data_options
+# @param list factor
+#
+# @return list A ggplot list object  
+plot.seq_bin <- function(data, data_options, factor) {
+  
+  require('ggplot2')
+  
+  if (length(factor) != 1) stop("Length of 'factor' must be 1")
+  
+  ci_cols = grep(pattern = paste0(factor, "_CI"), x = colnames(data), value = TRUE )
+
+  ggplot(data = data, aes(x = StartTime, y = 0)) +
+    geom_ribbon(aes_string(ymin=ci_cols[1], ymax=ci_cols[2]), alpha=0.5) +
+    geom_hline(aes(yintercept = 0), linetype="dashed") +
+    ylab("Parameter Estimate") +
+    xlab("TimeBin (Start)")
+  
+}
+
 # window_analysis()
 #
 # Collapse time across our entire window and do an analyis with subjects and items as random effects
@@ -482,8 +507,7 @@ sequential_bins_analysis <- function(data,
     mutate_(.dots = time_bin_arg) %>%
     group_by_(.dots =  group_by_arg) %>%
     summarise_(.dots =  summarise_arg) %>%
-    mutate(ArcSin = asin( sqrt( PropLooking ) )
-    ) %>%
+    mutate(ArcSin = asin( sqrt( PropLooking ) ) ) %>%
     ungroup()
   
   # Generate Models:
@@ -517,6 +541,9 @@ sequential_bins_analysis <- function(data,
   # Tidy:
   out$ModelSummary = sapply(models$LmerModel, FUN = function(x) tidy(x, effects = 'fixed') ) 
   
+  
+  # Return:
+  class(out) = c("seq_bin", class(out))
   out    
     
 }
