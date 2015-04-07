@@ -383,24 +383,22 @@ plot.seq_bin <- function(data, data_options, factor) {
 
 # window_analysis()
 #
-# Collapse time across our entire window and do an analyis with subjects and items as random effects
+# Collapse time across our entire window and return a dataframe ready for LMERing
 #
 # @param dataframe data
 # @param list data_options
-# @param formula formula 
 # @param string dv
 # @param character.vector factors
+# @param numeric.vector window
 #
-# @return lmerMod an lmer model
+# @return dataframe
 window_analysis <- function(data, 
                             data_options, 
                             dv = data_options$default_dv, 
                             factors = data_options$default_factors,
-                            window = NULL,
-                            formula = NULL
-) {
+                            window = NULL
+                            ) {
   require('dplyr')
-  require('lme4')
   
   if ( is.null(window) ) {
     window = range(data[[data_options$time_factor]], na.rm = TRUE, finite = TRUE)
@@ -414,20 +412,12 @@ window_analysis <- function(data,
     summarise_( .dots = list(SamplesInAOI = as.formula(paste0("~", "sum(", dv, ", na.rm= TRUE)")),
                              SamplesTotal = as.formula(paste0("~", "length(", dv, ")"))) ) %>%
     mutate(elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
-           wts  = ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ),
+           weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
            Prop = SamplesInAOI / SamplesTotal,
            ArcSin = asin( sqrt( Prop ) )
     )
   
-  if (is.null(formula)) {
-    formula = as.formula( paste0("elog ~ ", 
-                                 paste(factors, collapse = "+"), 
-                                 " + (1 | ", data_options$participant_factor, ")",
-                                 " + (1 | ", data_options$item_factor, ")"
-    ) )
-  } 
-  
-  lmer(formula = formula, data = summarized, weights = 1/wts)
+  return(summarized)
   
 }
 
