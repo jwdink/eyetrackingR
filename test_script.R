@@ -33,6 +33,7 @@ plot(df_ia, data_options, dv = "AOI_Head", factor = "Condition", type = "smoothe
 
 ## analyses:
 # window:
+library("lme4")
 df_window = window_analysis(data = df_ia, data_options, window = c(4000,6500))
 fit_window = lmer(formula = ArcSin ~ Condition + (1|RECORDING_SESSION_LABEL) + (1|image), weights = weights,
                   data=df_window)

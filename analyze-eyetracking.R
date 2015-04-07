@@ -537,6 +537,11 @@ sequential_bins_analysis <- function(data,
   out[[paste(factor,"CILower",sep="_")]] = sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, 2,1)) 
   out[[paste(factor,"CIUpper",sep="_")]] = sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, 2,2)) 
   
+  # Diff:
+  out$Difference = 
+    (out[[paste(factor,"CILower",sep="_")]] > 0) |
+    (out[[paste(factor,"CIUpper",sep="_")]] < 0) 
+  
   # Tidy:
   out$ModelSummary = sapply(models$LmerModel, FUN = function(x) tidy(x, effects = 'fixed') ) 
   

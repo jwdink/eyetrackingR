@@ -64,7 +64,7 @@ This function now must be run on your dataset before doing further visualization
 So make sure you run
 
 ```
-data = verify_dataset(data, data_options)
+data_v = verify_dataset(data, data_options)
 ```
 
 Before diving in.
@@ -108,7 +108,9 @@ The function returns 'weights' instead of 'wts' now. These weights are already i
 ```
 df_window = window_analysis(data = datav, data_options, window = c(367, 1500))
 
-fit_window = lmer(formula = elog ~ Condition (1|ParticipantName) + (1|Trial), data = df_window, weights = weights)
+fit_window = lmer(formula = elog ~ Condition (1|ParticipantName) + (1|Trial), 
+    data = df_window, 
+    weights = weights) # don't invert
 
 summary(fit_window) # get a summary
 
@@ -126,7 +128,7 @@ This is a more natural way of getting an estimate for when conditions differ whe
 The result of this function can be plotted. E.g.:
 
 ```
-data_in_window = filter(datav, Time >= 0, Time <= 2000)
+data_in_window = filter(data_v, Time >= 0, Time <= 2000)
 
 df_seq = sequential_bins_analysis(data = data_in_window, data_options, time_bin_size = 100, dv= 'Target', factors = c('Condition') )
 
