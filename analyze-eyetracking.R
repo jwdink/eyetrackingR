@@ -444,6 +444,7 @@ sequential_bins_analysis <- function(data,
   require('dplyr')
   require('lme4')
   require('broom')
+  require('pbapply')
   
   ## Helpers: ===== ===== ===== ===== =====
   lmer_helper = function(tb) {
@@ -451,7 +452,6 @@ sequential_bins_analysis <- function(data,
     failsafe_lmer(formula = as.formula(formula_string), data = filter(summarised, TimeBin==tb) )
   }
   extract_conf_ints = function(object, pnum, lh) {
-    cat("|")
     out = confint(object, method = "Wald")[pnum, lh]
     if (is.null(out)) {
       return(NA)
@@ -499,7 +499,7 @@ sequential_bins_analysis <- function(data,
   
   # Generate Models:
   formula_string = paste0("ArcSin ~ ", group_factor, " + ", "(1|", data_options$participant_factor, ")")
-  LM_Model = lapply(X = unique(summarised$TimeBin), FUN = lmer_helper)
+  LM_Model = pblapply(X = unique(summarised$TimeBin), FUN = lmer_helper)
   models = summarised %>%
     group_by_(.dots = list("StartTime","EndTime") ) %>%
     summarise(Temp = 1) %>%
@@ -510,8 +510,8 @@ sequential_bins_analysis <- function(data,
   out = select(models, -LM_Model, -Temp)
   
   # Conf:
-  out[[paste(group_factor,"CILower",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
-  out[[paste(group_factor,"CIUpper",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
+  out[[paste(group_factor,"CILower",sep="_")]] = pbsapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
+  out[[paste(group_factor,"CIUpper",sep="_")]] = pbsapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
   
   # Diff:
   out$Difference = 
