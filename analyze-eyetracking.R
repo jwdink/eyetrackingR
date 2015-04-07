@@ -39,32 +39,35 @@
 # require(plyr)
 
 set_data_options <- function(
-                        sample_rate = 60,
-                        participant_factor = 'ParticipantName',
-                        active_aoi_factor = 'SceneType',
-                        trackloss_factor = 'TrackLoss',
-                        time_factor = 'TimeFromMovieOnset',
-                        sample_factor = 'FramesFromMovieOnset',
-                        trial_factor = 'Trial',
-                        default_dv = 'ActionMatch',
-                        default_factors = c('Condition')
-                    ) {
+  sample_rate = 60,
+  participant_factor = 'ParticipantName',
+  active_aoi_factor = 'SceneType',
+  trackloss_factor = 'TrackLoss',
+  time_factor = 'TimeFromMovieOnset',
+  sample_factor = 'FramesFromMovieOnset',
+  trial_factor = 'Trial',
+  item_factor = 'Trial',
+  default_dv = 'ActionMatch',
+  default_factors = c('Condition')
+) {
   list(
-            'sample_rate' = sample_rate,
-            'participant_factor' = participant_factor,
-            'active_aoi_factor' = active_aoi_factor,
-            'trackloss_factor' = trackloss_factor,
-            'time_factor' = time_factor,
-            'sample_factor' = sample_factor,
-            'trial_factor' = trial_factor,
-            'default_dv' = default_dv,
-            'default_factors' = default_factors
-          )
+    'sample_rate' = sample_rate,
+    'participant_factor' = participant_factor,
+    'active_aoi_factor' = active_aoi_factor,
+    'trackloss_factor' = trackloss_factor,
+    'time_factor' = time_factor,
+    'sample_factor' = sample_factor,
+    'trial_factor' = trial_factor,
+    'item_factor' = item_factor,
+    'default_dv' = default_dv,
+    'default_factors' = default_factors
+  )
 }
 
 # verify_dataset()
 #
-# Verify the status of the dataset by assessing columns in your data_options
+# Verify the status of the dataset by assessing columns in your data_options. Fix if neccessary.
+# Also assigns data to "sample_data" class, so that plot and other functions will know what to do with it.
 #
 # @param dataframe data
 # @param list data_options
@@ -90,7 +93,7 @@ verify_dataset <- function(data, data_options, silent = FALSE) {
                             "time_factor"        = function(x) check_then_convert(x, is.numeric, as.numeric2, "Time"),
                             "sample_factor"      = function(x) check_then_convert(x, is.numeric, as.numeric2, "Sample"),
                             "trial_factor"       = function(x) check_then_convert(x, is.factor, as.factor, "Trial")
-                            )
+  )
   for (col in names(col_type_converter) ) {
     out[[ data_options[[col]] ]] = col_type_converter[[col]]( out[[ data_options[[col]] ]] )
   }
@@ -99,25 +102,25 @@ verify_dataset <- function(data, data_options, silent = FALSE) {
   
 }
 
-# # describe_data ()
-# #
-# # Describe a DV column in the dataset by a (group of) factor(s)
-# #
-# # @param dataframe data
-# # @param string dv
-# # @param character.vector factors
-# #
-# # @return dataframe 
+# describe_data ()
+#
+# Describe a DV column in the dataset by a (group of) factor(s)
+#
+# @param dataframe data
+# @param string dv
+# @param character.vector factors
+#
+# @return dataframe 
 
 describe_data = function(data, data_options, dv = data_options$default_dv, factors = data_options$default_factors) {
   require(dplyr)
   require(lazyeval)
   
   to_summarise = c("~mean(dv, na.rm= TRUE)",
-                      "~sd(dv, na.rm= TRUE)",
-                      "~var(dv, na.rm= TRUE)",
-                      "~min(dv, na.rm= TRUE)",
-                      "~max(dv, na.rm= TRUE)"
+                   "~sd(dv, na.rm= TRUE)",
+                   "~var(dv, na.rm= TRUE)",
+                   "~min(dv, na.rm= TRUE)",
+                   "~max(dv, na.rm= TRUE)"
   )
   to_summarise = as.list( gsub(pattern = "dv", replacement = dv, x = to_summarise) ) %>%
     lapply(as.formula)
@@ -301,10 +304,10 @@ plot.data.frame = function(...) stop("This data has not been verified for plotti
 plot.sample_data <- function(x, 
                              data_options, 
                              dv = data_options$default_dv, 
-                             factor = data_options$default_factors, 
+                             factor = data_options$default_factors[1], 
                              type = 'empirical', 
                              time_bin_size = 100) {
-
+  
   require('ggplot2')
   data = x
   
@@ -359,37 +362,164 @@ plot.sample_data <- function(x,
 #
 # @param dataframe data
 # @param list data_options
+# @param formula formula 
 # @param string dv
 # @param character.vector factors
 #
 # @return lmerMod an lmer model
-window_analysis <- function(data, data_options, formula = NULL, dv = data_options$default_dv, factors = data_options$default_factors) {
+window_analysis <- function(data, 
+                            data_options, 
+                            dv = data_options$default_dv, 
+                            factors = data_options$default_factors,
+                            window = NULL,
+                            formula = NULL
+) {
   require('dplyr')
   require('lme4')
   
+  if ( is.null(window) ) {
+    window = range(data[[data_options$time_factor]], na.rm = TRUE, finite = TRUE)
+  }
   
   summarized = data %>% 
-    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, factors)) ) %>%
+    filter_(.dots = list( paste0(data_options$time_factor, " >= ", window[1]),
+                          paste0(data_options$time_factor, " <= ", window[2]))
+    ) %>%
+    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factor, factors)) ) %>%
     summarise_( .dots = list(SamplesInAOI = as.formula(paste0("~", "sum(", dv, ", na.rm= TRUE)")),
                              SamplesTotal = as.formula(paste0("~", "length(", dv, ")"))) ) %>%
     mutate(elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
            wts  = ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ),
            Prop = SamplesInAOI / SamplesTotal,
            ArcSin = asin( sqrt( Prop ) )
-           )
+    )
   
   if (is.null(formula)) {
     formula = as.formula( paste0("elog ~ ", 
-                         paste(factors, collapse = "+"), 
-                         " + (1 | ", data_options$participant_factor, ")",
-                         " + (1 | ", data_options$trial_factor, ")"
-                         ) )
+                                 paste(factors, collapse = "+"), 
+                                 " + (1 | ", data_options$participant_factor, ")",
+                                 " + (1 | ", data_options$item_factor, ")"
+    ) )
   } 
   
   lmer(formula = formula, data = summarized, weights = 1/wts)
   
 }
 
+
+# sequential_bins_analysis()
+#
+# Analyze bins sequentially looking for a main effect of a single factor.
+# Uses the Arcsin-square root transformation on the DV.
+#
+# @param dataframe data
+# @param list data_options
+# @param integer time_bin_size The time (ms) to fit into each bin
+# @param string dv The dependent variable column
+# @param character.vector factors A vector of factor columns
+#
+# @return dataframe 
+sequential_bins_analysis <- function(data, 
+                                     data_options, 
+                                     time_bin_size = 250, 
+                                     dv = data_options$default_dv, 
+                                     factors = data_options$default_factors) 
+{
+  
+  require('dplyr')
+  require('lme4')
+  require('broom')
+  
+  ## Helpers: ===== ===== ===== ===== =====
+  make_lmer = function(measurevar, groupvars, partvar, itemvar) {
+    
+    formula_string = paste0("measurevar ~ ", 
+                            paste0("groupvars", "[['", names(groupvars), "']]", collapse = " + "), 
+                            " + (1|partvar)",
+                            " + (1|itemvar)")
+    
+    failsafe_lmer = failwith(default = NULL, f = lmer, quiet = TRUE)
+    
+    fit = failsafe_lmer(formula = as.formula(formula_string) ) 
+    return(fit)
+  }
+  get_conf_int = function(model) {
+    failsafe_confint = failwith(default = data.frame(), f = confint.merMod, quiet = TRUE)
+    return( failsafe_confint(model, method = "Wald") )
+  }
+  extract_conf_ints = function(object, pnum, lh) {
+    out = object[pnum, lh]
+    if (is.null(out)) {
+      return(NA)
+    } else {
+      return(out)
+    }
+  }
+  
+  ## Main: ===== ===== ===== ===== =====
+  
+  for (f in factors) {
+    if (!is.factor(data[[f]])) stop("All factors must be of type 'factor.' ", 
+                                    "This function does not handle continous predictors.")
+  }
+  
+  # Create NSE Args:
+  time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
+  group_by_arg = as.list(c(data_options$participant_factor, data_options$item_factor, factors, "TimeBin"))
+  summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
+                       StartTime = as.formula( paste0("~", data_options$time_factor, "[1]")),
+                       EndTime = as.formula( paste0("~", data_options$time_factor, "[n()]"))
+  )
+  
+  factors_string = paste0("'",factors ,"' = ", ".$", factors, collapse = ", ")
+  lmer_args = paste0("(.$ArcSin, ",
+                     "list(", factors_string, "), ", 
+                     ".$", data_options$participant_factor, ", ",
+                     ".$", data_options$item_factor, ")" )
+  
+  # Summarise by TimeBin:
+  summarised = data %>%
+    mutate_(.dots = time_bin_arg) %>%
+    group_by_(.dots =  group_by_arg) %>%
+    summarise_(.dots =  summarise_arg) %>%
+    mutate(ArcSin = asin( sqrt( PropLooking ) )
+    ) %>%
+    ungroup()
+  
+  # Generate Models:
+  models = summarised %>%
+    group_by_(.dots = list("StartTime","EndTime") ) %>%
+    do_(.dots = list(LmerModel = as.formula(paste0("~make_lmer", lmer_args)) ) ) %>%
+    ungroup() 
+  
+  # Generate Output:
+  out = select(models, -LmerModel)
+  
+  # AIC:
+  out$AIC = sapply(models$LmerModel, FUN = function(x) {
+    out = glance(x)$AIC
+    if (is.null(out)) {
+      return(NA)
+    } else {
+      return(out)
+    }
+  } )
+  
+  # Conf:
+  confidence_intervals = lapply(X = models$LmerModel, FUN = get_conf_int)
+  for (i in 1:length(factors) ) {
+    out[[paste(factors[i],"CILower",sep="_")]] = 
+      sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, i+1,1)) 
+    out[[paste(factors[i],"CIUpper",sep="_")]] = 
+      sapply(confidence_intervals, FUN = function(x) extract_conf_ints(x, i+1,2)) 
+  }
+  
+  # Tidy:
+  out$ModelSummary = sapply(models$LmerModel, FUN = function(x) tidy(x, effects = 'fixed') ) 
+  
+  out    
+    
+}
 
 
 # # time_analysis()

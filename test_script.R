@@ -9,6 +9,7 @@ data_options= set_data_options(sample_factor = "TimeInTrial",
                                default_factors = "Condition",
                                default_dv = "AOI_Head",
                                trial_factor = "TRIAL_INDEX", 
+                               item_factor = 'image',
                                time_factor = "TimeInTrial", 
                                sample_rate = 1000, 
                                participant_factor = "RECORDING_SESSION_LABEL", 
@@ -32,8 +33,23 @@ plot(df_ia, data_options, dv = "AOI_Head", factor = "Condition", type = "smoothe
 
 ## analyses:
 # window:
-fit = window_analysis(data = df_ia, data_options)
-drop1(fit, test= "Chisq")
+fit_window = window_analysis(data = df_ia, data_options, window = c(4000,6500))
+drop1(fit_window, test= "Chisq")
+
+# sequential
+df_ia$Response = as.factor(df_ia$Response)
+fit_seq = sequential_bins_analysis(data = filter(df_ia, TimeInTrial > 0, TimeInTrial < 7500), 
+                                   data_options, 
+                                   time_bin_size = 100, 
+                                   dv= 'AOI_Head', 
+                                   factors = c('Condition') )
+
+plot(x = fit_seq$StartTime, y = fit_seq$Condition_CIUpper, type="l")
+lines(x = fit_seq$StartTime, y = fit_seq$Condition_CILower)
+abline(h=0)
+
+
+
 
 
 
