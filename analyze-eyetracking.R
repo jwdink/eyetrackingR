@@ -49,6 +49,8 @@ set_data_options <- function(
   item_factors = 'Trial',
   default_dv = 'ActionMatch',
   default_factors = c('Condition'),
+  xpos_factor = 'XPos',
+  ypos_factor = 'YPos',
   message_factor = NULL
 ) {
   list(
@@ -62,6 +64,8 @@ set_data_options <- function(
     'item_factors' = item_factors,
     'default_dv' = default_dv,
     'default_factors' = default_factors,
+    'xpos_factor' = xpos_factor,
+    'ypos_factor' = ypos_factor,
     'message_factor' = message_factor
   )
 }
