@@ -71,6 +71,7 @@ prepare_raw_data = function(data,
   }
   
   # Verify Types:
+  df = ungroup(df)
   df = verify_dataset(data = df, data_options = dopts, silent = !prompt)
     
   return(df)
