@@ -341,8 +341,9 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 # 
 # @return dataframe Returns the verified dataset
 
-plot.data.frame = function(...) {
-  verify_dataset(...)
+plot.data.frame = function(data, ...) {
+  data = verify_dataset(data, ...)
+  plot(data, ...)
 }
 
 # plot.sample_data()
