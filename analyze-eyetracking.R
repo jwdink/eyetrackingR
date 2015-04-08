@@ -109,6 +109,7 @@ verify_dataset <- function(data, data_options, silent = FALSE) {
   )
   for (col in names(col_type_converter) ) {
     for(i in seq_along(data_options[[col]])) {
+      if (is.null(out[[ data_options[[col]][i] ]])) stop("Data is missing", col)
       out[[ data_options[[col]][i] ]] = col_type_converter[[col]]( out[[ data_options[[col]][i] ]] )
     }
   }
@@ -450,7 +451,7 @@ center_predictors = function(data, predictors) {
   dots = list()
   for (i in seq_along(predictors)) {
     name = paste0(predictors[i], "C")
-    dots[[name]] = paste0("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm = TRUE)")
+    dots[[name]] = mk_nse_arg("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm = TRUE)")
   }
 
   data %>% 
@@ -484,7 +485,15 @@ sequential_bins_analysis <- function(data,
   require('dplyr')
   require('lme4')
   require('broom')
-  require('pbapply')
+  if ( !require('pbapply') ) {
+    cat("\nIf you'd like a progress bar for this function, consider installing 'pbapply'.")
+    pbsapply = function(X, FUN, ..., simplify, USE.NAMES) {
+      sapply(X, FUN, ..., simplify, USE.NAMES)
+    }
+    pblapply = function(X, FUN, ..., simplify, USE.NAMES) {
+      lapply(X, FUN, ..., simplify, USE.NAMES,)
+    }
+  }
   
   ## Helpers: ===== ===== ===== ===== =====
   lmer_helper = function(tb) {
@@ -502,11 +511,15 @@ sequential_bins_analysis <- function(data,
   
   ## Main: ===== ===== ===== ===== =====
   
+  # Prelims:
+  data = ungroup(data)
+  dopts = data_options
+  
   if (!is.factor(data[[group_factor]])) stop("group_factor must be of type 'factor.' ", 
                                        "This function does not handle continous predictors.")
   
   if (is.null(factor_levels)) {
-    if (length(unique(data[[group_factor]])) > 2 ) {
+    if (length(levels(data[[group_factor]])) > 2 ) {
       stop("If factor has more than two levels, ",
            "you must specify which you are interested in comparing with 'factor_levels' arg.")
     } else {
@@ -515,19 +528,19 @@ sequential_bins_analysis <- function(data,
   }
   
   # Create NSE Args:
-  time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-  group_by_arg = as.list(c(data_options$participant_factor, data_options$item_factors, group_factor, "TimeBin"))
+  time_bin_arg = list(TimeBin = mk_nse_arg("ceiling(", dopts$time_factor, "/", time_bin_size, ")") )
+  gb_part_item_group_tbin = as.list(c(data_options$participant_factor, data_options$item_factors, group_factor, "TimeBin"))
   summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
                        StartTime = as.formula( paste0("~", data_options$time_factor, "[1]")),
                        EndTime = as.formula( paste0("~", data_options$time_factor, "[n()]"))
   )
-  filter_by_factor_arg = list(as.formula(paste0("~ ", group_factor, "%in% factor_levels")))
+  filter_by_factor_arg = list( mk_nse_arg(group_factor, "%in% factor_levels") )
   
   # Summarise by TimeBin:
   summarised = data %>%
     filter_(.dots = filter_by_factor_arg) %>% 
     mutate_(.dots = time_bin_arg) %>%
-    group_by_(.dots =  group_by_arg) %>%
+    group_by_(.dots =  gb_part_item_group_tbin) %>%
     summarise_(.dots =  summarise_arg) %>%
     mutate(ArcSin = asin( sqrt( PropLooking ) ) ) %>%
     ungroup()
@@ -594,8 +607,9 @@ window_analysis <- function(data,
                           paste0(data_options$time_factor, " <= ", window[2]))
     ) %>%
     group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factors, group_factors)) ) %>%
-    summarise_( .dots = list(SamplesInAOI = as.formula(paste0("~", "sum(", dv, ", na.rm= TRUE)")),
-                             SamplesTotal = as.formula(paste0("~", "sum(!is.na(", dv, "))"))) ) %>%
+    summarise_( .dots = list(SamplesInAOI = mk_nse_arg( "sum(", dv, ", na.rm= TRUE)" ),
+                             SamplesTotal = mk_nse_arg( "sum(!is.na(", dv, "))" ) # ignore trackloss!
+                             ) ) %>%
     mutate(elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
            weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
            Prop = SamplesInAOI / SamplesTotal,
@@ -604,4 +618,15 @@ window_analysis <- function(data,
   
   return(summarized)
   
+}
+
+
+# Helpers -----------------------------------------------------------------------------------------------
+
+mk_nse_arg = function(..., cond=TRUE) {
+  if (cond) {
+    as.formula(paste0("~", ...))
+  } else {
+    "~NA"
+  }
 }
