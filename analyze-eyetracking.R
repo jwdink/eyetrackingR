@@ -434,7 +434,7 @@ window_analysis <- function(data,
     ) %>%
     group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factors, group_factors)) ) %>%
     summarise_( .dots = list(SamplesInAOI = as.formula(paste0("~", "sum(", dv, ", na.rm= TRUE)")),
-                             SamplesTotal = as.formula(paste0("~", "length(", dv, ")"))) ) %>%
+                             SamplesTotal = as.formula(paste0("~", "sum(!is.na(", dv, "))"))) ) %>%
     mutate(elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
            weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
            Prop = SamplesInAOI / SamplesTotal,
