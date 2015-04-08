@@ -46,7 +46,7 @@ set_data_options <- function(
   time_factor = 'TimeFromMovieOnset',
   sample_factor = 'FramesFromMovieOnset',
   trial_factor = 'Trial',
-  item_factor = 'Trial',
+  item_factors = 'Trial',
   default_dv = 'ActionMatch',
   default_factors = c('Condition')
 ) {
@@ -58,10 +58,34 @@ set_data_options <- function(
     'time_factor' = time_factor,
     'sample_factor' = sample_factor,
     'trial_factor' = trial_factor,
-    'item_factor' = item_factor,
+    'item_factors' = item_factors,
     'default_dv' = default_dv,
     'default_factors' = default_factors
   )
+}
+
+# center_predictors()
+#
+# Center predictors in preparation for statistical analyses
+#
+# @param dataframe data
+# @param character.vector predictors
+#
+# @return dataframe data with modified columns appended with "C"
+
+center_predictors = function(data, predictors) {
+  require('dplyr')
+    
+  dots = list()
+  for (i in seq_along(predictors)) {
+    name = paste0(predictors[i], "C")
+    dots[[name]] = paste0("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm = TRUE)")
+  }
+
+  data %>% 
+    ungroup() %>%
+    mutate_(.dots = dots)
+  
 }
 
 # verify_dataset()
@@ -92,10 +116,13 @@ verify_dataset <- function(data, data_options, silent = FALSE) {
   col_type_converter = list("participant_factor" = function(x) check_then_convert(x, is.factor, as.factor, "Participants"),
                             "time_factor"        = function(x) check_then_convert(x, is.numeric, as.numeric2, "Time"),
                             "sample_factor"      = function(x) check_then_convert(x, is.numeric, as.numeric2, "Sample"),
-                            "trial_factor"       = function(x) check_then_convert(x, is.factor, as.factor, "Trial")
+                            "trial_factor"       = function(x) check_then_convert(x, is.factor, as.factor, "Trial"),
+                            "item_factors"       = function(x) check_then_convert(x, is.factor, as.factor, "Item")
   )
   for (col in names(col_type_converter) ) {
-    out[[ data_options[[col]] ]] = col_type_converter[[col]]( out[[ data_options[[col]] ]] )
+    for(i in seq_along(data_options[[col]])) {
+      out[[ data_options[[col]][i] ]] = col_type_converter[[col]]( out[[ data_options[[col]][i] ]] )
+    }
   }
   
   return( out )
@@ -405,7 +432,7 @@ window_analysis <- function(data,
     filter_(.dots = list( paste0(data_options$time_factor, " >= ", window[1]),
                           paste0(data_options$time_factor, " <= ", window[2]))
     ) %>%
-    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factor, group_factors)) ) %>%
+    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factors, group_factors)) ) %>%
     summarise_( .dots = list(SamplesInAOI = as.formula(paste0("~", "sum(", dv, ", na.rm= TRUE)")),
                              SamplesTotal = as.formula(paste0("~", "length(", dv, ")"))) ) %>%
     mutate(elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
@@ -476,17 +503,12 @@ sequential_bins_analysis <- function(data,
   
   # Create NSE Args:
   time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-  group_by_arg = as.list(c(data_options$participant_factor, data_options$item_factor, group_factor, "TimeBin"))
+  group_by_arg = as.list(c(data_options$participant_factor, data_options$item_factors, group_factor, "TimeBin"))
   summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
                        StartTime = as.formula( paste0("~", data_options$time_factor, "[1]")),
                        EndTime = as.formula( paste0("~", data_options$time_factor, "[n()]"))
   )
   filter_by_factor_arg = list(as.formula(paste0("~ ", group_factor, "%in% factor_levels")))
-  
-  lmer_args = paste0("(.$ArcSin, ",
-                     ".$", group_factor, ",",
-                     ".$", data_options$participant_factor, ", ",
-                     ".$", data_options$item_factor, ")" )
   
   # Summarise by TimeBin:
   summarised = data %>%
@@ -501,13 +523,13 @@ sequential_bins_analysis <- function(data,
   formula_string = paste0("ArcSin ~ ", group_factor, " + ", "(1|", data_options$participant_factor, ")")
   LM_Model = pblapply(X = unique(summarised$TimeBin), FUN = lmer_helper)
   models = summarised %>%
-    group_by_(.dots = list("StartTime","EndTime") ) %>%
-    summarise(Temp = 1) %>%
+    group_by_(.dots = list("TimeBin") ) %>%
+    summarise(StartTime = mean(StartTime)) %>%
     ungroup() %>%
     mutate(LM_Model = LM_Model)
   
   # Generate Output:
-  out = select(models, -LM_Model, -Temp)
+  out = select(models, -LM_Model)
   
   # Conf:
   out[[paste(group_factor,"CILower",sep="_")]] = pbsapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
