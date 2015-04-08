@@ -48,7 +48,8 @@ set_data_options <- function(
   trial_factor = 'Trial',
   item_factors = 'Trial',
   default_dv = 'ActionMatch',
-  default_factors = c('Condition')
+  default_factors = c('Condition'),
+  message_factor = NULL
 ) {
   list(
     'sample_rate' = sample_rate,
@@ -60,7 +61,8 @@ set_data_options <- function(
     'trial_factor' = trial_factor,
     'item_factors' = item_factors,
     'default_dv' = default_dv,
-    'default_factors' = default_factors
+    'default_factors' = default_factors,
+    'message_factor' = message_factor
   )
 }
 
@@ -128,6 +130,43 @@ verify_dataset <- function(data, data_options, silent = FALSE) {
   return( out )
   
 }
+
+# trackloss_analysis ()
+#
+# Get information on trackloss
+#
+# @param dataframe data
+# @param list data_options
+#
+# @return dataframe 
+
+trackloss_analysis = function(data, data_options) {
+  
+  require('outliers')
+  require('dplyr')
+  
+  dopts = data_options
+  
+  data[["Trackloss"]] = data[[dopts$trackloss_factor]]
+  
+  data %>%
+    group_by_(.dots = list(dopts$participant_factor, dopts$trial_factor)) %>%
+    mutate(TracklossForTrial = mean(Trackloss, na.rm=TRUE)) %>%
+    ungroup() %>%
+    group_by_(.dots = list(dopts$participant_factor)) %>%
+    mutate(TracklossForParticipant = mean(Trackloss, na.rm=TRUE)) %>%
+    ungroup() %>%
+    group_by_(.dots = list(dopts$participant_factor, dopts$trial_factor) )%>%
+    summarise(TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
+              TracklossForParticipant = mean(TracklossForParticipant, na.rm=TRUE)) %>%
+    ungroup() %>%
+    mutate(Part_ZScore  = scores(TracklossForParticipant, type = "z"),
+           Trial_ZScore = scores(TracklossForTrial, type = "z"),
+           Part_MAD     = scores(TracklossForParticipant, type = "mad"),
+           Trial_MAD    = scores(TracklossForTrial, type = "mad") )
+  
+}
+
 
 # describe_data ()
 #
