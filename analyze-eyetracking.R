@@ -76,6 +76,88 @@ set_data_options <- function(
   )
 }
 
+# repair_timestamp_data
+#
+# The main purpose of this function is to ensure that there is a column specifying the time within
+# the trial, which is zeroed out at the timepoint of stimulus presentation. Additionally, a column specifying
+# "post-trial" (after trial/stim end message) samples is created. Finally, a sample-index column is created if
+# one does not already exist.
+#
+# @param dataframe data
+# @param list data_options
+# @param string trial_start_msg A string in the message_factor column that specifies when the trial started
+# @param string trial_stop_msg  A string in the message_factor column that specifies when the trial ended
+# @param boolean prompt If true, this function will ask before removing bad trials
+#
+# @return list of configuration options
+
+repair_timestamp_data = function(data, 
+                               data_options,
+                               trial_start_msg = NULL,
+                               trial_stop_msg = NULL,
+                               prompt = TRUE) {
+  
+  require("dplyr")
+
+  df = ungroup(data)
+  dopts = data_options
+
+  # Make Row for unique TrialID
+  cat("\n\nMaking unique TrialID column...")
+  df[['TrialID']] = paste(df[[dopts$participant_factor]], df[[dopts$trial_factor]], sep = "_")
+  
+  # Remove any trials in which the start or stop message in missing:
+  df = df %>%
+    group_by(TrialID) %>%
+    mutate_(.dots = list(NoStartMsg = make(nse_arg( "all(!grepl('", trial_start_msg, "',", dopts$message_factor, "))" )),
+                         NoStopMsg  = make(nse_arg( "all(!grepl('", trial_stop_msg,  "',", dopts$message_factor, "))", 
+                                                    cond = !is.null(trial_stop_msg)) )
+    ) )
+  no_start_msg_trials = unique( df$TrialID[which(df$NoStartMsg)] )
+  no_stop_msg_trials = unique( df$TrialID[which(df$NoStopMsg)] )
+  
+  if ( length(no_start_msg_trials) + length(no_stop_msg_trials) > 0) {
+    cat("\nFound", length(no_start_msg_trials), "trials without a start msg, and ", length(no_stop_msg_trials),
+        "without a stop message. These trials will be removed.")
+    if (prompt) {
+      readline("Press enter to continue. ")
+    }
+  }
+  
+  df = df %>%
+    filter(!TrialID %in% no_start_msg_trials,
+           !TrialID %in% no_stop_msg_trials)
+    
+  # Add TimeInTrial Column:
+  cat("\n\nAdding TimeInTrial column...")
+  ts_command = make(nse_arg(dopts$time_factor, " - ", dopts$time_factor, "[grep('", trial_start_msg, "',", dopts$message_factor, ")][1]"))
+  df = df %>%
+    group_by(TrialID) %>%
+    mutate_(.dots = list(TimeInTrial = ts_command) ) %>%
+    select(-NoStartMsg, -NoStopMsg) %>%
+    ungroup()
+  cat("\nAdded. You may want to set data_options$time_factor to 'TimeInTrial'")
+  
+  # Mark Post-Trial TSs:
+  df = df %>%
+    mutate_(.dots = list(PostTrial = 
+                           make(nse_arg("TimeInTrial > TimeInTrial[grep('", trial_stop_msg, "',", dopts$message_factor, ")][1]",  
+                                   cond = !is.null(trial_stop_msg) ))
+    ))
+  
+  # Add Sample Index (if needed):
+  if ( is.null(dopts$sample_factor) | is.null(df[[dopts$sample_factor]]) ) {
+    cat("\n\nNo sample index column found, adding...")
+    df = df %>%
+      group_by(TrialID) %>%
+      mutate(SampleIndex = 1:n()) 
+    cat("\nAdded. You may want to set data_options$sample_factor to 'SampleIndex'")
+  }
+
+  return(ungroup(df))
+  
+}
+
 # verify_dataset()
 #
 # Verify the status of the dataset by assessing columns in your data_options. Fix if neccessary.
