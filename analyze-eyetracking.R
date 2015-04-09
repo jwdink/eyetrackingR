@@ -317,7 +317,18 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
   # Distractor
   
   data <- data.frame(matrix(nrow = num_rows, ncol = 12))
-  colnames(data) <- c(data_options$participant_factor, 'Age', 'Condition', 'TrialNum', data_options$trial_factor, 'Window', data_options$time_factor, data_options$sample_factor, data_options$trackloss_factor, data_options$active_aoi_factor, 'Target', 'Distractor')
+  colnames(data) <- c(data_options$participant_factor, 
+                      'Age', 
+                      'Condition', 
+                      'TrialNum', 
+                      data_options$trial_factor, 
+                      'Window', 
+                      data_options$time_factor, 
+                      data_options$sample_factor, 
+                      data_options$trackloss_factor, 
+                      data_options$active_aoi_factor, 
+                      'Target', 
+                      'Distractor')
   
   # calculate the general slopes by condition
   
@@ -370,14 +381,16 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
     # AOI assignment is by trial
     for (y in 1:6) {
       # for baseline, let's just give everyone a 50/50 chance
-      baseline_range <- which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] <= (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
+      baseline_range <- 
+        which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] <= (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
       
       data[baseline_range, 'Window'] <- 'Baseline'
       data[baseline_range, 'Target'] <- ifelse(rbinom((data_options$sample_rate*4),1,0.5) == 1,1,0)
       
       # for response, we can set the target/distractor looks using the conditions
       # sloped probability (defined above)
-      response_range <- which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] > (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
+      response_range <- 
+        which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] > (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
       
       data[response_range, 'Window'] <- 'Response'
       
@@ -423,9 +436,9 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 # 
 # @return dataframe Returns the verified dataset
 
-plot.data.frame = function(data, ...) {
-  data = verify_dataset(data, ...)
-  plot(data, ...)
+plot.data.frame = function(data, data_options, ...) {
+  data = verify_dataset(data, data_options)
+  plot(data, data_options, ...)
 }
 
 # plot.sample_data()
@@ -451,24 +464,46 @@ plot.sample_data <- function(data,
   
   require('ggplot2')
   
-  if ( data_options$sample_rate / time_bin_size > 100 & !quiet) {
+  data = ungroup(data)
+  dopts = data_options
+  
+  if ( dopts$sample_rate / time_bin_size > 100 & !quiet) {
     cat("\nWarning: You've selected a very small time window relate to your sample rate. Could be very slow.", 
         "Press enter to continue anyways, or Esc to cancel.")
     readline(prompt = "...")
   }
   
-  time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-    summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
-                         Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
+  if (!is.null(facet_factor)) {
+    if (!is.factor(data[[facet_factor]])) {
+      stop('Facet factor must be a factor')
+    }
+  } 
+  
+  if (is.numeric(data[[group_factor]])) {
+    if (!quiet) cat("\nPredictor is numeric, will perform a median split for visualization.")
     
+    make_split = list(  make(nse_arg("median(", group_factor, ", na.rm=TRUE)")),
+                        make(nse_arg( "ifelse(", group_factor, " >= Median, 'High', 'Low')" )) 
+    )
+    names(make_split) = c("Median", group_factor)
+    data = data %>%
+      mutate_(.dots = make_split)
+    
+  }
+  
+  time_bin_arg = list(TimeBin = make(nse_arg("ceiling(", dopts$time_factor, "/", time_bin_size, ")") ) )
   gb_ppt_group_facet = as.list(c(dopts$participant_factor, dopts$item_factors, group_factor, facet_factor, "TimeBin"))
+  get_prop_looking = list(PropLooking = make( nse_arg("mean(", dv, ", na.rm=TRUE)") ) )
+  
   
   if (type == 'empirical') {
     
     g = data %>%
       mutate_(.dots =  time_bin_arg) %>%
-      group_by_(.dots =  group_by_arg) %>%
-      summarise_(.dots =  summarise_arg) %>%
+      group_by_(.dots =  gb_ppt_group_facet) %>%
+      summarise_(.dots =  get_prop_looking) %>%
+      ungroup() %>%
+      mutate(Time = TimeBin*time_bin_size-time_bin_size) %>%
       ggplot(aes_string(x = "Time", y = "PropLooking", group = group_factor, color = group_factor)) +
       stat_summary(fun.dat = mean_se) +
       stat_summary(fun.y = mean, geom = "line")
@@ -477,8 +512,10 @@ plot.sample_data <- function(data,
 
     g = data %>%
       mutate_(.dots =  time_bin_arg) %>%
-      group_by_(.dots =  group_by_arg) %>%
-      summarise_(.dots =  summarise_arg) %>%
+      group_by_(.dots =  gb_ppt_group_facet) %>%
+      summarise_(.dots =  get_prop_looking) %>%
+      ungroup() %>%
+      mutate(Time = TimeBin*time_bin_size-time_bin_size) %>%
       ggplot(aes_string(x = "Time", y = "PropLooking", group = group_factor, color = group_factor)) +
       geom_smooth()
     
@@ -613,9 +650,9 @@ sequential_bins_analysis <- function(data,
   # Create NSE Args:
   time_bin_arg = list(TimeBin = make(nse_arg("ceiling(", dopts$time_factor, "/", time_bin_size, ")")) )
   gb_part_item_group_tbin = as.list(c(data_options$participant_factor, data_options$item_factors, group_factor, "TimeBin"))
-  summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
-                       StartTime = as.formula( paste0("~", data_options$time_factor, "[1]")),
-                       EndTime = as.formula( paste0("~", data_options$time_factor, "[n()]"))
+  summarise_arg = list(PropLooking = make( nse_arg("mean(", dv, ", na.rm=TRUE)") ),
+                       StartTime = make( nse_arg(data_options$time_factor, "[1]")),
+                       EndTime = make( nse_arg( data_options$time_factor, "[n()]"))
   )
   filter_by_factor_arg = list( make(nse_arg(group_factor, "%in% factor_levels")) )
   
