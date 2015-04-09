@@ -87,7 +87,7 @@ set_data_options <- function(
 #
 # @return dataframe data
 
-verify_dataset <- function(data, data_options, silent = FALSE) {
+verify_dataset <- function(data, data_options) {
   
   out = data
   class(out) = c("sample_data", class(out))
@@ -452,7 +452,7 @@ center_predictors = function(data, predictors) {
   dots = list()
   for (i in seq_along(predictors)) {
     name = paste0(predictors[i], "C")
-    dots[[name]] = mk_nse_arg("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm = TRUE)")
+    dots[[name]] = make(nse_arg("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm = TRUE)"))
   }
 
   data %>% 
@@ -529,13 +529,13 @@ sequential_bins_analysis <- function(data,
   }
   
   # Create NSE Args:
-  time_bin_arg = list(TimeBin = mk_nse_arg("ceiling(", dopts$time_factor, "/", time_bin_size, ")") )
+  time_bin_arg = list(TimeBin = make(nse_arg("ceiling(", dopts$time_factor, "/", time_bin_size, ")")) )
   gb_part_item_group_tbin = as.list(c(data_options$participant_factor, data_options$item_factors, group_factor, "TimeBin"))
   summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
                        StartTime = as.formula( paste0("~", data_options$time_factor, "[1]")),
                        EndTime = as.formula( paste0("~", data_options$time_factor, "[n()]"))
   )
-  filter_by_factor_arg = list( mk_nse_arg(group_factor, "%in% factor_levels") )
+  filter_by_factor_arg = list( make(nse_arg(group_factor, "%in% factor_levels")) )
   
   # Summarise by TimeBin:
   summarised = data %>%
@@ -608,8 +608,8 @@ window_analysis <- function(data,
                           paste0(data_options$time_factor, " <= ", window[2]))
     ) %>%
     group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factors, group_factors)) ) %>%
-    summarise_( .dots = list(SamplesInAOI = mk_nse_arg( "sum(", dv, ", na.rm= TRUE)" ),
-                             SamplesTotal = mk_nse_arg( "sum(!is.na(", dv, "))" ) # ignore trackloss!
+    summarise_( .dots = list(SamplesInAOI = make(nse_arg( "sum(", dv, ", na.rm= TRUE)" )),
+                             SamplesTotal = make(nse_arg( "sum(!is.na(", dv, "))" )) # ignore trackloss!
                              ) ) %>%
     mutate(elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
            weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
@@ -624,10 +624,12 @@ window_analysis <- function(data,
 
 # Helpers -----------------------------------------------------------------------------------------------
 
-mk_nse_arg = function(..., cond=TRUE) {
+nse_arg = function(..., cond=TRUE) {
   if (cond) {
     as.formula(paste0("~", ...))
   } else {
     "~NA"
   }
 }
+
+make = as.formula
