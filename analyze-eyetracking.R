@@ -458,10 +458,10 @@ plot.sample_data <- function(data,
   }
   
   time_bin_arg = list(TimeBin = as.formula(paste0("~floor(", data_options$time_factor, "/", time_bin_size, ")+1") ) )
-    group_by_arg = as.list(c(data_options$participant_factor, group_factor, facet_factor, "TimeBin"))
     summarise_arg = list(PropLooking = as.formula( paste0("~mean(", dv, ", na.rm=TRUE)") ),
                          Time = as.formula( paste0("~median(", data_options$time_factor, ", na.rm=TRUE)") ) )
     
+  gb_ppt_group_facet = as.list(c(dopts$participant_factor, dopts$item_factors, group_factor, facet_factor, "TimeBin"))
   
   if (type == 'empirical') {
     
@@ -480,7 +480,7 @@ plot.sample_data <- function(data,
       group_by_(.dots =  group_by_arg) %>%
       summarise_(.dots =  summarise_arg) %>%
       ggplot(aes_string(x = "Time", y = "PropLooking", group = group_factor, color = group_factor)) +
-      geom_smooth(method = 'loess')
+      geom_smooth()
     
   } else {
     stop("'Type' arg not recognized. Must be 'smoothed' or 'empirical'.")
