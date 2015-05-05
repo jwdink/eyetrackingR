@@ -212,7 +212,6 @@ verify_dataset <- function(data, data_options) {
 
 describe_data = function(data, data_options, dv = data_options$default_dv, factors = data_options$default_factors) {
   require(dplyr)
-  require(lazyeval)
   
   to_summarise = c("~mean(dv, na.rm= TRUE)",
                    "~sd(dv, na.rm= TRUE)",
@@ -430,114 +429,56 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 
 # Visualizing ------------------------------------------------------------------------------------------
 
-# plot.data.frame()
-#
-# Doesn't allow you to plot eyetracking data unless it's been run through verify_dataset
-# 
-# @return dataframe Returns the verified dataset
 
-plot.data.frame = function(data, data_options, ...) {
-  data = verify_dataset(data, data_options)
-  plot(data, data_options, ...)
-}
-
-# plot.sample_data()
+# plot.time_analysis()
 #
-# Plot a dv in the data by levels of a factor.
+# Plot the timecourse of looking across groups. Median split if factor is continous
 #
 # @param dataframe data
 # @param list data_options
-# @param string dv
-# @param string factor
-# @param string type ('empirical' or 'smoothed')
-# @param integer time_bin_size Time (ms) to bin data by in plot
+# @param character condition_factor
 #
 # @return list A ggplot list object  
-plot.sample_data <- function(data, 
-                             data_options, 
-                             dv = data_options$default_dv, 
-                             group_factor = data_options$default_factors[1],
-                             facet_factor = NULL,
-                             type = 'empirical', 
-                             time_bin_size = 100,
-                             quiet = FALSE) {
+plot.time_analysis <- function(data, data_options, condition_factor = data_options$default_factors[1]) {
   
   require('ggplot2')
   
+  # Prelims:
   data = ungroup(data)
   dopts = data_options
   
-  if ( dopts$sample_rate / time_bin_size > 100 & !quiet) {
-    cat("\nWarning: You've selected a very small time window relate to your sample rate. Could be very slow.", 
-        "Press enter to continue anyways, or Esc to cancel.")
-    readline(prompt = "...")
+  # Check condition factor
+  if ( length(condition_factor) > 1 ) {
+    stop('Can only plot time-analysis for one factor at a time.')
   }
-  
-  if (!is.null(facet_factor)) {
-    if (!is.factor(data[[facet_factor]])) {
-      stop('Facet factor must be a factor')
-    }
-  } 
-  
-  if (is.numeric(data[[group_factor]])) {
-    if (!quiet) cat("\nPredictor is numeric, will perform a median split for visualization.")
-    
-    make_split = list(  make(nse_arg("median(", group_factor, ", na.rm=TRUE)")),
-                        make(nse_arg( "ifelse(", group_factor, " >= Median, 'High', 'Low')" )) 
+  if ( is.numeric(data[[condition_factor]]) ) {
+    cat("\nCondition factor is numeric, performing median split...")
+    median_split_arg = list(GroupFactor = 
+                              make( nse_arg("ifelse(", condition_factor, ">median(", condition_factor, ", na.rm=TRUE), 'High', 'Low')") )
     )
-    names(make_split) = c("Median", group_factor)
-    data = data %>%
-      mutate_(.dots = make_split)
-    
-  }
-  
-  time_bin_arg = list(TimeBin = make(nse_arg("ceiling(", dopts$time_factor, "/", time_bin_size, ")") ) )
-  gb_ppt_group_facet = as.list(c(dopts$participant_factor, dopts$item_factors, group_factor, facet_factor, "TimeBin"))
-  get_prop_looking = list(PropLooking = make( nse_arg("mean(", dv, ", na.rm=TRUE)") ) )
-  
-  
-  if (type == 'empirical') {
-    
-    g = data %>%
-      mutate_(.dots =  time_bin_arg) %>%
-      group_by_(.dots =  gb_ppt_group_facet) %>%
-      summarise_(.dots =  get_prop_looking) %>%
-      ungroup() %>%
-      mutate(Time = TimeBin*time_bin_size-time_bin_size) %>%
-      ggplot(aes_string(x = "Time", y = "PropLooking", group = group_factor, color = group_factor)) +
-      stat_summary(fun.dat = mean_se) +
-      stat_summary(fun.y = mean, geom = "line")
-
-  } else if (type == 'smoothed') {
-
-    g = data %>%
-      mutate_(.dots =  time_bin_arg) %>%
-      group_by_(.dots =  gb_ppt_group_facet) %>%
-      summarise_(.dots =  get_prop_looking) %>%
-      ungroup() %>%
-      mutate(Time = TimeBin*time_bin_size-time_bin_size) %>%
-      ggplot(aes_string(x = "Time", y = "PropLooking", group = group_factor, color = group_factor)) +
-      geom_smooth()
-    
+    out = data %>%
+      mutate_(.dots = median_split_arg) %>%
+      ggplot(aes(x = StartTime, y= PropLooking, group=GroupFactor, color=GroupFactor)) +
+      stat_smooth() + 
+      facet_wrap( ~ AOI) +
+      guides(color= guide_legend(title= condition_factor))
+    return(out)
   } else {
-    stop("'Type' arg not recognized. Must be 'smoothed' or 'empirical'.")
+    out = ggplot(aes_string(x = "StartTime", y= "PropLooking", group= condition_factor, color= condition_factor)) +
+      stat_smooth() + 
+      facet_wrap( ~ AOI)
+    return(out)
   }
-  
-  if (!is.null(facet_factor)) {
-    g = g + facet_wrap(as.formula(paste0("~", facet_factor)))
-  }
-  
-  return(g)
   
 }
 
+
 # plot.seq_bin()
 #
-# Plot the confidence intervals that result from running a sequential bin analysis
+# Plot the confidence intervals that result from the 'analyze_time_bins' function
 #
 # @param dataframe data
 # @param list data_options
-# @param list factor
 #
 # @return list A ggplot list object  
 plot.seq_bin <- function(data, data_options) {
@@ -550,7 +491,8 @@ plot.seq_bin <- function(data, data_options) {
     geom_ribbon(aes_string(ymin=ci_cols[1], ymax=ci_cols[2]), alpha=0.5) +
     geom_hline(aes(yintercept = 0), linetype="dashed") +
     ylab("Parameter Estimate") +
-    xlab("TimeBin (Start)")
+    xlab("TimeBin (Start)") +
+    facet_wrap( ~ AOI)
   
 }
 
@@ -580,24 +522,106 @@ center_predictors = function(data, predictors) {
   
 }
 
-# sequential_bins_analysis()
+
+# time_analysis()
 #
-# Analyze bins sequentially looking for a main effect of a single factor.
-# Uses the Arcsin-square root transformation on the DV.
+# Creates time-bins and summarizes proportion-looking within each time-bin, by-participants,
+# by-items, or crossed. Returns the summarized dataframe, ready for timecourse analyses.
 #
 # @param dataframe data
 # @param list data_options
 # @param integer time_bin_size The time (ms) to fit into each bin
 # @param string dv The dependent variable column
-# @param character.vector group_factor 
+# @param character.vector factors A vector of factor columns
+# @param character summarize_by Should the data by summarized by participant, by item, or crossed (both)?
+#
+# @return dataframe summarized
+time_analysis <- function (data, 
+                           data_options, 
+                           time_bin_size = 250, 
+                           dv = data_options$default_dv, 
+                           factors,
+                           summarize_by = 'crossed') {
+  
+  
+  require('dplyr')
+  
+  # For Multiple DVs:
+  if (length(dv) > 1) {
+    list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
+      cat("\nCreating Summary for", this_dv, "...")
+      time_analysis(data, data_options, time_bin_size, this_dv, factors, summarize_by)
+    })
+    out = bind_rows(list_of_dfs)
+    class(out) = c('time_analysis', class(out))
+    return( out )
+  }
+  
+  # Prelims:
+  data = ungroup(data)
+  dopts = data_options
+  
+  # Divide Factors into Numeric, Factor:
+  numeric_summarise_arg = list()
+  condition_factors = c()
+  for (factor in factors) {
+    if ( is.numeric(data[[factor]]) ) {
+      numeric_summarise_arg[[factor]] = make( nse_arg("mean(", factor, ", na.rm=TRUE)") )
+    } else {
+      if ( is.factor(data[[factor]]) ) {
+        condition_factors = c(condition_factors, factor)
+      } else {
+        error('Your factor ', factor, ' must be of data-type "numeric" or "factor."')
+      }
+    }
+  }
+  
+  # Create NSE Args:
+  group_by_arg = switch(match.arg(summarize_by, c('crossed', 'subjects', 'participants', 'items')),
+                        crossed      = as.list( c(dopts$participant_factor, dopts$item_factors, condition_factors, "TimeBin") ),
+                        subjects     = as.list( c(dopts$participant_factor, condition_factors, "TimeBin") ),
+                        participants = as.list( c(dopts$participant_factor, condition_factors, "TimeBin") ),
+                        items        = as.list( c(dopts$item_factors, condition_factors, "TimeBin") )
+                          )
+  time_bin_arg = list(TimeBin = make(nse_arg("ceiling(", dopts$time_factor, "/", time_bin_size, ")")) )
+  summarise_arg = c(numeric_summarise_arg,
+                    list(PropLooking = make( nse_arg("mean(", dv, ", na.rm=TRUE)") ),
+                         StartTime = make( nse_arg(data_options$time_factor, "[1]")),
+                         EndTime = make( nse_arg( data_options$time_factor, "[n()]"))
+                    )
+  )
+  
+  # Make summarized dataframe:
+  summarised = data %>%
+    mutate_(.dots = time_bin_arg) %>%
+    group_by_(.dots =  group_by_arg) %>%
+    summarise_(.dots =  summarise_arg) %>%
+    mutate(ArcSin = asin( sqrt( PropLooking ) ),
+           AOI = dv) %>%
+    ungroup()
+  
+  class(summarised) = c('time_analysis', class(summarised))
+  
+  summarised
+    
+}
+
+# analyze_time_bins()
+#
+# Analyze bins sequentially looking for a main effect of a single factor.
+# Uses the Arcsin-square root transformation on the DV.
+#
+# @param dataframe.time_analysis data The output of the 'time_analysis' function
+# @param list data_options
+# @param integer time_bin_size The time (ms) to fit into each bin
+# @param string dv The dependent variable column
+# @param character.vector condition_factor 
 # @param character.vector factor_levels A vector of length two that specifies which factor-levels to compare 
 #
 # @return dataframe 
-sequential_bins_analysis <- function(data, 
+analyze_time_bins <- function(data, 
                                      data_options, 
-                                     time_bin_size = 250, 
-                                     dv = data_options$default_dv, 
-                                     group_factor = data_options$default_factors[1],
+                                     condition_factor = data_options$default_factors[1],
                                      factor_levels = NULL,
                                      return_full_model = FALSE)
 {
@@ -605,20 +629,18 @@ sequential_bins_analysis <- function(data,
   require('dplyr')
   require('lme4')
   require('broom')
-  if ( !require('pbapply') ) {
-    cat("\nIf you'd like a progress bar for this function, consider installing 'pbapply'.")
-    pbsapply = function(X, FUN, ..., simplify, USE.NAMES) {
-      sapply(X, FUN, ..., simplify, USE.NAMES)
-    }
-    pblapply = function(X, FUN, ..., simplify, USE.NAMES) {
-      lapply(X, FUN, ..., simplify, USE.NAMES,)
-    }
-  }
   
-  ## Helpers: ===== ===== ===== ===== =====
+  ## Helpers: ===
   lmer_helper = function(tb) {
-    failsafe_lmer = failwith(default = NA, lmer)
-    failsafe_lmer(formula = as.formula(formula_string), data = filter(summarised, TimeBin==tb) )
+    failsafe_lmer = function(formula, data) {
+      tryCatch(lmer(formula, data),
+               error = function(c) NA,
+               warning = function(c) NA # return no model on convergence errors
+      )
+    }
+    
+    #failsafe_lmer = failwith(default = NA, lmer)
+    failsafe_lmer(formula = as.formula(formula_string), data = filter(data, TimeBin==tb) )
   }
   extract_conf_ints = function(object, pnum, lh) {
     out = confint(object, method = "Wald")[pnum, lh]
@@ -629,46 +651,62 @@ sequential_bins_analysis <- function(data,
     }
   }
   
-  ## Main: ===== ===== ===== ===== =====
+  ## Main: ===
   
-  # Prelims:
-  data = ungroup(data)
-  dopts = data_options
+  # Must be a time_analysis:
+  if (!'time_analysis' %in% class(data)) stop('This function can only be run on the output of the "time_analysis" function.')
   
-  if (!is.factor(data[[group_factor]])) stop("group_factor must be of type 'factor.' ", 
-                                       "This function does not handle continous predictors.")
-  
-  if (is.null(factor_levels)) {
-    if (length(levels(data[[group_factor]])) > 2 ) {
-      stop("If factor has more than two levels, ",
-           "you must specify which you are interested in comparing with 'factor_levels' arg.")
-    } else {
-      factor_levels = levels(data[[group_factor]])
-    }
+  # For Multiple DVs:
+  dvs = unique(data[['AOI']])
+  if ( length(dvs) > 1 ) {
+    list_of_dfs = lapply(X = dvs, FUN = function(this_dv) {
+      cat("\nAnalyzing", this_dv, "...")
+      this_df = filter(data, AOI == this_dv)
+      class(this_df) = class(data)
+      analyze_time_bins(data = this_df, data_options, condition_factor, factor_levels, return_full_model)
+    })
+    out = bind_rows(list_of_dfs)
+    class(out) = c('seq_bin', class(out))
+    return( out )
   }
   
-  # Create NSE Args:
-  time_bin_arg = list(TimeBin = make(nse_arg("ceiling(", dopts$time_factor, "/", time_bin_size, ")")) )
-  gb_part_item_group_tbin = as.list(c(data_options$participant_factor, data_options$item_factors, group_factor, "TimeBin"))
-  summarise_arg = list(PropLooking = make( nse_arg("mean(", dv, ", na.rm=TRUE)") ),
-                       StartTime = make( nse_arg(data_options$time_factor, "[1]")),
-                       EndTime = make( nse_arg( data_options$time_factor, "[n()]"))
-  )
-  filter_by_factor_arg = list( make(nse_arg(group_factor, "%in% factor_levels")) )
+  # Prelims:
+  data = ungroup(data) # shouldn't be necessary, but just in case
+  dopts = data_options
   
-  # Summarise by TimeBin:
-  summarised = data %>%
-    filter_(.dots = filter_by_factor_arg) %>% 
-    mutate_(.dots = time_bin_arg) %>%
-    group_by_(.dots =  gb_part_item_group_tbin) %>%
-    summarise_(.dots =  summarise_arg) %>%
-    mutate(ArcSin = asin( sqrt( PropLooking ) ) ) %>%
-    ungroup()
+  if ( length(condition_factor) > 1 ) {
+    stop('Sequential bins analysis can only be done on one factor at a time.')
+  }
+  if ( !is.numeric(data[[condition_factor]]) ) {
+    num_levels = levels(data[[condition_factor]])
+    if (num_levels == 0) {
+      stop('Group factor supplied must be of data-type "numeric" or "factor."')
+    }
+    if (is.null(factor_levels)) {
+      if (num_levels > 2) {
+        stop("If factor has more than two levels, ",
+             "you must specify which you are interested in comparing with 'factor_levels' arg.")
+      } else {
+        factor_levels = levels(data[[condition_factor]])
+      }
+    }
+  }
+
+
+  # Generate Model String:
+  the_formula = list()
+  the_formula[['main']] = paste0("ArcSin ~ ", condition_factor)
+  if (dopts$participant_factor %in% colnames(data)) the_formula[['participant']] = paste0("(1|", data_options$participant_factor, ")")
+  for (item in dopts$item_factors) {
+    if (item %in% colnames(data)) {
+      the_formula[[item]] = paste0("(1|", item, ")")
+    }
+  }
+  formula_string = paste(the_formula, collapse = " + ")
   
   # Generate Models:
-  formula_string = paste0("ArcSin ~ ", group_factor, " + ", "(1|", data_options$participant_factor, ")")
-  LM_Model = pblapply(X = unique(summarised$TimeBin), FUN = lmer_helper)
-  models = summarised %>%
+  LM_Model = lapply(X = unique(data$TimeBin), FUN = lmer_helper)
+  models = data %>%
     group_by_(.dots = list("TimeBin") ) %>%
     summarise(StartTime = mean(StartTime)) %>%
     ungroup() %>%
@@ -678,13 +716,13 @@ sequential_bins_analysis <- function(data,
   out = select(models, -LM_Model)
   
   # Conf:
-  out[[paste(group_factor,"CILower",sep="_")]] = pbsapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
-  out[[paste(group_factor,"CIUpper",sep="_")]] = pbsapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
+  out[[paste(condition_factor,"CILower",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
+  out[[paste(condition_factor,"CIUpper",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
   
   # Diff:
   out$Difference = 
-    (out[[paste(group_factor,"CILower",sep="_")]] > 0) |
-    (out[[paste(group_factor,"CIUpper",sep="_")]] < 0) 
+    (out[[paste(condition_factor,"CILower",sep="_")]] > 0) |
+    (out[[paste(condition_factor,"CIUpper",sep="_")]] < 0) 
   
   # Tidy:
   if (return_full_model) {
@@ -694,6 +732,7 @@ sequential_bins_analysis <- function(data,
   }
   
   # Return:
+  out$AOI = unique(data$AOI)
   class(out) = c("seq_bin", class(out))
   out    
     
@@ -706,27 +745,41 @@ sequential_bins_analysis <- function(data,
 # @param dataframe data
 # @param list data_options
 # @param string dv
-# @param character.vector group_factors
+# @param character.vector condition_factors
 # @param numeric.vector window
 #
 # @return dataframe
 window_analysis <- function(data, 
                             data_options, 
                             dv = data_options$default_dv, 
-                            group_factors = data_options$default_factors,
+                            condition_factors = data_options$default_factors,
                             window = NULL
                             ) {
+  
   require('dplyr')
   
+  # For Multiple DVs:
+  if (length(dv) > 1) {
+    list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
+      cat("\nAnalyzing", this_dv, "...")
+      window_analysis(data, data_options, dv = this_dv, condition_factors, window)
+    })
+    out = bind_rows(list_of_dfs)
+    class(out) = c('window_analysis', class(out))
+    return( out )
+  }
+  
+  # Make/Get Window:
   if ( is.null(window) ) {
     window = range(data[[data_options$time_factor]], na.rm = TRUE, finite = TRUE)
   }
   
+  # Summarise:
   summarized = data %>% 
     filter_(.dots = list( paste0(data_options$time_factor, " >= ", window[1]),
                           paste0(data_options$time_factor, " <= ", window[2]))
     ) %>%
-    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factors, group_factors)) ) %>%
+    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factors, condition_factors)) ) %>%
     summarise_( .dots = list(SamplesInAOI = make(nse_arg( "sum(", dv, ", na.rm= TRUE)" )),
                              SamplesTotal = make(nse_arg( "sum(!is.na(", dv, "))" )) # ignore trackloss!
                              ) ) %>%
@@ -736,10 +789,12 @@ window_analysis <- function(data,
            ArcSin = asin( sqrt( Prop ) )
     )
   
+  summarized$AOI = dv
+  
+  class(summarized) = c('window_analysis', class(summarized))
   return(summarized)
   
 }
-
 
 # Helpers -----------------------------------------------------------------------------------------------
 
@@ -752,3 +807,6 @@ nse_arg = function(..., cond=TRUE) {
 }
 
 make = as.formula
+
+
+
