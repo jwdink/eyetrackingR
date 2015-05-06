@@ -11,23 +11,7 @@ df_measures = read.csv("./data/measures.csv", stringsAsFactors = FALSE) %>%
   rename(Participant = ID,
          waist  = stomach,
          bust   = chest) %>%
-  gather(BodyPart, DissBP, waist:bust, convert = TRUE) %>%
-  mutate(
-    Participant = as.character(Participant),
-    BodyPart = paste0("IA_", BodyPart)
-    ) %>%
-  group_by(Participant) %>%
-  mutate(DissOverall = sum(DissBP) 
-         ) %>%
-  ungroup() %>%
-  mutate(DissNoBP = DissOverall - DissBP)
-df_omeas = df_measures %>%  # overall measures
-  group_by(Participant) %>% 
-  summarise(bodysurvobcs      = unique(bodysurvobcs), 
-            edibdiscontinuous = unique(edibdiscontinuous),
-            edibodydistot     = unique(edibodydistot),
-            DissOverall       = unique(DissOverall)
-            )
+  mutate(DissOverall = waist+thighs+hips+bust)
 
 ## SET DATA OPTIONS:
 data_options = set_data_options(sample_rate = 1000, 
@@ -60,9 +44,12 @@ df_fb = df3 %>%
          ! Trackloss,
            TimeInTrial > 0,
          ! PostTrial) %>%
-  mutate(IA_body = IA_bust | IA_waist | IA_hips | IA_thighs)
+  mutate(IA_body = IA_bust | IA_waist | IA_hips | IA_thighs,
+         Participant = as.numeric(as.character(Participant)))
 
-df_fb = left_join(df_fb, df_omeas, by="Participant") %>%
+df_fb = left_join(df_fb, 
+                  select(df_measures, -(waist:bust)), # individual measures will be added to each analysis, later
+                  by="Participant") %>%
   filter( ! is.na(DissOverall),
           ! is.na(edibdiscontinuous) )
 
@@ -82,9 +69,9 @@ window_anal = window_analysis(df_fb,
                 condition_columns = c("edibdiscontinuous", "Phase") )
 window_anal$BodSurv = ifelse(window_anal$edibdiscontinuous > median(window_anal$edibdiscontinuous), 'High', 'Low')
 
-plot(window_anal, data_options, x_axis_column= "Phase", group_column= "BodSurv")
-plot(window_anal, data_options, x_axis_column= "Phase", group_column= "edibdiscontinuous")
-plot(window_anal, data_options, x_axis_column= "edibdiscontinuous", group_column= "Phase")
+plot(window_anal, data_options, x_axis_column= "Phase", group_column= "BodSurv") # two discrete vars
+plot(window_anal, data_options, x_axis_column= "Phase", group_column= "edibdiscontinuous") # a continous grouping var gets median split
+plot(window_anal, data_options, x_axis_column= "edibdiscontinuous", group_column= "Phase") # a continous x-axis var gets LM
 
 
 ## TIME ANAL
@@ -92,7 +79,7 @@ time_anal = time_analysis(df_fb,
                     data_options, 
                     time_bin_size = 250, 
                     dv = c('IA_head','IA_bust','IA_waist','IA_hips','IA_thighs'), 
-                    factors = "edibdiscontinuous",  # <---- rename?
+                    condition_columns = "edibdiscontinuous",  # <---- rename?
                     summarize_by = 'crossed')
 plot(time_anal, data_options, condition_column= "edibdiscontinuous") 
 

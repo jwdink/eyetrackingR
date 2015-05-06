@@ -388,7 +388,7 @@ center_predictors = function(data, predictors) {
 # @param list data_options
 # @param integer time_bin_size The time (ms) to fit into each bin
 # @param string dv The dependent variable column
-# @param character.vector factors A vector of factor columns
+# @param character.vector condition_columns 
 # @param character summarize_by Should the data by summarized by participant, by item, or crossed (both)?
 #
 # @return dataframe summarized
@@ -396,7 +396,7 @@ time_analysis <- function (data,
                            data_options, 
                            time_bin_size = 250, 
                            dv = data_options$default_dv, 
-                           factors,
+                           condition_columns,
                            summarize_by = 'crossed') {
   
   
@@ -406,7 +406,7 @@ time_analysis <- function (data,
   if (length(dv) > 1) {
     list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
       cat("\nCreating Summary for", this_dv, "...")
-      time_analysis(data, data_options, time_bin_size, this_dv, factors, summarize_by)
+      time_analysis(data, data_options, time_bin_size, this_dv, condition_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('time_analysis', class(out))
@@ -417,20 +417,8 @@ time_analysis <- function (data,
   data = ungroup(data)
   dopts = data_options
   
-  # Divide Factors into Numeric, Factor:
-  numeric_summarise_arg = list()
-  condition_columns = c()
-  for (factor in factors) {
-    if ( is.numeric(data[[factor]]) ) {
-      numeric_summarise_arg[[factor]] = make_dplyr_argument("mean(", factor, ", na.rm=TRUE)") 
-    } else {
-      if ( is.factor(data[[factor]]) ) {
-        condition_columns = c(condition_columns, factor)
-      } else {
-        error('Your factor ', factor, ' must be of data-type "numeric" or "factor."')
-      }
-    }
-  }
+  # Check that Condition Column has a healthy number of levels (i.e., won't crash R)
+  # [TO DO]
   
   # Create NSE Args:
   group_by_arg = switch(match.arg(summarize_by, c('crossed', 'subjects', 'participants', 'items')),
@@ -440,11 +428,9 @@ time_analysis <- function (data,
                         items        = as.list( c(dopts$item_columns, condition_columns, "TimeBin") )
                           )
   time_bin_arg = list(TimeBin = make_dplyr_argument("ceiling(", dopts$time_column, "/", time_bin_size, ")" ) ) 
-  summarise_arg = c(numeric_summarise_arg,
-                    list(PropLooking = make_dplyr_argument("mean(", dv, ", na.rm=TRUE)") ,
-                         StartTime = make_dplyr_argument(data_options$time_column, "[1]" ),
-                         EndTime = make_dplyr_argument( data_options$time_column, "[n()]" )
-                    )
+  summarise_arg = list(PropLooking = make_dplyr_argument("mean(", dv, ", na.rm=TRUE)") ,
+                       StartTime = make_dplyr_argument(data_options$time_column, "[1]" ),
+                       EndTime = make_dplyr_argument( data_options$time_column, "[n()]" )
   )
   
   # Make summarized dataframe:
@@ -732,12 +718,14 @@ plot.time_analysis <- function(data, data_options, condition_column = data_optio
       ggplot(aes(x = StartTime, y= PropLooking, group=GroupFactor, color=GroupFactor)) +
       stat_smooth() + 
       facet_wrap( ~ AOI) +
-      guides(color= guide_legend(title= condition_column)) 
+      guides(color= guide_legend(title= condition_column)) +
+      xlab('Time (ms) in Trial')
     return(out)
   } else {
     out = ggplot(data, aes_string(x = "StartTime", y= "PropLooking", group= condition_column, color= condition_column)) +
       stat_smooth() + 
-      facet_wrap( ~ AOI)
+      facet_wrap( ~ AOI) +
+      xlab('Time (ms) in Trial')
     return(out)
   }
   
@@ -767,6 +755,7 @@ plot.seq_bin <- function(data, data_options) {
   
 }
 
+
 # Helpers -----------------------------------------------------------------------------------------------
 
 make_dplyr_argument = function(..., cond= TRUE) {
@@ -778,5 +767,9 @@ make_dplyr_argument = function(..., cond= TRUE) {
     return("~NA")
   }
 }
+
+
+
+
 
 
