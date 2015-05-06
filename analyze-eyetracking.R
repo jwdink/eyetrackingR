@@ -33,50 +33,50 @@
 # methods.
 #
 # @param integer sample_rate Number of samples (per second) recorded by eyetracker
-# @param string participant_factor Set to the subject code of the participant
-# @param string active_aoi_factor Set to the name of the AOI being gazed at for this sample
-# @param string trackloss_factor Set to 1 or 0 depending on whether the sample is lost to trackloss
-# @param string time_factor The factor to use for judgments of time (ms)
-# @param string sample_factor The incrementing factor that numbers gaze samples (0,1,2,3,4,...)
-# @param string trial_factor The unique name of the current trial
+# @param string participant_column Set to the subject code of the participant
+# @param string active_aoi_column Set to the name of the AOI being gazed at for this sample
+# @param string trackloss_column Set to 1 or 0 depending on whether the sample is lost to trackloss
+# @param string time_column The factor to use for judgments of time (ms)
+# @param string sample_column The incrementing factor that numbers gaze samples (0,1,2,3,4,...)
+# @param string trial_column The unique name of the current trial
 # @param string default_dv The default column for your dependent variable, used if unspecified in *_analysis() methods
-# @param character.vector default_factors The default columns for your indepdent variables, used if unspecified in *_analysis() methods
+# @param character.vector default_columns The default columns for your indepdent variables, used if unspecified in *_analysis() methods
 #
 # @return list of configuration options
 
 set_data_options <- function(
   sample_rate = 60,
-  participant_factor = 'ParticipantName',
-  active_aoi_factor = 'SceneType',
-  trackloss_factor = 'TrackLoss',
-  time_factor = 'TimeFromMovieOnset',
-  sample_factor = 'FramesFromMovieOnset',
-  trial_factor = 'Trial',
-  item_factors = 'Trial',
+  participant_column = 'ParticipantName',
+  active_aoi_column = 'SceneType',
+  trackloss_column = 'TrackLoss',
+  time_column = 'TimeFromMovieOnset',
+  sample_column = 'FramesFromMovieOnset',
+  trial_column = 'Trial',
+  item_columns = 'Trial',
   default_dv = 'ActionMatch',
-  default_factors = c('Condition'),
-  xpos_factor = 'XPos',
-  ypos_factor = 'YPos',
-  message_factor = NULL
+  default_columns = c('Condition'),
+  xpos_column = 'XPos',
+  ypos_column = 'YPos',
+  message_column = NULL
 ) {
   list(
     'sample_rate' = sample_rate,
-    'participant_factor' = participant_factor,
-    'active_aoi_factor' = active_aoi_factor,
-    'trackloss_factor' = trackloss_factor,
-    'time_factor' = time_factor,
-    'sample_factor' = sample_factor,
-    'trial_factor' = trial_factor,
-    'item_factors' = item_factors,
+    'participant_column' = participant_column,
+    'active_aoi_column' = active_aoi_column,
+    'trackloss_column' = trackloss_column,
+    'time_column' = time_column,
+    'sample_column' = sample_column,
+    'trial_column' = trial_column,
+    'item_columns' = item_columns,
     'default_dv' = default_dv,
-    'default_factors' = default_factors,
-    'xpos_factor' = xpos_factor,
-    'ypos_factor' = ypos_factor,
-    'message_factor' = message_factor
+    'default_columns' = default_columns,
+    'xpos_column' = xpos_column,
+    'ypos_column' = ypos_column,
+    'message_column' = message_column
   )
 }
 
-# verify_dataset()
+# fix_data_types()
 #
 # Verify the status of the dataset by assessing columns in your data_options. Fix if neccessary.
 # Also assigns data to "sample_data" class, so that plot and other functions will know what to do with it.
@@ -87,7 +87,7 @@ set_data_options <- function(
 #
 # @return dataframe data
 
-verify_dataset <- function(data, data_options) {
+fix_data_types <- function(data, data_options) {
   
   out = data
   class(out) = c("sample_data", class(out))
@@ -101,15 +101,15 @@ verify_dataset <- function(data, data_options) {
       x
     }
   }
-  col_type_converter = list("participant_factor" = function(x) check_then_convert(x, is.factor, as.factor, "Participants"),
-                            "time_factor"        = function(x) check_then_convert(x, is.numeric, as.numeric2, "Time"),
-                            "sample_factor"      = function(x) check_then_convert(x, is.numeric, as.numeric2, "Sample"),
-                            "trial_factor"       = function(x) check_then_convert(x, is.factor, as.factor, "Trial"),
-                            "item_factors"       = function(x) check_then_convert(x, is.factor, as.factor, "Item")
+  col_type_converter = list("participant_column" = function(x) check_then_convert(x, is.factor, as.factor, "Participants"),
+                            "time_column"        = function(x) check_then_convert(x, is.numeric, as.numeric2, "Time"),
+                            "sample_column"      = function(x) check_then_convert(x, is.numeric, as.numeric2, "Sample"),
+                            "trial_column"       = function(x) check_then_convert(x, is.factor, as.factor, "Trial"),
+                            "item_columns"       = function(x) check_then_convert(x, is.factor, as.factor, "Item")
   )
   for (col in names(col_type_converter) ) {
     for(i in seq_along(data_options[[col]])) {
-      if (is.null(out[[ data_options[[col]][i] ]])) stop("Data is missing", col)
+      if (is.null(out[[ data_options[[col]][i] ]])) stop("Data are missing", col)
       out[[ data_options[[col]][i] ]] = col_type_converter[[col]]( out[[ data_options[[col]][i] ]] )
     }
   }
@@ -128,7 +128,7 @@ verify_dataset <- function(data, data_options) {
 #
 # @return dataframe 
 
-describe_data = function(data, data_options, dv = data_options$default_dv, factors = data_options$default_factors) {
+describe_data = function(data, data_options, dv = data_options$default_dv, factors = data_options$default_columns) {
   require(dplyr)
   
   to_summarise = c("~mean(dv, na.rm= TRUE)",
@@ -155,6 +155,10 @@ describe_data = function(data, data_options, dv = data_options$default_dv, facto
 #
 # @return dataframe 
 
+##### ADD ABILITY TO ONLY CALC TRACKLOSS FOR SUBSET OF TRIALS (MAYBE) AND TIMEWINDOW (DEFINITELY)
+
+#####
+
 trackloss_analysis = function(data, data_options) {
   
   require('outliers')
@@ -162,16 +166,16 @@ trackloss_analysis = function(data, data_options) {
   
   dopts = data_options
   
-  data[["Trackloss"]] = data[[dopts$trackloss_factor]]
+  data[["Trackloss"]] = data[[dopts$trackloss_column]]
   
   data %>%
-    group_by_(.dots = list(dopts$participant_factor, dopts$trial_factor)) %>%
+    group_by_(.dots = list(dopts$participant_column, dopts$trial_column)) %>%
     mutate(TracklossForTrial = mean(Trackloss, na.rm=TRUE)) %>%
     ungroup() %>%
-    group_by_(.dots = list(dopts$participant_factor)) %>%
+    group_by_(.dots = list(dopts$participant_column)) %>%
     mutate(TracklossForParticipant = mean(Trackloss, na.rm=TRUE)) %>%
     ungroup() %>%
-    group_by_(.dots = list(dopts$participant_factor, dopts$trial_factor) )%>%
+    group_by_(.dots = list(dopts$participant_column, dopts$trial_column) )%>%
     summarise(TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
               TracklossForParticipant = mean(TracklossForParticipant, na.rm=TRUE)) %>%
     ungroup() %>%
@@ -234,16 +238,16 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
   # Distractor
   
   data <- data.frame(matrix(nrow = num_rows, ncol = 12))
-  colnames(data) <- c(data_options$participant_factor, 
+  colnames(data) <- c(data_options$participant_column, 
                       'Age', 
                       'Condition', 
                       'TrialNum', 
-                      data_options$trial_factor, 
+                      data_options$trial_column, 
                       'Window', 
-                      data_options$time_factor, 
-                      data_options$sample_factor, 
-                      data_options$trackloss_factor, 
-                      data_options$active_aoi_factor, 
+                      data_options$time_column, 
+                      data_options$sample_column, 
+                      data_options$trackloss_column, 
+                      data_options$active_aoi_column, 
                       'Target', 
                       'Distractor')
   
@@ -279,27 +283,27 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
     
     participant_id <- paste('SUBJ_',x,sep="")
     condition <- ifelse(x <= floor(length(participants) / 2), 'Knower','NonKnower')
-    data[row_range, data_options$participant_factor] <- participant_id
+    data[row_range, data_options$participant_column] <- participant_id
     data[row_range, 'Age'] <- round(rnorm(1,24,.25), 2)
     data[row_range, 'Condition'] <- condition
     data[row_range, 'TrialNum'] <- rep(c(1:6),each=(data_options$sample_rate*8))
-    data[row_range, data_options$trial_factor] <- rep(c('Chimpanzee','Bowl','Speaker','Woman','Pen','Basketball'),each=(data_options$sample_rate*8))
-    data[row_range, data_options$sample_factor] <- rep(c(1:(data_options$sample_rate*8)),times=6)
-    data[row_range, data_options$time_factor] <- (data[row_range, data_options$sample_factor]-1)*(1000/data_options$sample_rate)
+    data[row_range, data_options$trial_column] <- rep(c('Chimpanzee','Bowl','Speaker','Woman','Pen','Basketball'),each=(data_options$sample_rate*8))
+    data[row_range, data_options$sample_column] <- rep(c(1:(data_options$sample_rate*8)),times=6)
+    data[row_range, data_options$time_column] <- (data[row_range, data_options$sample_column]-1)*(1000/data_options$sample_rate)
     
     # generate trackloss probability for this participant
     trackloss_probability <- runif(1,.1,0.35)
     
-    data[row_range, data_options$trackloss_factor] <- rbinom((data_options$sample_rate*8*6),1,trackloss_probability)
+    data[row_range, data_options$trackloss_column] <- rbinom((data_options$sample_rate*8*6),1,trackloss_probability)
     
     # for baseline, they have a 50% chance of looking to the target or distractor
-    data[row_range, data_options$active_aoi_factor] <- 0
+    data[row_range, data_options$active_aoi_column] <- 0
     
     # AOI assignment is by trial
     for (y in 1:6) {
       # for baseline, let's just give everyone a 50/50 chance
       baseline_range <- 
-        which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] <= (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
+        which(data[, data_options$participant_column] == participant_id & data[, data_options$sample_column] <= (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
       
       data[baseline_range, 'Window'] <- 'Baseline'
       data[baseline_range, 'Target'] <- ifelse(rbinom((data_options$sample_rate*4),1,0.5) == 1,1,0)
@@ -307,7 +311,7 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
       # for response, we can set the target/distractor looks using the conditions
       # sloped probability (defined above)
       response_range <- 
-        which(data[, data_options$participant_factor] == participant_id & data[, data_options$sample_factor] > (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
+        which(data[, data_options$participant_column] == participant_id & data[, data_options$sample_column] > (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
       
       data[response_range, 'Window'] <- 'Response'
       
@@ -323,96 +327,28 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
       });
     }
     
-    # set AOI columns from active_aoi_factor
-    data[which(data[, 'Target'] == 1), data_options$active_aoi_factor] <- 'Target'
+    # set AOI columns from active_aoi_column
+    data[which(data[, 'Target'] == 1), data_options$active_aoi_column] <- 'Target'
     data[which(data[, 'Target'] == 1), 'Distractor'] <- 0
-    data[which(data[, 'Target'] == 0), data_options$active_aoi_factor] <- 'Distractor'
+    data[which(data[, 'Target'] == 0), data_options$active_aoi_column] <- 'Distractor'
     data[which(data[, 'Target'] == 0), 'Distractor'] <- 1
     
     # no AOI for trackloss
-    data[which(data[, data_options$trackloss_factor] == 1), data_options$active_aoi_factor] <- NA
-    data[which(data[, data_options$trackloss_factor] == 1), 'Target'] <- NA
-    data[which(data[, data_options$trackloss_factor] == 1), 'Distractor'] <- NA
+    data[which(data[, data_options$trackloss_column] == 1), data_options$active_aoi_column] <- NA
+    data[which(data[, data_options$trackloss_column] == 1), 'Target'] <- NA
+    data[which(data[, data_options$trackloss_column] == 1), 'Distractor'] <- NA
   }
   
   # verify and format dataset
-  data <- verify_dataset(data, data_options, silent = TRUE)
+  data <- fix_data_types(data, data_options, silent = TRUE)
   
   data$Condition <- factor(data$Condition)
   data$Window <- factor(data$Window)
-  data[, data_options$active_aoi_factor] <- factor(data[, data_options$active_aoi_factor])
+  data[, data_options$active_aoi_column] <- factor(data[, data_options$active_aoi_column])
   
   data
 }
 
-# Visualizing ------------------------------------------------------------------------------------------
-
-
-# plot.time_analysis()
-#
-# Plot the timecourse of looking across groups. Median split if factor is continous
-#
-# @param dataframe data
-# @param list data_options
-# @param character condition_factor
-#
-# @return list A ggplot list object  
-plot.time_analysis <- function(data, data_options, condition_factor = data_options$default_factors[1]) {
-  
-  require('ggplot2')
-  
-  # Prelims:
-  data = ungroup(data)
-  dopts = data_options
-  
-  # Check condition factor
-  if ( length(condition_factor) > 1 ) {
-    stop('Can only plot time-analysis for one factor at a time.')
-  }
-  if ( is.numeric(data[[condition_factor]]) ) {
-    cat("\nCondition factor is numeric, performing median split...")
-    median_split_arg = list(GroupFactor = 
-                              make( nse_arg("ifelse(", condition_factor, ">median(", condition_factor, ", na.rm=TRUE), 'High', 'Low')") )
-    )
-    out = data %>%
-      mutate_(.dots = median_split_arg) %>%
-      ggplot(aes(x = StartTime, y= PropLooking, group=GroupFactor, color=GroupFactor)) +
-      stat_smooth() + 
-      facet_wrap( ~ AOI) +
-      guides(color= guide_legend(title= condition_factor)) 
-    return(out)
-  } else {
-    out = ggplot(aes_string(x = "StartTime", y= "PropLooking", group= condition_factor, color= condition_factor)) +
-      stat_smooth() + 
-      facet_wrap( ~ AOI)
-    return(out)
-  }
-  
-}
-
-
-# plot.seq_bin()
-#
-# Plot the confidence intervals that result from the 'analyze_time_bins' function
-#
-# @param dataframe data
-# @param list data_options
-#
-# @return list A ggplot list object  
-plot.seq_bin <- function(data, data_options) {
-  
-  require('ggplot2')
-    
-  ci_cols = grep(pattern = paste0("_CI"), x = colnames(data), value = TRUE )
-
-  ggplot(data = data, aes(x = StartTime, y = 0)) +
-    geom_ribbon(aes_string(ymin=ci_cols[1], ymax=ci_cols[2]), alpha=0.5) +
-    geom_hline(aes(yintercept = 0), linetype="dashed") +
-    ylab("Parameter Estimate") +
-    xlab("TimeBin (Start)") +
-    facet_wrap( ~ AOI)
-  
-}
 
 # Analyzing ------------------------------------------------------------------------------------------
 
@@ -481,13 +417,13 @@ time_analysis <- function (data,
   
   # Divide Factors into Numeric, Factor:
   numeric_summarise_arg = list()
-  condition_factors = c()
+  condition_columns = c()
   for (factor in factors) {
     if ( is.numeric(data[[factor]]) ) {
       numeric_summarise_arg[[factor]] = make( nse_arg("mean(", factor, ", na.rm=TRUE)") )
     } else {
       if ( is.factor(data[[factor]]) ) {
-        condition_factors = c(condition_factors, factor)
+        condition_columns = c(condition_columns, factor)
       } else {
         error('Your factor ', factor, ' must be of data-type "numeric" or "factor."')
       }
@@ -496,16 +432,16 @@ time_analysis <- function (data,
   
   # Create NSE Args:
   group_by_arg = switch(match.arg(summarize_by, c('crossed', 'subjects', 'participants', 'items')),
-                        crossed      = as.list( c(dopts$participant_factor, dopts$item_factors, condition_factors, "TimeBin") ),
-                        subjects     = as.list( c(dopts$participant_factor, condition_factors, "TimeBin") ),
-                        participants = as.list( c(dopts$participant_factor, condition_factors, "TimeBin") ),
-                        items        = as.list( c(dopts$item_factors, condition_factors, "TimeBin") )
+                        crossed      = as.list( c(dopts$participant_column, dopts$item_columns, condition_columns, "TimeBin") ),
+                        subjects     = as.list( c(dopts$participant_column, condition_columns, "TimeBin") ),
+                        participants = as.list( c(dopts$participant_column, condition_columns, "TimeBin") ),
+                        items        = as.list( c(dopts$item_columns, condition_columns, "TimeBin") )
                           )
-  time_bin_arg = list(TimeBin = make(nse_arg("ceiling(", dopts$time_factor, "/", time_bin_size, ")")) )
+  time_bin_arg = list(TimeBin = make(nse_arg("ceiling(", dopts$time_column, "/", time_bin_size, ")")) )
   summarise_arg = c(numeric_summarise_arg,
                     list(PropLooking = make( nse_arg("mean(", dv, ", na.rm=TRUE)") ),
-                         StartTime = make( nse_arg(data_options$time_factor, "[1]")),
-                         EndTime = make( nse_arg( data_options$time_factor, "[n()]"))
+                         StartTime = make( nse_arg(data_options$time_column, "[1]")),
+                         EndTime = make( nse_arg( data_options$time_column, "[n()]"))
                     )
   )
   
@@ -533,13 +469,13 @@ time_analysis <- function (data,
 # @param list data_options
 # @param integer time_bin_size The time (ms) to fit into each bin
 # @param string dv The dependent variable column
-# @param character.vector condition_factor 
+# @param character.vector condition_column 
 # @param character.vector factor_levels A vector of length two that specifies which factor-levels to compare 
 #
 # @return dataframe 
 analyze_time_bins <- function(data, 
                                      data_options, 
-                                     condition_factor = data_options$default_factors[1],
+                                     condition_column = data_options$default_columns[1],
                                      factor_levels = NULL,
                                      return_full_model = FALSE)
 {
@@ -581,7 +517,7 @@ analyze_time_bins <- function(data,
       cat("\nAnalyzing", this_dv, "...")
       this_df = filter(data, AOI == this_dv)
       class(this_df) = class(data)
-      analyze_time_bins(data = this_df, data_options, condition_factor, factor_levels, return_full_model)
+      analyze_time_bins(data = this_df, data_options, condition_column, factor_levels, return_full_model)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('seq_bin', class(out))
@@ -592,11 +528,11 @@ analyze_time_bins <- function(data,
   data = ungroup(data) # shouldn't be necessary, but just in case
   dopts = data_options
   
-  if ( length(condition_factor) > 1 ) {
+  if ( length(condition_column) > 1 ) {
     stop('Sequential bins analysis can only be done on one factor at a time.')
   }
-  if ( !is.numeric(data[[condition_factor]]) ) {
-    num_levels = levels(data[[condition_factor]])
+  if ( !is.numeric(data[[condition_column]]) ) {
+    num_levels = levels(data[[condition_column]])
     if (num_levels == 0) {
       stop('Group factor supplied must be of data-type "numeric" or "factor."')
     }
@@ -605,7 +541,7 @@ analyze_time_bins <- function(data,
         stop("If factor has more than two levels, ",
              "you must specify which you are interested in comparing with 'factor_levels' arg.")
       } else {
-        factor_levels = levels(data[[condition_factor]])
+        factor_levels = levels(data[[condition_column]])
       }
     }
   }
@@ -613,9 +549,9 @@ analyze_time_bins <- function(data,
 
   # Generate Model String:
   the_formula = list()
-  the_formula[['main']] = paste0("ArcSin ~ ", condition_factor)
-  if (dopts$participant_factor %in% colnames(data)) the_formula[['participant']] = paste0("(1|", data_options$participant_factor, ")")
-  for (item in dopts$item_factors) {
+  the_formula[['main']] = paste0("ArcSin ~ ", condition_column)
+  if (dopts$participant_column %in% colnames(data)) the_formula[['participant']] = paste0("(1|", data_options$participant_column, ")")
+  for (item in dopts$item_columns) {
     if (item %in% colnames(data)) {
       the_formula[[item]] = paste0("(1|", item, ")")
     }
@@ -634,13 +570,13 @@ analyze_time_bins <- function(data,
   out = select(models, -LM_Model)
   
   # Conf:
-  out[[paste(condition_factor,"CILower",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
-  out[[paste(condition_factor,"CIUpper",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
+  out[[paste(condition_column,"CILower",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
+  out[[paste(condition_column,"CIUpper",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
   
   # Diff:
   out$Difference = 
-    (out[[paste(condition_factor,"CILower",sep="_")]] > 0) |
-    (out[[paste(condition_factor,"CIUpper",sep="_")]] < 0) 
+    (out[[paste(condition_column,"CILower",sep="_")]] > 0) |
+    (out[[paste(condition_column,"CIUpper",sep="_")]] < 0) 
   
   # Tidy:
   if (return_full_model) {
@@ -663,14 +599,14 @@ analyze_time_bins <- function(data,
 # @param dataframe data
 # @param list data_options
 # @param string dv
-# @param character.vector condition_factors
+# @param character.vector condition_columns
 # @param numeric.vector window
 #
 # @return dataframe
 window_analysis <- function(data, 
                             data_options, 
                             dv = data_options$default_dv, 
-                            condition_factors = data_options$default_factors,
+                            condition_columns = data_options$default_columns,
                             window = NULL
                             ) {
   
@@ -680,7 +616,7 @@ window_analysis <- function(data,
   if (length(dv) > 1) {
     list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
       cat("\nAnalyzing", this_dv, "...")
-      window_analysis(data, data_options, dv = this_dv, condition_factors, window)
+      window_analysis(data, data_options, dv = this_dv, condition_columns, window)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('window_analysis', class(out))
@@ -689,15 +625,15 @@ window_analysis <- function(data,
   
   # Make/Get Window:
   if ( is.null(window) ) {
-    window = range(data[[data_options$time_factor]], na.rm = TRUE, finite = TRUE)
+    window = range(data[[data_options$time_column]], na.rm = TRUE, finite = TRUE)
   }
   
   # Summarise:
   summarized = data %>% 
-    filter_(.dots = list( paste0(data_options$time_factor, " >= ", window[1]),
-                          paste0(data_options$time_factor, " <= ", window[2]))
+    filter_(.dots = list( paste0(data_options$time_column, " >= ", window[1]),
+                          paste0(data_options$time_column, " <= ", window[2]))
     ) %>%
-    group_by_(.dots = as.list(c(data_options$participant_factor, data_options$trial_factor, data_options$item_factors, condition_factors)) ) %>%
+    group_by_(.dots = as.list(c(data_options$participant_column, data_options$trial_column, data_options$item_columns, condition_columns)) ) %>%
     summarise_( .dots = list(SamplesInAOI = make(nse_arg( "sum(", dv, ", na.rm= TRUE)" )),
                              SamplesTotal = make(nse_arg( "sum(!is.na(", dv, "))" )) # ignore trackloss!
                              ) ) %>%
@@ -711,6 +647,76 @@ window_analysis <- function(data,
   
   class(summarized) = c('window_analysis', class(summarized))
   return(summarized)
+  
+}
+
+
+# Visualizing ------------------------------------------------------------------------------------------
+
+
+# plot.time_analysis()
+#
+# Plot the timecourse of looking across groups. Median split if factor is continous
+#
+# @param dataframe data
+# @param list data_options
+# @param character condition_column
+#
+# @return list A ggplot list object  
+plot.time_analysis <- function(data, data_options, condition_column = data_options$default_columns[1]) {
+  
+  require('ggplot2')
+  
+  # Prelims:
+  data = ungroup(data)
+  dopts = data_options
+  
+  # Check condition factor
+  if ( length(condition_column) > 1 ) {
+    stop('Can only plot time-analysis for one factor at a time.')
+  }
+  if ( is.numeric(data[[condition_column]]) ) {
+    cat("\nCondition factor is numeric, performing median split...")
+    median_split_arg = list(GroupFactor = 
+                              make( nse_arg("ifelse(", condition_column, ">median(", condition_column, ", na.rm=TRUE), 'High', 'Low')") )
+    )
+    out = data %>%
+      mutate_(.dots = median_split_arg) %>%
+      ggplot(aes(x = StartTime, y= PropLooking, group=GroupFactor, color=GroupFactor)) +
+      stat_smooth() + 
+      facet_wrap( ~ AOI) +
+      guides(color= guide_legend(title= condition_column)) 
+    return(out)
+  } else {
+    out = ggplot(aes_string(x = "StartTime", y= "PropLooking", group= condition_column, color= condition_column)) +
+      stat_smooth() + 
+      facet_wrap( ~ AOI)
+    return(out)
+  }
+  
+}
+
+
+# plot.seq_bin()
+#
+# Plot the confidence intervals that result from the 'analyze_time_bins' function
+#
+# @param dataframe data
+# @param list data_options
+#
+# @return list A ggplot list object  
+plot.seq_bin <- function(data, data_options) {
+  
+  require('ggplot2')
+    
+  ci_cols = grep(pattern = paste0("_CI"), x = colnames(data), value = TRUE )
+
+  ggplot(data = data, aes(x = StartTime, y = 0)) +
+    geom_ribbon(aes_string(ymin=ci_cols[1], ymax=ci_cols[2]), alpha=0.5) +
+    geom_hline(aes(yintercept = 0), linetype="dashed") +
+    ylab("Parameter Estimate") +
+    xlab("TimeBin (Start)") +
+    facet_wrap( ~ AOI)
   
 }
 
