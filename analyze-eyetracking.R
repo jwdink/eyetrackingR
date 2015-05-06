@@ -95,7 +95,7 @@ fix_data_types <- function(data, data_options) {
   as.numeric2 = function(x) as.numeric(as.character(x))
   check_then_convert = function(x, checkfunc, convertfunc, colname) { 
     if ( !checkfunc(x) ) {
-      warning('Converting ' , colname ,' to proper type.')
+      message('Converting ' , colname ,' to proper type.')
       convertfunc(x)
     } else {
       x
@@ -131,19 +131,16 @@ fix_data_types <- function(data, data_options) {
 describe_data = function(data, data_options, dv = data_options$default_dv, factors = data_options$default_columns) {
   require(dplyr)
   
-  to_summarise = c("~mean(dv, na.rm= TRUE)",
-                   "~sd(dv, na.rm= TRUE)",
-                   "~var(dv, na.rm= TRUE)",
-                   "~min(dv, na.rm= TRUE)",
-                   "~max(dv, na.rm= TRUE)"
-  )
-  to_summarise = as.list( gsub(pattern = "dv", replacement = dv, x = to_summarise) ) %>%
-    lapply(as.formula)
-  names(to_summarise) = c("Mean", "SD", "Var", "Min", "Max")
-  
   data %>%
     group_by_(.dots = as.list(factors)) %>%
-    summarise_(.dots = to_summarise)
+    summarise_(.dots = list(Mean = make_dplyr_argument( "mean(",dv,", na.rm=TRUE)" ),
+                            SD   = make_dplyr_argument( "sd(",dv,", na.rm=TRUE)" ),
+                            Var  = make_dplyr_argument( "var(",dv,", na.rm=TRUE)" ),
+                            Min  = make_dplyr_argument( "min(",dv,", na.rm=TRUE)*1.0" ),
+                            Max  = make_dplyr_argument( "max(",dv,", na.rm=TRUE)*1.0" ),
+                            NumTrials = make_dplyr_argument( "length(unique(", data_options$trial_column, "))" )
+    ))
+  
 }
 
 # trackloss_analysis ()
@@ -161,7 +158,8 @@ describe_data = function(data, data_options, dv = data_options$default_dv, facto
 
 trackloss_analysis = function(data, data_options) {
   
-  require('outliers')
+  .zscore = function(x) (x-mean(x,na.rm=TRUE)) / sd(x,na.rm=TRUE)
+  
   require('dplyr')
   
   dopts = data_options
@@ -179,10 +177,8 @@ trackloss_analysis = function(data, data_options) {
     summarise(TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
               TracklossForParticipant = mean(TracklossForParticipant, na.rm=TRUE)) %>%
     ungroup() %>%
-    mutate(Part_ZScore  = scores(TracklossForParticipant, type = "z"),
-           Trial_ZScore = scores(TracklossForTrial, type = "z"),
-           Part_MAD     = scores(TracklossForParticipant, type = "mad"),
-           Trial_MAD    = scores(TracklossForTrial, type = "mad") )
+    mutate(Part_ZScore  = .zscore(TracklossForParticipant),
+           Trial_ZScore = .zscore(TracklossForTrial) )
   
 }
 
@@ -364,15 +360,15 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 center_predictors = function(data, predictors) {
   require('dplyr')
     
-  dots = list()
+  mutate_argument = list()
   for (i in seq_along(predictors)) {
     name = paste0(predictors[i], "C")
-    dots[[name]] = make(nse_arg("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm = TRUE)"))
+    mutate_argument[[name]] = make_dplyr_argument("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm=TRUE)" )
   }
 
   data %>% 
     ungroup() %>%
-    mutate_(.dots = dots)
+    mutate_(.dots = mutate_argument)
   
 }
 
@@ -420,7 +416,7 @@ time_analysis <- function (data,
   condition_columns = c()
   for (factor in factors) {
     if ( is.numeric(data[[factor]]) ) {
-      numeric_summarise_arg[[factor]] = make( nse_arg("mean(", factor, ", na.rm=TRUE)") )
+      numeric_summarise_arg[[factor]] = make_dplyr_argument("mean(", factor, ", na.rm=TRUE)") 
     } else {
       if ( is.factor(data[[factor]]) ) {
         condition_columns = c(condition_columns, factor)
@@ -437,11 +433,11 @@ time_analysis <- function (data,
                         participants = as.list( c(dopts$participant_column, condition_columns, "TimeBin") ),
                         items        = as.list( c(dopts$item_columns, condition_columns, "TimeBin") )
                           )
-  time_bin_arg = list(TimeBin = make(nse_arg("ceiling(", dopts$time_column, "/", time_bin_size, ")")) )
+  time_bin_arg = list(TimeBin = make_dplyr_argument("ceiling(", dopts$time_column, "/", time_bin_size, ")" ) ) 
   summarise_arg = c(numeric_summarise_arg,
-                    list(PropLooking = make( nse_arg("mean(", dv, ", na.rm=TRUE)") ),
-                         StartTime = make( nse_arg(data_options$time_column, "[1]")),
-                         EndTime = make( nse_arg( data_options$time_column, "[n()]"))
+                    list(PropLooking = make_dplyr_argument("mean(", dv, ", na.rm=TRUE)") ,
+                         StartTime = make_dplyr_argument(data_options$time_column, "[1]" ),
+                         EndTime = make_dplyr_argument( data_options$time_column, "[n()]" )
                     )
   )
   
@@ -606,44 +602,39 @@ analyze_time_bins <- function(data,
 window_analysis <- function(data, 
                             data_options, 
                             dv = data_options$default_dv, 
-                            condition_columns = data_options$default_columns,
-                            window = NULL
+                            condition_columns = data_options$default_columns
                             ) {
   
   require('dplyr')
+  
+  # Prelims:
+  data = ungroup(data)
+  dopts = data_options
   
   # For Multiple DVs:
   if (length(dv) > 1) {
     list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
       cat("\nAnalyzing", this_dv, "...")
-      window_analysis(data, data_options, dv = this_dv, condition_columns, window)
+      window_analysis(data, data_options, dv = this_dv, condition_columns)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('window_analysis', class(out))
     return( out )
   }
   
-  # Make/Get Window:
-  if ( is.null(window) ) {
-    window = range(data[[data_options$time_column]], na.rm = TRUE, finite = TRUE)
-  }
   
   # Summarise:
   summarized = data %>% 
-    filter_(.dots = list( paste0(data_options$time_column, " >= ", window[1]),
-                          paste0(data_options$time_column, " <= ", window[2]))
-    ) %>%
-    group_by_(.dots = as.list(c(data_options$participant_column, data_options$trial_column, data_options$item_columns, condition_columns)) ) %>%
-    summarise_( .dots = list(SamplesInAOI = make(nse_arg( "sum(", dv, ", na.rm= TRUE)" )),
-                             SamplesTotal = make(nse_arg( "sum(!is.na(", dv, "))" )) # ignore trackloss!
-                             ) ) %>%
-    mutate(elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
+    group_by_(.dots = as.list(c(dopts$participant_column, dopts$trial_column, dopts$item_columns, condition_columns)) ) %>%
+    summarise_( .dots = list(SamplesInAOI = make_dplyr_argument( "sum(", dv, ", na.rm= TRUE)" ),
+                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", dv, "))" ) # ignore trackloss!
+    ) ) %>%
+    mutate(AOI = dv,
+           elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
            weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
            Prop = SamplesInAOI / SamplesTotal,
            ArcSin = asin( sqrt( Prop ) )
     )
-  
-  summarized$AOI = dv
   
   class(summarized) = c('window_analysis', class(summarized))
   return(summarized)
@@ -653,6 +644,38 @@ window_analysis <- function(data,
 
 # Visualizing ------------------------------------------------------------------------------------------
 
+# plot.data.frame()
+#
+# Prevents accidental plotting of non-analysis object
+#
+# @param dataframe data
+# @param list data_options
+# @param character condition_column
+#
+# @return an error
+
+plot.data.frame <- function(data, data_options, condition_column) {
+  stop('Whoops, you have attempted to plot a dataframe, but this can only be done to dataframes that have ',
+       'been produced by one of the "analysis" functions. If the dataframe you are attempting to plot was',
+       'produced in this way, [THIS FUNCTION WILL BE A HELPER TO FIX CLASS].')
+}
+
+
+# plot.window_analysis()
+#
+# Plots the result of a window analysis
+#
+# @param dataframe data
+# @param list data_options
+# @param character condition_column
+#
+# @return list A ggplot list object  
+plot.window_analysis <- function(data, data_options, condition_column = data_options$default_columns[1]) {
+ 
+  
+  
+  
+}
 
 # plot.time_analysis()
 #
@@ -678,7 +701,7 @@ plot.time_analysis <- function(data, data_options, condition_column = data_optio
   if ( is.numeric(data[[condition_column]]) ) {
     cat("\nCondition factor is numeric, performing median split...")
     median_split_arg = list(GroupFactor = 
-                              make( nse_arg("ifelse(", condition_column, ">median(", condition_column, ", na.rm=TRUE), 'High', 'Low')") )
+                              make_dplyr_argument("ifelse(", condition_column, ">median(", condition_column, ", na.rm=TRUE), 'High', 'Low')" )
     )
     out = data %>%
       mutate_(.dots = median_split_arg) %>%
@@ -721,6 +744,16 @@ plot.seq_bin <- function(data, data_options) {
 }
 
 # Helpers -----------------------------------------------------------------------------------------------
+
+make_dplyr_argument = function(..., cond= TRUE) {
+  if (cond) {
+    parts = list(...)
+    arg_string = paste0("~", paste0(parts, collapse = " ") )
+    return( as.formula(arg_string, env = parent.frame()) )
+  } else {
+    return("~NA")
+  }
+}
 
 nse_arg = function(..., cond=TRUE) {
   if (cond) {

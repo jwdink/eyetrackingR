@@ -1,57 +1,131 @@
-source("./analyze-eyetracking.R")
+setwd("/Volumes/Groups/server/Documents/People/Jacob Dink/BodyImageProject/Analysis") # i'm sorry hadley
+packs = lapply(X = c('readr', 'plyr', 'dplyr', 'pbapply', 'tidyr', 'ggplot2', 'broom', 'lme4'), FUN = require, character.only=TRUE)
+source("~/Documents/Projects/ET/eyetrackingR/analyze-eyetracking.R")
 
-df_ia = readRDS(file = "~/Desktop/BI/df_ia.rds")
-df_ia = as.data.frame(df_ia) # remove old eyetrackR classes from object
-unique( df_ia$InterestArea )
-df_ia$AOI_Head = df_ia$InterestArea == "head"
+## LOAD DATA:
+df3 = readRDS("~/Desktop/cleaned_et_data_w_all_interest_areas.RDS")
 
-data_options= set_data_options(sample_factor = "TimeInTrial", 
-                               default_factors = "Condition",
-                               default_dv = "AOI_Head",
-                               trial_factor = "TRIAL_INDEX", 
-                               item_factor = 'image',
-                               time_factor = "TimeInTrial", 
-                               sample_rate = 1000, 
-                               participant_factor = "RECORDING_SESSION_LABEL", 
-                               active_aoi_factor = "InterestArea", 
-                               trackloss_factor = 'RIGHT_IN_BLINK')
+# get bis info:
+df_measures = read.csv("./data/measures.csv", stringsAsFactors = FALSE) %>%
+  select(ID, edibodydistot, bmi, bodysurvobcs, edibdiscontinuous, stomach, thighs, hips, chest) %>% # <---- NOTE no arms
+  rename(Participant = ID,
+         waist  = stomach,
+         bust   = chest) %>%
+  gather(BodyPart, DissBP, waist:bust, convert = TRUE) %>%
+  mutate(
+    Participant = as.character(Participant),
+    BodyPart = paste0("IA_", BodyPart)
+    ) %>%
+  group_by(Participant) %>%
+  mutate(DissOverall = sum(DissBP) 
+         ) %>%
+  ungroup() %>%
+  mutate(DissNoBP = DissOverall - DissBP)
 
-## verify:
-class(df_ia)
-df_ia = verify_dataset(data = df_ia, data_options)
-class(df_ia)
+## SET DATA OPTIONS:
+data_options = set_data_options(sample_rate = 1000, 
+                 default_columns = NULL,
+                 default_dv = NULL,
+                 item_columns = "Image",
+                 trial_column = "Trial",
+                 sample_column = "SampleIndex",
+                 time_column = "TimeInTrial",
+                 trackloss_column = "Trackloss",
+                 participant_column = "Participant", 
+                 active_aoi_column = "InterestArea",
+                 message_column = "Message")
 
-## describe:
-describe_data(df_ia, data_options)
+## GET INTO CORRECT FORMAT:
+df3 = fix_data_types(data = df3, data_options)
 
-## plot:
-plot(df_ia, data_options, dv = "AOI_Head", factor = "Condition") + 
-  coord_cartesian(ylim = c(0,1))
+## DESCRIBE:
+described = describe_data(df3, data_options, dv = "IA_head", factors = c("Participant") )
+View(described)
 
-plot(df_ia, data_options, dv = "AOI_Head", factor = "Condition", type = "smoothed", time_bin_size = 25) + 
-  coord_cartesian(ylim = c(0,1) )
+## CLEAN BY TRACKLOSS:
+tl = trackloss_analysis(df3, data_options)
+(exclude = unique(tl$Participant[tl$Part_ZScore>3]))
+exclude_trials = paste(tl$Participant[tl$Trial_ZScore>3],tl$Trial[tl$Trial_MAD>3], sep="_")
+# as yet unwritten 'clean_by_trackloss' function
+df_fb = df3 %>%
+  filter(! Participant %in% exclude,
+         ! TrialID %in% exclude_trials,
+         ! Trackloss,
+           TimeInTrial > 0,
+         ! PostTrial) %>%
+  mutate(IA_body = IA_bust | IA_waist | IA_hips | IA_thighs)
 
-## analyses:
-# window:
-library("lme4")
-df_window = window_analysis(data = df_ia, data_options, window = c(4000,6500))
-fit_window = lmer(formula = ArcSin ~ Condition + (1|RECORDING_SESSION_LABEL) + (1|image), weights = weights,
-                  data=df_window)
-drop1(fit_window, test= "Chisq")
+df_omeas = df_measures %>%  # overall measures
+  group_by(Participant) %>% 
+  summarise(bodysurvobcs      = unique(bodysurvobcs), 
+            edibdiscontinuous = unique(edibdiscontinuous),
+            edibodydistot     = unique(edibodydistot),
+            DissOverall       = unique(DissOverall)
+            )
 
-# sequential
-df_ia$Response = as.factor(df_ia$Response)
-df_ia$image = as.factor(df_ia$image)
-df_seq = sequential_bins_analysis(data = filter(df_ia, TimeInTrial > 0, TimeInTrial < 7500), 
-                                  data_options, 
-                                  time_bin_size = 250, 
-                                  dv= 'AOI_Head', 
-                                  factor = 'Condition',
-)
+df_fb = left_join(df_fb, df_omeas, by="Participant") %>%
+  filter( ! is.na(DissOverall),
+          ! is.na(edibdiscontinuous) )
 
-plot(df_seq, data_options, factor="Condition")
+## SUBSETTING BY TIME-WINDOW AND BY FACTOR
+...
+
+## VERIFY DATA LOOKS SANE:
+described = describe_data(df_fb, data_options, dv = "IA_head", factors = c("Participant") )
+View(described)
 
 
+# WINDOW ANAL:
+window_anal = window_analysis(df_fb,
+                data_options, 
+                dv = c('IA_head','IA_bust','IA_waist','IA_hips','IA_thighs'), 
+                condition_columns = "edibdiscontinuous")
+
+window_anal$GroupFactor = ifelse(window_anal$edibdiscontinuous > median(window_anal$edibdiscontinuous), 'High', 'Low')
+
+naive = window_anal %>%
+  group_by(Participant, GroupFactor, AOI) %>%
+  summarise(Prop = mean(Prop, na.rm=TRUE))
+ggplot(naive, aes(x = GroupFactor, y=Prop, group=AOI, color=AOI)) +
+  stat_summary(fun.dat = mean_se) +
+  stat_summary(fun.y = mean, geom="line")
+
+mine = summary_se_within(window_anal, measurevar = "Prop", betweenvars = c("GroupFactor","AOI"), idvar = "Participant")
+ggplot(mine, aes(x = GroupFactor, y=Prop, group=AOI, color=AOI)) +
+  geom_line() + geom_point() + 
+  geom_errorbar(aes(ymin = Prop - SE, ymax= Prop +SE, width=0) )
+
+winst = summarySEwithin(naive, measurevar = "Prop", betweenvars = c("GroupFactor","AOI"), idvar = "Participant")
+ggplot(winst, aes(x = GroupFactor, y=Prop, group=AOI, color=AOI)) +
+  geom_line() + geom_point() + 
+  geom_errorbar(aes(ymin = Prop - se, ymax= Prop +se, width=0) )
+
+
+
+# TIME ANAL
+time_anal = time_analysis(df_fb, 
+                    data_options, 
+                    time_bin_size = 250, 
+                    dv = c('IA_head','IA_bust','IA_waist','IA_hips','IA_thighs'), 
+                    factors = "edibdiscontinuous",  # <---- rename?
+                    summarize_by = 'crossed')
+class(time_anal)
+plot(time_anal, data_options, "edibdiscontinuous") 
+
+# SEQUENTIAL BINS:
+seq_anal = analyze_time_bins(time_anal, data_options, condition_column = 'edibdiscontinuous') # <--- elog vs. arcsin?
+class(seq_anal)
+plot(seq_anal)
+
+
+
+ggplot(window_anal, aes(x = edibdiscontinuous, y = Prop, group= AOI, color= AOI)) +
+  geom_smooth(method = "lm")
+
+ggplot(window_anal, aes(x = GroupFactor, y = Prop, group= AOI, color= AOI)) +
+  stat_summary(fun.dat = mean_cl_boot) +
+  stat_summary(fun.y = mean, geom = 'line') +
+  coord_cartesian(ylim = c(0,1)) 
 
 
 
