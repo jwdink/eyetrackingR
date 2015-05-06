@@ -149,30 +149,36 @@ describe_data = function(data, data_options, dv = data_options$default_dv, facto
 #
 # @param dataframe data
 # @param list data_options
+# @param numeric.vector time_window First number specifies start of timewindow, second specifies end of timewindow
 #
 # @return dataframe 
 
-##### ADD ABILITY TO ONLY CALC TRACKLOSS FOR SUBSET OF TRIALS (MAYBE) AND TIMEWINDOW (DEFINITELY)
-
-#####
-
-trackloss_analysis = function(data, data_options) {
+trackloss_analysis = function(data, data_options, time_window = NULL) {
   
   .zscore = function(x) (x-mean(x,na.rm=TRUE)) / sd(x,na.rm=TRUE)
-  
   require('dplyr')
   
+  # Prelims:
   dopts = data_options
-  
   data[["Trackloss"]] = data[[dopts$trackloss_column]]
+  if (is.null(time_window)) {
+    time_window = range(data[dopts$time_column])
+  }
   
   data %>%
+    # Filter by Time-Window:
+    filter_(.dots = list( make_dplyr_argument(dopts$time_column, ">=", time_window[1]) , 
+                          make_dplyr_argument(dopts$time_column, "<=", time_window[2]) )
+            ) %>%
+    # Get Trackloss-by-Trial:
     group_by_(.dots = list(dopts$participant_column, dopts$trial_column)) %>%
     mutate(TracklossForTrial = mean(Trackloss, na.rm=TRUE)) %>%
     ungroup() %>%
+    # Get Trackloss-by-Participant:
     group_by_(.dots = list(dopts$participant_column)) %>%
     mutate(TracklossForParticipant = mean(Trackloss, na.rm=TRUE)) %>%
     ungroup() %>%
+    # Get Z-Scores:
     group_by_(.dots = list(dopts$participant_column, dopts$trial_column) )%>%
     summarise(TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
               TracklossForParticipant = mean(TracklossForParticipant, na.rm=TRUE)) %>%
@@ -667,14 +673,32 @@ plot.data.frame <- function(data, data_options, condition_column) {
 #
 # @param dataframe data
 # @param list data_options
-# @param character condition_column
+# @param character condition_columns Maximum 2
 #
 # @return list A ggplot list object  
-plot.window_analysis <- function(data, data_options, condition_column = data_options$default_columns[1]) {
- 
+plot.window_analysis <- function(data, data_options, x_axis_column = data_options$default_columns[1], group_column = NULL) {
   
+  # Organize Vars:
+  if ( !is.null(group_column) & is.numeric(data[[group_column]]) ) {
+    message("The variable '", group_column, "' is continous, will perform median split for visualization.")
+    split_col = paste0(group_column, "_Split")
+    data[[split_col]] = ifelse(data[[group_column]] > median(data[[group_column]]), 'High', 'Low')
+    group_column = split_col
+  }
+  color_var = group_column
+  group_var = ifelse( is.null(group_column), 1, group_column)
   
-  
+  if ( is.numeric(data[[x_axis_column]]) ) {
+    ggplot(data, aes_string(x = x_axis_column, y = "Prop", group= group_var, color= color_var)) +
+      stat_smooth(method="lm") +
+      facet_wrap( ~ AOI)
+  } else {
+    ggplot(data, aes_string(x = x_axis_column, y = "Prop", group= group_var, color= color_var)) +
+      stat_summary(fun.y = mean, geom='line') +
+      stat_summary(fun.dat = mean_cl_boot) +
+      facet_wrap( ~ AOI)
+  }
+
 }
 
 # plot.time_analysis()
@@ -711,7 +735,7 @@ plot.time_analysis <- function(data, data_options, condition_column = data_optio
       guides(color= guide_legend(title= condition_column)) 
     return(out)
   } else {
-    out = ggplot(aes_string(x = "StartTime", y= "PropLooking", group= condition_column, color= condition_column)) +
+    out = ggplot(data, aes_string(x = "StartTime", y= "PropLooking", group= condition_column, color= condition_column)) +
       stat_smooth() + 
       facet_wrap( ~ AOI)
     return(out)
@@ -754,16 +778,5 @@ make_dplyr_argument = function(..., cond= TRUE) {
     return("~NA")
   }
 }
-
-nse_arg = function(..., cond=TRUE) {
-  if (cond) {
-    as.formula(paste0("~", ...))
-  } else {
-    "~NA"
-  }
-}
-
-make = as.formula
-
 
 
