@@ -72,6 +72,7 @@ window_anal$BodSurv = ifelse(window_anal$edibdiscontinuous > median(window_anal$
 plot(window_anal, data_options, x_axis_column= "Phase", group_column= "BodSurv") # two discrete vars
 plot(window_anal, data_options, x_axis_column= "Phase", group_column= "edibdiscontinuous") # a continous grouping var gets median split
 plot(window_anal, data_options, x_axis_column= "edibdiscontinuous", group_column= "Phase") # a continous x-axis var gets LM
+plot(window_anal, data_options, x_axis_column= "edibdiscontinuous") # just one
 
 
 ## TIME ANAL
@@ -79,14 +80,28 @@ time_anal = time_analysis(df_fb,
                     data_options, 
                     time_bin_size = 250, 
                     dv = c('IA_head','IA_bust','IA_waist','IA_hips','IA_thighs'), 
-                    condition_columns = "edibdiscontinuous",  # <---- rename?
+                    condition_columns = "edibdiscontinuous",  
                     summarize_by = 'crossed')
 plot(time_anal, data_options, condition_column= "edibdiscontinuous") 
 
 ## SEQUENTIAL BINS:
-seq_anal = analyze_time_bins(time_anal, data_options, condition_column = 'edibdiscontinuous') # <--- elog vs. arcsin?
+seq_anal = analyze_time_bins(data = time_anal, data_options = data_options, condition_columns = 'edibdiscontinuous')
 plot(seq_anal)
 
+
+foo = window_anal %>% group_by(Participant, edibdiscontinuous, AOI) %>% summarise(elog = mean(elog)) %>% filter(AOI=='IA_head')
+tidy(aov(formula = elog ~ edibdiscontinuous + Error(Participant), data = window_anal) )
+
+tidy(aov(formula = elog ~ edibdiscontinuous, data = foo) )
+
+bar = window_anal %>% group_by(Participant, Phase, AOI) %>% summarise(elog = mean(elog)) %>% filter(AOI=='IA_head')
+tidy(aov(formula = elog ~ Phase + Error(Participant), data = window_anal) )
+
+tidy(aov(formula = elog ~ Phase, data = bar) )
+
+numer = length(unique(window_anal[['Phase']]))
+denom = length(unique(window_anal[['Participant']])) - numer
+qf(.975, df1 = numer, df2= denom)
 
 
 
