@@ -40,7 +40,6 @@
 # @param string sample_column The incrementing factor that numbers gaze samples (0,1,2,3,4,...)
 # @param string trial_column The unique name of the current trial
 # @param string default_dv The default column for your dependent variable, used if unspecified in *_analysis() methods
-# @param character.vector default_columns The default columns for your indepdent variables, used if unspecified in *_analysis() methods
 #
 # @return list of configuration options
 
@@ -70,7 +69,6 @@ set_data_options <- function(
     'trial_column' = trial_column,
     'item_columns' = item_columns,
     'default_dv' = default_dv,
-    'default_columns' = default_columns,
     'xpos_column' = xpos_column,
     'ypos_column' = ypos_column,
     'message_column' = message_column
@@ -129,7 +127,7 @@ verify_dataset <- function(data, data_options) {
 #
 # @return dataframe 
 
-describe_data = function(data, data_options, dv = data_options$default_dv, factors = data_options$default_columns) {
+describe_data = function(data, data_options, dv = data_options$default_dv, factors) {
   require(dplyr)
   
   data %>%
@@ -205,14 +203,17 @@ clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, tr
   data$TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
   
   # Trackloss Analysis:
+  cat("\nPerforming Trackloss Analysis...")
   tl = trackloss_analysis(data, data_options)
   
   # Bad Trials:
+  cat("\nWill exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
   exclude_trials = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
                          tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
                          sep="_")
   
   # Bad Participants
+  cat("\nWill exclude participants whose trackloss-z-score is greater than : ", trial_z_thresh)
   part_vec = data[[data_options$participant_col]]
   exclude_ppts = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
   exclude_trials = c(exclude_trials, 
@@ -405,7 +406,7 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 window_analysis <- function(data, 
                             data_options, 
                             dv = data_options$default_dv, 
-                            condition_columns = data_options$default_columns
+                            condition_columns
                             ) {
   
   require('dplyr')
@@ -676,7 +677,7 @@ plot.data.frame <- function(data, data_options, condition_column) {
 # @param character condition_columns Maximum 2
 #
 # @return list A ggplot list object  
-plot.window_analysis <- function(data, data_options, x_axis_column = data_options$default_columns[1], group_column = NULL) {
+plot.window_analysis <- function(data, data_options, x_axis_column, group_column = NULL) {
   
   dopts = data_options
   
@@ -722,7 +723,7 @@ plot.window_analysis <- function(data, data_options, x_axis_column = data_option
 # @param character condition_column
 #
 # @return list A ggplot list object  
-plot.time_analysis <- function(data, data_options, condition_column = data_options$default_columns[1]) {
+plot.time_analysis <- function(data, data_options, condition_column) {
   
   require('ggplot2')
   
