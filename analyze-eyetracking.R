@@ -45,8 +45,6 @@
 
 set_data_options <- function(
   sample_rate = 60,
-  exclude_trackloss = TRUE,
-  exclude_non_aoi = FALSE,
   participant_column = 'ParticipantName',
   active_aoi_column = 'SceneType',
   trackloss_column = 'TrackLoss',
@@ -406,7 +404,7 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 window_analysis <- function(data, 
                             data_options, 
                             dv = data_options$default_dv, 
-                            condition_columns
+                            condition_columns = NULL
                             ) {
   
   require('dplyr')
@@ -431,7 +429,7 @@ window_analysis <- function(data,
   summarized = data %>% 
     group_by_(.dots = as.list(c(dopts$participant_column, dopts$trial_column, dopts$item_columns, condition_columns)) ) %>%
     summarise_( .dots = list(SamplesInAOI = make_dplyr_argument( "sum(", dv, ", na.rm= TRUE)" ),
-                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", dv, "))" ) # ignore trackloss!
+                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", dv, "))" ) # ignore all NAs 
     ) ) %>%
     mutate(AOI = dv,
            elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
@@ -464,7 +462,7 @@ time_analysis <- function (data,
                            data_options, 
                            time_bin_size = 250, 
                            dv = data_options$default_dv, 
-                           condition_columns,
+                           condition_columns = NULL,
                            summarize_by = 'crossed') {
   
   
@@ -486,7 +484,17 @@ time_analysis <- function (data,
   dopts = data_options
   
   # Check that Condition Column has a healthy number of levels (i.e., won't crash R)
-  # [TO DO]
+  num_unique_conditions_in_cell = lapply(X = condition_columns, 
+                                         FUN = function(condition_col) make_dplyr_argument( "length(unique(",condition_col,"))" ))
+  names(num_unique_conditions_in_cell) = condition_columns
+  df_cond_check = data %>%
+    group_by_(.dots = as.list( c(dopts$participant_column, dopts$trial_column) )) %>%
+    summarise_(.dots = num_unique_conditions_in_cell )
+  for (condition_col in condition_columns) {
+    if (any(df_cond_check[[condition_col]] > 1)) {
+      stop("Condition columns should not vary within a trial")
+    }
+  }
   
   # How to Group? By Sub? Item? Both?
   group_by_arg = switch(match.arg(summarize_by, c('crossed', 'subjects', 'participants', 'items')),
