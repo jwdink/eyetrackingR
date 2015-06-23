@@ -536,50 +536,29 @@ time_analysis <- function (data,
 }
 
 # analyze_time_bins()
-#.
 #
 # @param dataframe.time_analysis data The output of the 'time_analysis' function
 #...
 # @return dataframe 
 analyze_time_bins <- function(data, 
                               data_options, 
-                              condition_columns = NULL, 
-                              formula= paste("elog ~", paste(condition_columns, collapse = " + ") ),
-                              return_full_model = FALSE)
+                              condition_column,
+                              within = FALSE,
+                              return_model = FALSE,
+                              dv_type = 'elog')
 {
   
   require('dplyr')
-  require('lme4')
   require('broom')
-  
-  if (is.null(condition_columns)) stop('Condition columns must be specified, even when also specifying formula.')
-  
-  ## Helpers: ===
-#   lmer_helper = function(tb) {
-#     failsafe_lmer = function(formula, data) {
-#       tryCatch(lmer(formula, data),
-#                error = function(c) NA,
-#                warning = function(c) NA # return no model on convergence errors
-#       )
-#     }
-#     
-#     #failsafe_lmer = failwith(default = NA, lmer)
-#     failsafe_lmer(formula = as.formula(formula_string), data = filter(data, TimeBin==tb) )
-#   }
-#   extract_conf_ints = function(object, pnum, lh) {
-#     out = confint(object, method = "Wald")[pnum, lh]
-#     if (is.null(out)) {
-#       return(NA)
-#     } else {
-#       return(out)
-#     }
-#   }
   
   ## Main: ===
   
   # Must be a time_analysis:
   if (!'time_analysis' %in% class(data)) stop('This function can only be run on the output of the "time_analysis" function.')
   
+  # Only support one-way anova:
+  if (length(condition_column)>1) stop('This function only supports one-way ANOVA (single condition column).')
+
   # For Multiple DVs:
   dvs = unique(data[['AOI']])
   if ( length(dvs) > 1 ) {
@@ -587,7 +566,7 @@ analyze_time_bins <- function(data,
       cat("\nAnalyzing", this_dv, "...")
       this_df = filter(data, AOI == this_dv)
       class(this_df) = class(data)
-      analyze_time_bins(data = this_df, data_options, condition_columns,formula, return_full_model)
+      analyze_time_bins(data = this_df, data_options, condition_column, within, return_model)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('seq_bin', class(out))
@@ -598,61 +577,38 @@ analyze_time_bins <- function(data,
   data = ungroup(data) # shouldn't be necessary, but just in case
   dopts = data_options
   
-  
-  # 
-  
-by_part = data %>% 
   # Collapse by Participant:
-  group_by_(.dots = as.list(c(dopts$participant_column, condition_columns, "AOI", "TimeBin") ) ) %>%
-  summarise(elog = mean(elog, na.rm=TRUE) )
-
-message("Building model with formula '", formula, "' for each time bin...")
-
-aov_models = lapply(X = unique(data$TimeBin), FUN = function(tb) {
-  aov(formula = as.formula(formula), filter(by_part, TimeBin==tb))
-})
-
-model_params = lapply(aov_models, FUN = function(x) tidy(x) ) 
-cat("")
-
-f_vals = sapply(X = model_params, FUN = function(x) x[['statistic']][1])
-numer = 
-denom = length(unique(by_part[[dopts$participant_column]]))
-crit_f = qf(p = .975, df1 = numer, df2= denom)
-
-#   # Generate Model String:
-#   the_formula = list()
-#   the_formula[['main']] = paste0("ArcSin ~ ", condition_column)
-#   if (dopts$participant_column %in% colnames(data)) the_formula[['participant']] = paste0("(1|", data_options$participant_column, ")")
-#   for (item in dopts$item_columns) {
-#     if (item %in% colnames(data)) {
-#       the_formula[[item]] = paste0("(1|", item, ")")
-#     }
-#   }
-#   formula_string = paste(the_formula, collapse = " + ")
-#   
-#   # Generate Models:
-#   LM_Model = lapply(X = unique(data$TimeBin), FUN = lmer_helper)
-#   models = data %>%
-#     group_by_(.dots = list("TimeBin") ) %>%
-#     summarise(StartTime = mean(StartTime)) %>%
-#     ungroup() %>%
-#     mutate(LM_Model = LM_Model)
-#   
-#   # Generate Output:
-#   out = select(models, -LM_Model)
+  dv_type = match.arg(dv_type, choices = c("ArcSin", "elog", "Prop"))
+  summarise_arg = list(make_dplyr_argument("mean(",dv_type,",na.rm=TRUE)"))
+  names(summarise_arg) = c(dv_type)
+  by_part = data %>% 
+    group_by_(.dots = as.list(c(dopts$participant_column, condition_column, "AOI", "TimeBin") ) ) %>%
+    summarise_(.dots = summarise_arg)
   
-#   # Conf:
-#   out[[paste(condition_column,"CILower",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 1))
-#   out[[paste(condition_column,"CIUpper",sep="_")]] = sapply(X = models$LM_Model, FUN = function(x) extract_conf_ints(x, 2, 2)) 
-#   
-#   # Diff:
-#   out$Difference = 
-#     (out[[paste(condition_column,"CILower",sep="_")]] > 0) |
-#     (out[[paste(condition_column,"CIUpper",sep="_")]] < 0) 
-#   
+  # Do an ANOVA for each TimeBin:
+  the_formula = paste(dv_type, "~", condition_column)
+  if (within) the_formula = paste(the_formula, "+", "Error(", dopts$participant_column, "/", condition_column, ")")
+  aov_models = lapply(X = unique(by_part$TimeBin), FUN = function(tb) {
+    aov(formula = as.formula(the_formula), data = filter(by_part, TimeBin==tb), x = TRUE, y = TRUE)
+  })
+  
+  # Extract F and Critical F:
+  model_params = lapply(aov_models, FUN = function(x) tidy(x) )   
+  f_vals = sapply(X = model_params, FUN = function(x) x[['statistic']][1+within])
+  numer  = sapply(X = model_params, FUN = function(x) x[['df']][1+within])
+  denom  = sapply(X = model_params, FUN = function(x) x[['df']][2+within])
+  crit_f = qf(p = .975, df1 = numer, df2= denom)
 
-out
+  # Summarize:
+  out = data.frame(stringsAsFactors = FALSE,
+                   F= f_vals, 
+                   CritF = crit_f, 
+                   TimeBin = unique(by_part$TimeBin),
+                   AOI = unique(by_part$AOI))
+  if (return_model) out$Model = aov_models
+  
+  class(out) = c('seq_bin', class(out))
+  out
     
 }
 
@@ -779,13 +735,11 @@ plot.seq_bin <- function(data, data_options) {
   
   require('ggplot2')
     
-  ci_cols = grep(pattern = paste0("_CI"), x = colnames(data), value = TRUE )
-
-  ggplot(data = data, aes(x = StartTime, y = 0)) +
-    geom_ribbon(aes_string(ymin=ci_cols[1], ymax=ci_cols[2]), alpha=0.5) +
-    geom_hline(aes(yintercept = 0), linetype="dashed") +
-    ylab("Parameter Estimate") +
-    xlab("TimeBin (Start)") +
+  ggplot(data = data) +
+    geom_line(mapping = aes(x = TimeBin, y= F)) +
+    geom_line(mapping = aes(x = TimeBin, y= CritF), linetype="dashed") +
+    ylab("F-Statistic") +
+    xlab("TimeBin") +
     facet_wrap( ~ AOI)
   
 }
