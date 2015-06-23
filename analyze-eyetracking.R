@@ -115,12 +115,75 @@ verify_dataset <- function(data, data_options) {
   
 }
 
+# subset_by_window ()
+#
+# Extract a subset of the dataset, where each trial falls inside a time-window.
+# Time-window can either be specifed by a number (for a timestamp across all trials) or
+# by a column which picks out a timestamp for each participant/trial
+#
+# @param dataframe data
+# @param list data_options
+# @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
+# @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
+# @param logical rezero Should the beginning of the window be considered the zero point of the timestamp? 
+#                       Default TRUE when window_start is column, FALSE when window_start is number
+#
+# @return dataframe 
+
+subset_by_window = function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
+  require(dplyr)
+  
+  dopts = data_options
+  
+  # Window Start:
+  if (is.character(window_start)) {
+    data$.WindowStart = data[[window_start]]
+    if (is.null(rezero)) rezero = TRUE
+  } else {
+    data$.WindowStart = window_start
+    if (is.null(rezero)) rezero = FALSE
+  }
+  
+  # Window End:
+  if (is.character(window_end)) {
+    data$.WindowEnd = data[[window_end]]
+  } else {
+    data$.WindowEnd = window_end
+  }
+  
+  # Subset
+  message("Subsetting by window...")
+  out = data %>%
+    filter_(.dots = list(make_dplyr_argument(dopts$time_column, "> .WindowStart"),
+                         make_dplyr_argument(dopts$time_column, "< .WindowEnd")
+            )
+    )
+  
+  # Rezero
+  if (rezero) {
+    message("Rezeroing timestamp...")
+    out = out %>% 
+      group_by_(.dots = list(dopts$participant_column, dopts$trial_column)) %>%
+      mutate_(.dots = list(NewTimeStamp = make_dplyr_argument(dopts$time_column, "- .WindowStart"))) %>%
+      ungroup()
+    out[[dopts$time_column]] = out[["NewTimeStamp"]]
+    out[["NewTimeStamp"]] = NULL
+  }
+  
+  out[[".WindowStart"]] = NULL
+  out[[".WindowEnd"]] = NULL
+  
+  out
+  
+}
+
 # describe_data ()
 #
 # Describe a DV column in the dataset by a (group of) factor(s)
 #
 # @param dataframe data
-# @param string dv
+# @param list data_options
+# @param character dv
 # @param character.vector factors
 #
 # @return dataframe 
@@ -201,17 +264,17 @@ clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, tr
   data$TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
   
   # Trackloss Analysis:
-  cat("\nPerforming Trackloss Analysis...")
+  message("Performing Trackloss Analysis...")
   tl = trackloss_analysis(data, data_options)
   
   # Bad Trials:
-  cat("\nWill exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
+  message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
   exclude_trials = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
                          tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
                          sep="_")
   
   # Bad Participants
-  cat("\nWill exclude participants whose trackloss-z-score is greater than : ", trial_z_thresh)
+  message("Will exclude participants whose trackloss-z-score is greater than : ", trial_z_thresh)
   part_vec = data[[data_options$participant_col]]
   exclude_ppts = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
   exclude_trials = c(exclude_trials, 
@@ -416,7 +479,7 @@ window_analysis <- function(data,
   # For Multiple DVs:
   if (length(dv) > 1) {
     list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
-      cat("\nAnalyzing", this_dv, "...")
+      message("Analyzing", this_dv, "...")
       window_analysis(data, data_options, dv = this_dv, condition_columns)
     })
     out = bind_rows(list_of_dfs)
@@ -471,7 +534,7 @@ time_analysis <- function (data,
   # For Multiple DVs:
   if (length(dv) > 1) {
     list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
-      cat("\nCreating Summary for", this_dv, "...")
+      message("Creating Summary for", this_dv, "...")
       time_analysis(data, data_options, time_bin_size, this_dv, condition_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
@@ -563,7 +626,7 @@ analyze_time_bins <- function(data,
   dvs = unique(data[['AOI']])
   if ( length(dvs) > 1 ) {
     list_of_dfs = lapply(X = dvs, FUN = function(this_dv) {
-      cat("\nAnalyzing", this_dv, "...")
+      message("Analyzing", this_dv, "...")
       this_df = filter(data, AOI == this_dv)
       class(this_df) = class(data)
       analyze_time_bins(data = this_df, data_options, condition_column, within, return_model)
@@ -587,7 +650,12 @@ analyze_time_bins <- function(data,
   
   # Do an ANOVA for each TimeBin:
   the_formula = paste(dv_type, "~", condition_column)
-  if (within) the_formula = paste(the_formula, "+", "Error(", dopts$participant_column, "/", condition_column, ")")
+  if (within) {
+    message("Performing within-subject ANOVAs for time-bins.")
+    the_formula = paste(the_formula, "+", "Error(", dopts$participant_column, "/", condition_column, ")")
+  } else {
+    message("Performing between-subject ANOVAs for time-bins.")
+  }
   aov_models = lapply(X = unique(by_part$TimeBin), FUN = function(tb) {
     aov(formula = as.formula(the_formula), data = filter(by_part, TimeBin==tb), x = TRUE, y = TRUE)
   })
@@ -700,7 +768,7 @@ plot.time_analysis <- function(data, data_options, condition_column) {
     stop('Can only plot time-analysis for one factor at a time.')
   }
   if ( is.numeric(data[[condition_column]]) ) {
-    cat("\nCondition factor is numeric, performing median split...")
+    message("Condition factor is numeric, performing median split...")
     median_split_arg = list(GroupFactor = 
                               make_dplyr_argument("ifelse(", condition_column, ">median(", condition_column, ", na.rm=TRUE), 'High', 'Low')" )
     )
@@ -728,10 +796,9 @@ plot.time_analysis <- function(data, data_options, condition_column) {
 # Plot the confidence intervals that result from the 'analyze_time_bins' function
 #
 # @param dataframe data
-# @param list data_options
 #
 # @return list A ggplot list object  
-plot.seq_bin <- function(data, data_options) {
+plot.seq_bin <- function(data) {
   
   require('ggplot2')
     
