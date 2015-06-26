@@ -378,7 +378,7 @@ remove_trackloss = function(data, data_options, delete_rows = FALSE) {
   if (delete_rows) {
     # Remove all rows with Trackloss:
     out <- data %>%
-           mutate_(.dots = list(TracklossBoolean = make_dplyr_argument(paste0('ifelse(is.na(', data_options$trackloss_column, '),0,1)')))) %>%
+           mutate_(.dots = list(TracklossBoolean = make_dplyr_argument(paste0('ifelse(is.na(', data_options$trackloss_column, '),0,',data_options$trackloss_column,')')))) %>%
            filter(TracklossBoolean == 0)
     
   } else {
@@ -622,6 +622,11 @@ analyze_time_bins <- function(data,
   class(out) = c('seq_bin', class(out))
   out
 }
+
+### NEW ANALYSIS FUNCTIONS:
+
+# * first_looks_analysis
+# * bootstrapped splines
 
 
 # Visualizing ------------------------------------------------------------------------------------------
