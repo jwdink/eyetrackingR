@@ -18,16 +18,12 @@ packs = lapply(X = c('readr', 'plyr', 'dplyr', 'pbapply', 'tidyr', 'ggplot2', 'b
 
 # source('load_and_clean_bi_data_from_scratch.R') # <--- only run once
 df3 = readRDS("./data/cleaned_et_data_w_all_interest_areas.RDS")
-data_options = set_data_options(sample_rate = 1000, 
-                 default_dv = NA,
+data_options = set_data_options(
                  item_columns = "Image",
                  trial_column = "Trial",
-                 sample_column = "SampleIndex",
                  time_column = "Timestamp",
                  trackloss_column = "Trackloss",
                  participant_column = "Participant", 
-                 active_aoi_column = "InterestArea",
-                 message_column = "Message",
                  aoi_columns = c("IA_head","IA_bust","IA_waist","IA_hips","IA_thighs"))
 
 df4 = df3 %>%
@@ -36,6 +32,7 @@ df4 = df3 %>%
          StopTime  = Timestamp[Message=="Time Out"])
 df4 = subset_by_window(df4, data_options, window_start="StartTime", window_end="StopTime")
 
+foo = remove_trackloss(df4, data_options, delete_rows = TRUE)
 
 df4_ = convert_non_aoi_to_trackloss(data = df4, data_options)
 # 

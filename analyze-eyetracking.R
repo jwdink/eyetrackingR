@@ -48,8 +48,7 @@ set_data_options <- function(
   time_column,
   trial_column,
   item_columns = NULL,
-  aoi_columns,
-  message_column
+  aoi_columns
 ) {
   list(
     participant_column = participant_column,
@@ -57,8 +56,7 @@ set_data_options <- function(
     time_column = time_column,
     trial_column = trial_column,
     item_columns = item_columns,
-    aoi_columns = aoi_columns,
-    message_column = message_column
+    aoi_columns = aoi_columns
   )
 }
 
@@ -117,8 +115,6 @@ verify_dataset <- function(data, data_options) {
 #                       Default TRUE when window_start is column, FALSE when window_start is number
 #
 # @return dataframe 
-
-# TODO (Brock): use time_window=c(start,end) instead of window_start and window_end ???
 
 subset_by_window = function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
   require(dplyr)
