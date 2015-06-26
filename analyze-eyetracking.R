@@ -423,6 +423,9 @@ window_analysis <- function(data,
 # @param character summarize_by Should the data by summarized by participant, by item, or crossed (both)?
 #
 # @return dataframe summarized
+
+# TODO (Brock): Add growth curve polynomials
+
 time_analysis <- function (data, 
                            data_options, 
                            time_bin_size = 250, 
