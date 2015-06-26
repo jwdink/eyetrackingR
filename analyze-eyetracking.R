@@ -165,67 +165,6 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
   out
 }
 
-# subset_by_window ()
-#
-# Extract a subset of the dataset, where each trial falls inside a time-window.
-# Time-window can either be specifed by a number (for a timestamp across all trials) or
-# by a column which picks out a timestamp for each participant/trial
-#
-# @param dataframe data
-# @param list data_options
-# @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
-# @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
-# @param logical rezero Should the beginning of the window be considered the zero point of the timestamp? 
-#                       Default TRUE when window_start is column, FALSE when window_start is number
-#
-# @return dataframe 
-
-subset_by_window = function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
-  require(dplyr)
-  
-  dopts = data_options
-  
-  # Window Start:
-  if (is.character(window_start)) {
-    data$.WindowStart = data[[window_start]]
-    if (is.null(rezero)) rezero = TRUE
-  } else {
-    data$.WindowStart = window_start
-    if (is.null(rezero)) rezero = FALSE
-  }
-  
-  # Window End:
-  if (is.character(window_end)) {
-    data$.WindowEnd = data[[window_end]]
-  } else {
-    data$.WindowEnd = window_end
-  }
-  
-  # Subset
-  message("Subsetting by window...")
-  out = data %>%
-    filter_(.dots = list(make_dplyr_argument(dopts$time_column, "> .WindowStart"),
-                         make_dplyr_argument(dopts$time_column, "< .WindowEnd")
-            )
-    )
-  
-  # Rezero
-  if (rezero) {
-    message("Rezeroing timestamp...")
-    out = out %>% 
-      group_by_(.dots = list(dopts$participant_column, dopts$trial_column)) %>%
-      mutate_(.dots = list(NewTimeStamp = make_dplyr_argument(dopts$time_column, "- .WindowStart"))) %>%
-      ungroup()
-    out[[dopts$time_column]] = out[["NewTimeStamp"]]
-    out[["NewTimeStamp"]] = NULL
-  }
-  
-  out[[".WindowStart"]] = NULL
-  out[[".WindowEnd"]] = NULL
-  
-  out
-  
-}
 
 # describe_data ()
 #
@@ -260,40 +199,31 @@ describe_data = function(data, data_options, dv, factors) {
 #
 # @param dataframe data
 # @param list data_options
-# @param numeric.vector time_window First number specifies start of timewindow, second specifies end of timewindow
+# @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
+# @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
 #
 # @return dataframe 
 
-trackloss_analysis = function(data, data_options, time_window = NULL) {
+trackloss_analysis = function(data, data_options, window_start = -Inf, window_end = Inf) {
   .zscore = function(x) (x-mean(x,na.rm=TRUE)) / sd(x,na.rm=TRUE)
   require('dplyr')
   
-  # Prelims:
-  dopts = data_options
-  
-  if (is.null(time_window)) {
-    time_window = range(data[dopts$time_column])
-  }
-  
-  data %>%
-    # Filter by Time-Window:
-    filter_(.dots = list( make_dplyr_argument(dopts$time_column, ">=", time_window[1]) , 
-                          make_dplyr_argument(dopts$time_column, "<=", time_window[2]) )
-    ) %>%
+  # Filter by Time-Window:
+  subset_by_window(data, data_options, window_start, window_end) %>%
     # Get Trackloss-by-Trial:
-    group_by_(.dots = list(dopts$participant_column, dopts$trial_column)) %>%
-    mutate_(.dots = list(SumTracklossForTrial = make_dplyr_argument("sum(", dopts$trackloss_column, ", na.rm=TRUE)"),
-                         TotalTrialLength = make_dplyr_argument("length(", dopts$trackloss_column, ")"),
+    group_by_(.dots = list(data_options$participant_column, data_options$trial_column)) %>%
+    mutate_(.dots = list(SumTracklossForTrial = make_dplyr_argument("sum(", data_options$trackloss_column, ", na.rm=TRUE)"),
+                         TotalTrialLength = make_dplyr_argument("length(", data_options$trackloss_column, ")"),
                          TracklossForTrial = make_dplyr_argument("SumTracklossForTrial / TotalTrialLength")) ) %>%
     ungroup() %>%
     # Get Trackloss-by-Participant:
-    group_by_(.dots = list(dopts$participant_column)) %>%
-    mutate_(.dots = list(SumTracklossForParticipant = make_dplyr_argument("sum(", dopts$trackloss_column, ", na.rm=TRUE)"),
-                         TotalParticipantLength = make_dplyr_argument("length(", dopts$trackloss_column, ")"),
+    group_by_(.dots = list(data_options$participant_column)) %>%
+    mutate_(.dots = list(SumTracklossForParticipant = make_dplyr_argument("sum(", data_options$trackloss_column, ", na.rm=TRUE)"),
+                         TotalParticipantLength = make_dplyr_argument("length(", data_options$trackloss_column, ")"),
                          TracklossForParticipant = make_dplyr_argument("SumTracklossForParticipant / TotalParticipantLength"))) %>%
     ungroup() %>%
     # Get Z-Scores:
-    group_by_(.dots = list(dopts$participant_column, dopts$trial_column) )%>%
+    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) )%>%
     summarise(Samples = mean(TotalTrialLength, na.rm=TRUE),
               TracklossSamples = mean(SumTracklossForTrial, na.rm=TRUE),
               TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
@@ -313,16 +243,20 @@ trackloss_analysis = function(data, data_options, time_window = NULL) {
 # @param numeric trial_z_thresh Maxmimum amount of trackloss for trials, in terms of z-scores
 # @param numeric participant_prop_thresh Maximum proportion of trackloss for participants
 # @param numeric trial_prop_thresh Maximum proportion of trackloss for trials
-# @param numeric.vector time_window First number specifies start of timewindow, second specifies end of timewindow
+# @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
+# @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
 #
 # @return dataframe 
 
-clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, trial_z_thresh = Inf, participant_prop_thresh = 1, trial_prop_thresh = 1, time_window = NULL) {
+clean_by_trackloss = function(data, data_options, 
+                              participant_z_thresh = Inf, trial_z_thresh = Inf, 
+                              participant_prop_thresh = 1, trial_prop_thresh = 1,
+                              window_start = -Inf, window_end = Inf) {
   data$.TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
   
   # Trackloss Analysis:
   message("Performing Trackloss Analysis...")
-  tl = trackloss_analysis(data, data_options, time_window)
+  tl = trackloss_analysis(data, data_options, window_start, window_end)
   
   # Bad Trials:
   message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
