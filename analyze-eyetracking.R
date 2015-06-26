@@ -625,6 +625,11 @@ analyze_time_bins <- function(data,
   out
 }
 
+### NEW ANALYSIS FUNCTIONS:
+
+# * first_looks_analysis
+# * bootstrapped splines
+
 
 # Visualizing ------------------------------------------------------------------------------------------
 
