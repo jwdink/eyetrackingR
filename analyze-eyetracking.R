@@ -32,43 +32,32 @@
 # Create a list of data options which is passed to most of these
 # methods.
 #
-# @param integer sample_rate Number of samples (per second) recorded by eyetracker
 # @param string participant_column Set to the subject code of the participant
-# @param string active_aoi_column Set to the name of the AOI being gazed at for this sample
 # @param string trackloss_column Set to 1 or 0 depending on whether the sample is lost to trackloss
 # @param string time_column The factor to use for judgments of time (ms)
-# @param string sample_column The incrementing factor that numbers gaze samples (0,1,2,3,4,...)
 # @param string trial_column The unique name of the current trial
-# @param string default_dv The default column for your dependent variable, used if unspecified in *_analysis() methods
+# @param string/vector item_columns One or more columns that specify item/stimulus properties (values do not need to be unique, and this can be the same as trial)
+# @param string/vector aoi_columns Names of all AOI columns (which should be logical, 1/0)
+
 #
 # @return list of configuration options
 
 set_data_options <- function(
-  sample_rate = 60,
-  participant_column = 'ParticipantName',
-  active_aoi_column = 'SceneType',
-  trackloss_column = 'TrackLoss',
-  time_column = 'TimeFromMovieOnset',
-  sample_column = 'FramesFromMovieOnset',
-  trial_column = 'Trial',
-  item_columns = 'Trial',
-  default_dv = 'ActionMatch',
-  xpos_column = 'XPos',
-  ypos_column = 'YPos',
+  participant_column,
+  trackloss_column,
+  time_column,
+  trial_column,
+  item_columns,
+  aoi_columns,
   message_column = NULL
 ) {
   list(
-    'sample_rate' = sample_rate,
     'participant_column' = participant_column,
-    'active_aoi_column' = active_aoi_column,
     'trackloss_column' = trackloss_column,
     'time_column' = time_column,
-    'sample_column' = sample_column,
     'trial_column' = trial_column,
     'item_columns' = item_columns,
-    'default_dv' = default_dv,
-    'xpos_column' = xpos_column,
-    'ypos_column' = ypos_column,
+    'aoi_columns' = aoi_columns,
     'message_column' = message_column
   )
 }
@@ -85,7 +74,6 @@ set_data_options <- function(
 # @return dataframe data
 
 verify_dataset <- function(data, data_options) {
-  
   out = data
   class(out) = c("sample_data", class(out))
   
@@ -100,10 +88,11 @@ verify_dataset <- function(data, data_options) {
   }
   col_type_converter = list("participant_column" = function(x) check_then_convert(x, is.factor, as.factor, "Participants"),
                             "time_column"        = function(x) check_then_convert(x, is.numeric, as.numeric2, "Time"),
-                            "sample_column"      = function(x) check_then_convert(x, is.numeric, as.numeric2, "Sample"),
                             "trial_column"       = function(x) check_then_convert(x, is.factor, as.factor, "Trial"),
-                            "item_columns"       = function(x) check_then_convert(x, is.factor, as.factor, "Item")
+                            "item_columns"       = function(x) check_then_convert(x, is.factor, as.factor, "Item"),
+                            "aoi_columns"       = function(x) check_then_convert(x, is.logical, as.logical, "AOI")
   )
+  
   for (col in names(col_type_converter) ) {
     for(i in seq_along(data_options[[col]])) {
       if (is.null(out[[ data_options[[col]][i] ]])) stop("Data are missing", col)
@@ -112,7 +101,68 @@ verify_dataset <- function(data, data_options) {
   }
   
   return( out )
+}
+
+# subset_by_window ()
+#
+# Extract a subset of the dataset, where each trial falls inside a time-window.
+# Time-window can either be specifed by a number (for a timestamp across all trials) or
+# by a column which picks out a timestamp for each participant/trial
+#
+# @param dataframe data
+# @param list data_options
+# @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
+# @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
+# @param logical rezero Should the beginning of the window be considered the zero point of the timestamp? 
+#                       Default TRUE when window_start is column, FALSE when window_start is number
+#
+# @return dataframe 
+
+# TODO (Brock): use time_window=c(start,end) instead of window_start and window_end ???
+
+subset_by_window = function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
+  require(dplyr)
   
+  dopts = data_options
+  
+  # Window Start:
+  if (is.character(window_start)) {
+    data$.WindowStart = data[[window_start]]
+    if (is.null(rezero)) rezero = TRUE
+  } else {
+    data$.WindowStart = window_start
+    if (is.null(rezero)) rezero = FALSE
+  }
+  
+  # Window End:
+  if (is.character(window_end)) {
+    data$.WindowEnd = data[[window_end]]
+  } else {
+    data$.WindowEnd = window_end
+  }
+  
+  # Subset
+  message("Subsetting by window...")
+  out = data %>%
+    filter_(.dots = list(make_dplyr_argument(dopts$time_column, "> .WindowStart"),
+                         make_dplyr_argument(dopts$time_column, "< .WindowEnd")
+    ))
+    
+  # Rezero
+  if (rezero) {
+    message("Rezeroing timestamp...")
+    out = out %>% 
+      group_by_(.dots = list(dopts$participant_column, dopts$trial_column)) %>%
+      mutate_(.dots = list(NewTimeStamp = make_dplyr_argument(dopts$time_column, "- .WindowStart"))) %>%
+      ungroup()
+    out[[dopts$time_column]] = out[["NewTimeStamp"]]
+    out[["NewTimeStamp"]] = NULL
+  }
+  
+  out[[".WindowStart"]] = NULL
+  out[[".WindowEnd"]] = NULL
+  
+  out
 }
 
 # subset_by_window ()
@@ -188,7 +238,7 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
 #
 # @return dataframe 
 
-describe_data = function(data, data_options, dv = data_options$default_dv, factors) {
+describe_data = function(data, data_options, dv, factors) {
   require(dplyr)
   
   data %>%
@@ -214,13 +264,12 @@ describe_data = function(data, data_options, dv = data_options$default_dv, facto
 # @return dataframe 
 
 trackloss_analysis = function(data, data_options, time_window = NULL) {
-  
   .zscore = function(x) (x-mean(x,na.rm=TRUE)) / sd(x,na.rm=TRUE)
   require('dplyr')
-    
+  
   # Prelims:
   dopts = data_options
-  data[["Trackloss"]] = data[[dopts$trackloss_column]]
+  
   if (is.null(time_window)) {
     time_window = range(data[dopts$time_column])
   }
@@ -229,14 +278,18 @@ trackloss_analysis = function(data, data_options, time_window = NULL) {
     # Filter by Time-Window:
     filter_(.dots = list( make_dplyr_argument(dopts$time_column, ">=", time_window[1]) , 
                           make_dplyr_argument(dopts$time_column, "<=", time_window[2]) )
-            ) %>%
+    ) %>%
     # Get Trackloss-by-Trial:
     group_by_(.dots = list(dopts$participant_column, dopts$trial_column)) %>%
-    mutate(TracklossForTrial = mean(Trackloss, na.rm=TRUE)) %>%
+    mutate_(.dots = list(SumTracklossForTrial = make_dplyr_argument("sum(", dopts$trackloss_column, ", na.rm=TRUE)"),
+                         TotalTrialLength = make_dplyr_argument("length(", dopts$trackloss_column, ")"),
+                         TracklossForTrial = make_dplyr_argument("SumTracklossForTrial / TotalTrialLength")) ) %>%
     ungroup() %>%
     # Get Trackloss-by-Participant:
     group_by_(.dots = list(dopts$participant_column)) %>%
-    mutate(TracklossForParticipant = mean(Trackloss, na.rm=TRUE)) %>%
+    mutate_(.dots = list(SumTracklossForParticipant = make_dplyr_argument("sum(", dopts$trackloss_column, ", na.rm=TRUE)"),
+                         TotalParticipantLength = make_dplyr_argument("length(", dopts$trackloss_column, ")"),
+                         TracklossForParticipant = make_dplyr_argument("SumTracklossForParticipant / TotalParticipantLength"))) %>%
     ungroup() %>%
     # Get Z-Scores:
     group_by_(.dots = list(dopts$participant_column, dopts$trial_column) )%>%
@@ -245,7 +298,6 @@ trackloss_analysis = function(data, data_options, time_window = NULL) {
     ungroup() %>%
     mutate(Part_ZScore  = .zscore(TracklossForParticipant),
            Trial_ZScore = .zscore(TracklossForTrial) )
-  
 }
 
 # clean_by_trackloss ()
@@ -260,7 +312,6 @@ trackloss_analysis = function(data, data_options, time_window = NULL) {
 # @return dataframe 
 
 clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, trial_z_thresh = Inf) {
-  
   data$TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
   
   # Trackloss Analysis:
@@ -287,21 +338,26 @@ clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, tr
   data_clean
 }
 
-# generate_random_data()
+# TODO (Brock): Add "Trial counts" function to return final trial counts with average trackloss, etc. for each
+# participant
+
+# clean_by_trackloss ()
 #
-# Generate a random set of looking time data
+# Remove trials/participants with too much trackloss, with a customizable threshold
 #
+# @param dataframe data
 # @param list data_options
-# @param integer seed (optional)
+# @param numeric participant_z_thresh Maximum amount of trackloss for participants, in terms of z-scores
+# @param numeric trial_z_thresh Maxmimum amount of trackloss for trials, in terms of z-scores
+# @param numeric.vector time_window First number specifies start of timewindow, second specifies end of timewindow
 #
-# @return dataframe data
-generate_random_data <- function (data_options, seed = NA, num_participants = 20) {
-  # if we have a seed, set it so that we can generate a consistent dataset
-  # perhaps to follow along in a tutorial
-  if (!is.na(seed)) {
-    set.seed(seed)
-  }
+# @return dataframe 
+
+# TODO (Brock): Also allow them to remove trials by MINIMUM time contributed (when too variable for z-scores)
+
+clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, trial_z_thresh = Inf, time_window = NULL) {
   
+<<<<<<< Updated upstream
   # Experiment design
   #
   # Looking while listening, look to target
@@ -439,15 +495,35 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
     data[which(data[, data_options$trackloss_column] == 1), 'Target'] <- NA
     data[which(data[, data_options$trackloss_column] == 1), 'Distractor'] <- NA
   }
+
+  data$TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
   
-  # verify and format dataset
-  data <- verify_dataset(data, data_options, silent = TRUE)
+  # Trackloss Analysis:
+  message("Performing Trackloss Analysis...")
+  tl = trackloss_analysis(data, data_options, time_window)
   
   data$Condition <- factor(data$Condition)
   data$Window <- factor(data$Window)
   data[, data_options$active_aoi_column] <- factor(data[, data_options$active_aoi_column])
+
+  # Bad Trials:
+  message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
+  exclude_trials = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
+                         tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
+                         sep="_")
+
+  # Bad Participants
+  message("Will exclude participants whose trackloss-z-score is greater than : ", trial_z_thresh)
+  part_vec = data[[data_options$participant_col]]
+  exclude_ppts = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
+  exclude_trials = c(exclude_trials, 
+                     unique( data$TrialID[part_vec %in% exclude_ppts] ) )
   
-  data
+  # Remove:
+  data_clean = data %>%
+    filter(! TrialID %in% exclude_trials) 
+  
+  data_clean
 }
 
 
@@ -466,10 +542,9 @@ generate_random_data <- function (data_options, seed = NA, num_participants = 20
 # @return dataframe
 window_analysis <- function(data, 
                             data_options, 
-                            dv = data_options$default_dv, 
+                            dv, 
                             condition_columns = NULL
-                            ) {
-  
+) {
   require('dplyr')
   
   # Prelims:
@@ -524,7 +599,7 @@ window_analysis <- function(data,
 time_analysis <- function (data, 
                            data_options, 
                            time_bin_size = 250, 
-                           dv = data_options$default_dv, 
+                           dv, 
                            condition_columns = NULL,
                            summarize_by = 'crossed') {
   
@@ -677,7 +752,6 @@ analyze_time_bins <- function(data,
   
   class(out) = c('seq_bin', class(out))
   out
-    
 }
 
 
@@ -801,7 +875,7 @@ plot.time_analysis <- function(data, data_options, condition_column) {
 plot.seq_bin <- function(data) {
   
   require('ggplot2')
-    
+
   ggplot(data = data) +
     geom_line(mapping = aes(x = TimeBin, y= F)) +
     geom_line(mapping = aes(x = TimeBin, y= CritF), linetype="dashed") +
@@ -828,6 +902,7 @@ make_dplyr_argument = function(...) {
   parts = list(...)
   arg_string = paste0("~", paste0(parts, collapse = " ") )
   return( as.formula(arg_string, env = parent.frame()) )
+<<<<<<< Updated upstream
 }
 
 
@@ -856,6 +931,27 @@ center_predictors = function(data, predictors) {
 }
 
 
+# center_predictors()
+#
+# Center predictors in preparation for statistical analyses
+#
+# @param dataframe data
+# @param character.vector predictors
+#
+# @return dataframe data with modified columns appended with "C"
 
-
+center_predictors = function(data, predictors) {
+  require('dplyr')
+  
+  mutate_argument = list()
+  for (i in seq_along(predictors)) {
+    name = paste0(predictors[i], "C")
+    mutate_argument[[name]] = make_dplyr_argument("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm=TRUE)" )
+  }
+  
+  data %>% 
+    ungroup() %>%
+    mutate_(.dots = mutate_argument)
+  
+}
 
