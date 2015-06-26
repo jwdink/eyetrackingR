@@ -87,8 +87,9 @@ verify_dataset <- function(data, data_options) {
   col_type_converter = list("participant_column" = function(x) check_then_convert(x, is.factor, as.factor, "Participants"),
                             "time_column"        = function(x) check_then_convert(x, is.numeric, as.numeric2, "Time"),
                             "trial_column"       = function(x) check_then_convert(x, is.factor, as.factor, "Trial"),
+                            "trackloss_column"   = function(x) check_then_convert(x, is.logical, as.logical, "Trackloss"),
                             "item_columns"       = function(x) check_then_convert(x, is.factor, as.factor, "Item"),
-                            "aoi_columns"       = function(x) check_then_convert(x, is.logical, as.logical, "AOI")
+                            "aoi_columns"        = function(x) check_then_convert(x, is.logical, as.logical, "AOI")
   )
   
   for (col in names(col_type_converter) ) {
@@ -284,9 +285,10 @@ clean_by_trackloss = function(data, data_options,
   
   # Remove:
   data_clean = data %>%
-    filter(! .TrialID %in% exclude_trials) %>%
-    select(-.TrialID)
+    filter(! .TrialID %in% exclude_trials)
 
+  data_clean$.TrialID = NULL
+  
   data_clean
 
 }
@@ -308,13 +310,15 @@ convert_non_aoi_to_trackloss = function(data, data_options) {
   
   out = data %>%
     mutate_(.dots= replace_na_arg) %>%
+    mutate_(.dots = list(.Trackloss = make_dplyr_argument(data_options$trackloss_column))) %>%
     mutate_(.dots= list(.AOISum = make_dplyr_argument(paste(data_options$aoi_columns, collapse = "+"))) ) %>%
-    mutate(Trackloss = (.AOISum == 0) | Trackloss )
+    mutate(.Trackloss = (.AOISum == 0) | .Trackloss )
   
   for (aoi in paste0(".", data_options$aoi_columns)) {
     out[[aoi]] = NULL
   }
   out[[".AOISum"]] = NULL
+  out[[".Trackloss"]] = NULL
   
   out
 }
@@ -373,6 +377,9 @@ remove_trackloss = function(data, data_options, delete_rows = FALSE) {
   
   if (delete_rows) {
     # Remove all rows with Trackloss:
+    out <- data %>%
+           mutate_(.dots = list(TracklossBoolean = make_dplyr_argument(paste0('ifelse(is.na(', data_options$trackloss_column, '),0,1)')))) %>%
+           filter(TracklossBoolean == 0)
     
   } else {
     # Set Looking-at-AOI to NA for any samples where there is Trackloss:
