@@ -343,20 +343,20 @@ keep_trackloss = function(data, data_options) {
   out= data %>%
     mutate_(.dots= replace_trackloss_arg)
   
-#   # If there is still missing data for AOIs, warn that it's going to be ignored:
-#   for (aoi in data_options$aoi_columns) {
-#     if (any(is.na(data[[aoi]]))) {
-#       warning("NAs found for non-trackloss samples, in '", aoi, 
-#               "'' column. These samples will be interpreted as being outside of the ", aoi, " AOI.")
-#     }
-#   }
-# 
-#   # Replace any Lingering Missing AOI Data:
-#   replace_na_arg = 
-#     lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(is.na(",aoi,"), 0, ", aoi,")" ))
-#   names(replace_na_arg) = data_options$aoi_columns
-#   out= out %>%
-#     mutate_(.dots= replace_na_arg)
+  # If there is still missing data for AOIs, warn that it's going to be ignored:
+  for (aoi in data_options$aoi_columns) {
+    if (any(is.na(data[[aoi]]))) {
+      warning("NAs found for non-trackloss samples, in '", aoi, 
+              "'' column. These samples will be interpreted as being outside of the ", aoi, " AOI.")
+    }
+  }
+
+  # Replace any Lingering Missing AOI Data:
+  replace_na_arg = 
+    lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(is.na(",aoi,"), 0, ", aoi,")" ))
+  names(replace_na_arg) = data_options$aoi_columns
+  out= out %>%
+    mutate_(.dots= replace_na_arg)
   
   out
 }
@@ -377,8 +377,10 @@ remove_trackloss = function(data, data_options, delete_rows = FALSE) {
   
   if (delete_rows) {
     # Remove all rows with Trackloss:
-    out <- data %>%
-           mutate_(.dots = list(TracklossBoolean = make_dplyr_argument(paste0('ifelse(is.na(', data_options$trackloss_column, '),0,1)')))) %>%
+    out = data %>%
+           mutate_(.dots = list(
+             TracklossBoolean = make_dplyr_argument('ifelse(is.na(', data_options$trackloss_column, '), 0, ', data_options$trackloss_column, ')')
+             )) %>%
            filter(TracklossBoolean == 0)
     
   } else {
