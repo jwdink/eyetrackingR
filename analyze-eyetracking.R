@@ -47,18 +47,18 @@ set_data_options <- function(
   trackloss_column,
   time_column,
   trial_column,
-  item_columns,
+  item_columns = NULL,
   aoi_columns,
-  message_column = NULL
+  message_column
 ) {
   list(
-    'participant_column' = participant_column,
-    'trackloss_column' = trackloss_column,
-    'time_column' = time_column,
-    'trial_column' = trial_column,
-    'item_columns' = item_columns,
-    'aoi_columns' = aoi_columns,
-    'message_column' = message_column
+    participant_column = participant_column,
+    trackloss_column = trackloss_column,
+    time_column = time_column,
+    trial_column = trial_column,
+    item_columns = item_columns,
+    aoi_columns = aoi_columns,
+    message_column = message_column
   )
 }
 
@@ -253,6 +253,7 @@ describe_data = function(data, data_options, dv, factors) {
   
 }
 
+
 # trackloss_analysis ()
 #
 # Get information on trackloss
@@ -326,28 +327,24 @@ clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, tr
   # Bad Trials:
   message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
   exclude_trials_zs = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
-                         tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
-                         sep="_")
-  
+                            tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
+                            sep="_")
   message(paste("\t...removed ", length(exclude_trials_zs), " trials."))
   
   message("Will exclude trials whose trackloss proportion is greater than : ", trial_prop_thresh)
   exclude_trials_props = paste(tl$Participant[tl$TracklossForTrial >= trial_prop_thresh], 
-                         tl$Trial[tl$TracklossForTrial >= trial_prop_thresh], 
-                         sep="_")
-  
+                               tl$Trial[tl$TracklossForTrial >= trial_prop_thresh], 
+                               sep="_")
   message(paste("\t...removed ", length(exclude_trials_props), " trials."))
   
   # Bad Participants
   message("Will exclude participants whose trackloss-z-score is greater than : ", participant_z_thresh)
   part_vec = data[[data_options$participant_col]]
   exclude_ppts_z = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
-  
   message(paste("\t...removed ", length(exclude_ppts_z), " participants."))
   
   message("Will exclude participants whose trackloss proportion is greater than : ", participant_prop_thresh)
   exclude_ppts_prop = unique(tl$Participant[tl$TracklossForParticipant >= participant_prop_thresh])
-  
   message(paste("\t...removed ", length(exclude_ppts_prop), " participants."))
   
   exclude_trials = c(exclude_trials_zs,
@@ -361,6 +358,102 @@ clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, tr
     select(-.TrialID)
 
   data_clean
+
+}
+
+# convert_non_aoi_to_trackloss ()
+#
+# Should gaze outside of any AOI be considered trackloss? This function sets trackloss to TRUE for any 
+# samples that were not inside an AOI
+#
+# @param dataframe data
+# @param list data_options
+#
+# @return dataframe 
+
+convert_non_aoi_to_trackloss = function(data, data_options) {
+  
+  replace_na_arg = lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(is.na(",aoi,"), 0, ", aoi,")" ))
+  names(replace_na_arg) = paste0(".", data_options$aoi_columns)
+  
+  out = data %>%
+    mutate_(.dots= replace_na_arg) %>%
+    mutate_(.dots= list(.AOISum = make_dplyr_argument(paste(data_options$aoi_columns, collapse = "+"))) ) %>%
+    mutate(Trackloss = (.AOISum == 0) | Trackloss )
+  
+  for (aoi in paste0(".", data_options$aoi_columns)) {
+    out[[aoi]] = NULL
+  }
+  out[[".AOISum"]] = NULL
+  
+  out
+}
+
+# keep_trackloss ()
+#
+# Converts data so that, in all subsequent proportion-looking calculations, 
+# proportion_looking_at_aoi = time_looking_at_aoi / time_possible.
+# Trackloss is not considered missing data, but instead is counted as time
+# *not* spent looking at each AOI.
+#
+# @param dataframe data
+# @param list data_options
+#
+# @return dataframe 
+keep_trackloss = function(data, data_options) {
+  
+  # Set Looking-at-AOI to FALSE for any samples where there is Trackloss:
+  replace_trackloss_arg = 
+    lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(",data_options$trackloss_column,"==1, 0, ", aoi,")" ))
+  names(replace_trackloss_arg) = data_options$aoi_columns
+  out= data %>%
+    mutate_(.dots= replace_trackloss_arg)
+  
+#   # If there is still missing data for AOIs, warn that it's going to be ignored:
+#   for (aoi in data_options$aoi_columns) {
+#     if (any(is.na(data[[aoi]]))) {
+#       warning("NAs found for non-trackloss samples, in '", aoi, 
+#               "'' column. These samples will be interpreted as being outside of the ", aoi, " AOI.")
+#     }
+#   }
+# 
+#   # Replace any Lingering Missing AOI Data:
+#   replace_na_arg = 
+#     lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(is.na(",aoi,"), 0, ", aoi,")" ))
+#   names(replace_na_arg) = data_options$aoi_columns
+#   out= out %>%
+#     mutate_(.dots= replace_na_arg)
+  
+  out
+}
+
+# remove_trackloss ()
+#
+# Converts data so that, in all subsequent proportion-looking calculations, 
+# proportion_looking_at_aoi = time_looking_at_aoi / time_looking
+# Trackloss *is* considered missing data, and time spent not looking at a given AOI
+# must have been spent looking at another AOI
+#
+# @param dataframe data
+# @param list data_options
+# @param logical delete_rows Should rows with trackloss be deleted, throwing out all of the other useful information those rows might hold? A pretty controversial decision. Fortunately, this is by default set to FALSE.
+#
+# @return dataframe 
+remove_trackloss = function(data, data_options, delete_rows = FALSE) {
+  
+  if (delete_rows) {
+    # Remove all rows with Trackloss:
+    
+  } else {
+    # Set Looking-at-AOI to NA for any samples where there is Trackloss:
+    filter_trackloss_arg = 
+      lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(",data_options$trackloss_column,"==1, NA, ", aoi,")" ))
+    names(filter_trackloss_arg) = data_options$aoi_columns
+    out= data %>%
+      mutate_(.dots= filter_trackloss_arg)
+  }
+  
+  out
 }
 
 # Analyzing ------------------------------------------------------------------------------------------
