@@ -311,6 +311,9 @@ trackloss_analysis = function(data, data_options, time_window = NULL) {
 #
 # @return dataframe 
 
+# TODO (Brock): Add "Trial counts" function to return final trial counts with average trackloss, etc. for each
+# participant
+
 clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, trial_z_thresh = Inf) {
   data$TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
   
@@ -337,195 +340,6 @@ clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, tr
 
   data_clean
 }
-
-# TODO (Brock): Add "Trial counts" function to return final trial counts with average trackloss, etc. for each
-# participant
-
-# clean_by_trackloss ()
-#
-# Remove trials/participants with too much trackloss, with a customizable threshold
-#
-# @param dataframe data
-# @param list data_options
-# @param numeric participant_z_thresh Maximum amount of trackloss for participants, in terms of z-scores
-# @param numeric trial_z_thresh Maxmimum amount of trackloss for trials, in terms of z-scores
-# @param numeric.vector time_window First number specifies start of timewindow, second specifies end of timewindow
-#
-# @return dataframe 
-
-# TODO (Brock): Also allow them to remove trials by MINIMUM time contributed (when too variable for z-scores)
-
-clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, trial_z_thresh = Inf, time_window = NULL) {
-  
-<<<<<<< Updated upstream
-  # Experiment design
-  #
-  # Looking while listening, look to target
-  # 
-  # Will children look towards objects thematically associated with the heard word?
-  #
-  # Conditions:
-  #     Related, one of the objects is related to the word
-  #     NotRelated, no thematic matches
-  
-  # set participants
-  participants <- c(1:num_participants)
-  
-  # Rows
-  #
-  # We will have 8 seconds of total looking in each of our 6 trials for 20 participants
-  #   baseline: 4 seconds
-  #   response: 4 seconds
-  
-  num_rows <- data_options$sample_rate*8*6*max(participants)
-  
-  # Columns
-  #
-  # ParticipantName
-  # Age
-  # Condition
-  # TrialNum
-  # Trial
-  # Window
-  # Time
-  # Sample
-  # Trackloss
-  # ActiveAOI (Target, Distractor)
-  # Target
-  # Distractor
-  
-  data <- data.frame(matrix(nrow = num_rows, ncol = 12))
-  colnames(data) <- c(data_options$participant_column, 
-                      'Age', 
-                      'Condition', 
-                      'TrialNum', 
-                      data_options$trial_column, 
-                      'Window', 
-                      data_options$time_column, 
-                      data_options$sample_column, 
-                      data_options$trackloss_column, 
-                      data_options$active_aoi_column, 
-                      'Target', 
-                      'Distractor')
-  
-  # calculate the general slopes by condition
-  
-  # break the response period into 16 phases, and use a log function to
-  # increase the likelihood of a look towards the Target
-  log_target <- rep(log(seq(1,16), 100000),each=((data_options$sample_rate*4)/16))
-  
-  # add some error
-  error <- rnorm((data_options$sample_rate*4),0,.15)
-  
-  # calculate looking to target (>.5 == a target look)
-  y <- .5 + log_target + error
-  
-  # fix ceiling/floor hits
-  y[which(y > 1.0)] <- 1.0
-  y[which(y < 0)] <- 0
-  
-  Related <- y
-  
-  # and again...
-  error <- rnorm((data_options$sample_rate*4),0,.07)
-  y <- .55 + error
-  y[which(y > 1.0)] <- 1.0
-  y[which(y < 0)] <- 0
-  
-  NotRelated <- y
-  
-  for (x in participants) {
-    # this participant's data will live in these rows
-    row_range <- seq((((x - 1)*(data_options$sample_rate*8*6))+1),(x*data_options$sample_rate*8*6))
-    
-    participant_id <- paste('SUBJ_',x,sep="")
-    condition <- ifelse(x <= floor(length(participants) / 2), 'Knower','NonKnower')
-    data[row_range, data_options$participant_column] <- participant_id
-    data[row_range, 'Age'] <- round(rnorm(1,24,.25), 2)
-    data[row_range, 'Condition'] <- condition
-    data[row_range, 'TrialNum'] <- rep(c(1:6),each=(data_options$sample_rate*8))
-    data[row_range, data_options$trial_column] <- rep(c('Chimpanzee','Bowl','Speaker','Woman','Pen','Basketball'),each=(data_options$sample_rate*8))
-    data[row_range, data_options$sample_column] <- rep(c(1:(data_options$sample_rate*8)),times=6)
-    data[row_range, data_options$time_column] <- (data[row_range, data_options$sample_column]-1)*(1000/data_options$sample_rate)
-    
-    # generate trackloss probability for this participant
-    trackloss_probability <- runif(1,.1,0.35)
-    
-    data[row_range, data_options$trackloss_column] <- rbinom((data_options$sample_rate*8*6),1,trackloss_probability)
-    
-    # for baseline, they have a 50% chance of looking to the target or distractor
-    data[row_range, data_options$active_aoi_column] <- 0
-    
-    # AOI assignment is by trial
-    for (y in 1:6) {
-      # for baseline, let's just give everyone a 50/50 chance
-      baseline_range <- 
-        which(data[, data_options$participant_column] == participant_id & data[, data_options$sample_column] <= (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
-      
-      data[baseline_range, 'Window'] <- 'Baseline'
-      data[baseline_range, 'Target'] <- ifelse(rbinom((data_options$sample_rate*4),1,0.5) == 1,1,0)
-      
-      # for response, we can set the target/distractor looks using the conditions
-      # sloped probability (defined above)
-      response_range <- 
-        which(data[, data_options$participant_column] == participant_id & data[, data_options$sample_column] > (data_options$sample_rate*4) & data[, 'TrialNum'] == y)
-      
-      data[response_range, 'Window'] <- 'Response'
-      
-      if (condition == 'Knower') {
-        data[response_range, 'Target'] <- Related
-      }
-      else {
-        data[response_range, 'Target'] <- NotRelated
-      }
-      
-      data[response_range, 'Target'] <- sapply(data[response_range, 'Target'], function (x) {
-        rbinom(1,1,as.numeric(x))
-      });
-    }
-    
-    # set AOI columns from active_aoi_column
-    data[which(data[, 'Target'] == 1), data_options$active_aoi_column] <- 'Target'
-    data[which(data[, 'Target'] == 1), 'Distractor'] <- 0
-    data[which(data[, 'Target'] == 0), data_options$active_aoi_column] <- 'Distractor'
-    data[which(data[, 'Target'] == 0), 'Distractor'] <- 1
-    
-    # no AOI for trackloss
-    data[which(data[, data_options$trackloss_column] == 1), data_options$active_aoi_column] <- NA
-    data[which(data[, data_options$trackloss_column] == 1), 'Target'] <- NA
-    data[which(data[, data_options$trackloss_column] == 1), 'Distractor'] <- NA
-  }
-
-  data$TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
-  
-  # Trackloss Analysis:
-  message("Performing Trackloss Analysis...")
-  tl = trackloss_analysis(data, data_options, time_window)
-  
-  data$Condition <- factor(data$Condition)
-  data$Window <- factor(data$Window)
-  data[, data_options$active_aoi_column] <- factor(data[, data_options$active_aoi_column])
-
-  # Bad Trials:
-  message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
-  exclude_trials = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
-                         tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
-                         sep="_")
-
-  # Bad Participants
-  message("Will exclude participants whose trackloss-z-score is greater than : ", trial_z_thresh)
-  part_vec = data[[data_options$participant_col]]
-  exclude_ppts = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
-  exclude_trials = c(exclude_trials, 
-                     unique( data$TrialID[part_vec %in% exclude_ppts] ) )
-  
-  # Remove:
-  data_clean = data %>%
-    filter(! TrialID %in% exclude_trials) 
-  
-  data_clean
-}
-
 
 # Analyzing ------------------------------------------------------------------------------------------
 
@@ -902,7 +716,6 @@ make_dplyr_argument = function(...) {
   parts = list(...)
   arg_string = paste0("~", paste0(parts, collapse = " ") )
   return( as.formula(arg_string, env = parent.frame()) )
-<<<<<<< Updated upstream
 }
 
 
