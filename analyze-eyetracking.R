@@ -139,7 +139,6 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
   }
   
   # Subset
-  message("Subsetting by window...")
   out = data %>%
     filter_(.dots = list(make_dplyr_argument(dopts$time_column, "> .WindowStart"),
                          make_dplyr_argument(dopts$time_column, "< .WindowEnd")
@@ -147,7 +146,6 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
     
   # Rezero
   if (rezero) {
-    message("Rezeroing timestamp...")
     out = out %>% 
       group_by_(.dots = list(dopts$participant_column, dopts$trial_column)) %>%
       mutate_(.dots = list(NewTimeStamp = make_dplyr_argument(dopts$time_column, "- .WindowStart"))) %>%

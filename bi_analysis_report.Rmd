@@ -29,12 +29,9 @@ data_options = set_data_options(
 df4 = df3 %>%
   group_by(Participant, Trial) %>%
   mutate(StartTime = Timestamp[Message=="PICTURE"],
-         StopTime  = Timestamp[Message=="Time Out"])
-df4 = subset_by_window(df4, data_options, window_start="StartTime", window_end="StopTime")
+         StopTime  = Timestamp[Message=="Time Out"]) %>%
+  subset_by_window(data_options, window_start="StartTime", window_end="StopTime")
 
-foo = remove_trackloss(df4, data_options, delete_rows = TRUE)
-
-df4_ = convert_non_aoi_to_trackloss(data = df4, data_options)
 # 
 
 ```
