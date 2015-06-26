@@ -254,27 +254,45 @@ clean_by_trackloss = function(data, data_options,
   tl = trackloss_analysis(data, data_options, window_start, window_end)
   
   # Bad Trials:
-  message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
-  exclude_trials_zs = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
-                            tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
-                            sep="_")
-  message(paste("\t...removed ", length(exclude_trials_zs), " trials."))
-  
-  message("Will exclude trials whose trackloss proportion is greater than : ", trial_prop_thresh)
-  exclude_trials_props = paste(tl$Participant[tl$TracklossForTrial >= trial_prop_thresh], 
-                               tl$Trial[tl$TracklossForTrial >= trial_prop_thresh], 
-                               sep="_")
-  message(paste("\t...removed ", length(exclude_trials_props), " trials."))
+  if (trial_z_thresh < Inf) {
+    message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
+    prop_thresh_trial = sd(tl$TracklossForTrial)*trial_z_thresh + mean(tl$TracklossForTrial)
+    message("i.e., where trackloss proportion is greater than : ", round(prop_thresh_trial*100, 2), "%")
+    exclude_trials_zs = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
+                              tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
+                              sep="_")
+    message(paste("\t...removed ", length(exclude_trials_zs), " trials."))
+  } else {
+    exclude_trials_zs = c()
+  }
+  if (trial_prop_thresh < 1) {
+    message("Will exclude trials whose trackloss proportion is greater than : ", trial_prop_thresh)
+    exclude_trials_props = paste(tl$Participant[tl$TracklossForTrial > trial_prop_thresh], 
+                                 tl$Trial[tl$TracklossForTrial > trial_prop_thresh], 
+                                 sep="_")
+    message(paste("\t...removed ", length(exclude_trials_props), " trials."))
+  } else {
+    exclude_trials_props = c()
+  }
   
   # Bad Participants
-  message("Will exclude participants whose trackloss-z-score is greater than : ", participant_z_thresh)
-  part_vec = data[[data_options$participant_col]]
-  exclude_ppts_z = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
-  message(paste("\t...removed ", length(exclude_ppts_z), " participants."))
-  
-  message("Will exclude participants whose trackloss proportion is greater than : ", participant_prop_thresh)
-  exclude_ppts_prop = unique(tl$Participant[tl$TracklossForParticipant >= participant_prop_thresh])
-  message(paste("\t...removed ", length(exclude_ppts_prop), " participants."))
+  if (participant_z_thresh < Inf) {
+    message("Will exclude participants whose trackloss-z-score is greater than : ", participant_z_thresh)
+    prop_thresh_ppt = sd(tl$TracklossForParticipant)*participant_z_thresh + mean(tl$TracklossForParticipant)
+    message("i.e., whose trackloss is greater than : ", round(prop_thresh_ppt*100, 2), "%")
+    part_vec = data[[data_options$participant_col]]
+    exclude_ppts_z = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
+    message(paste("\t...removed ", length(exclude_ppts_z), " participants."))
+  } else {
+    exclude_ppts_z = c()
+  }
+  if (participant_prop_thresh < 1) {
+    message("Will exclude participants whose trackloss proportion is greater than : ", participant_prop_thresh)
+    exclude_ppts_prop = unique(tl$Participant[tl$TracklossForParticipant > participant_prop_thresh])
+    message(paste("\t...removed ", length(exclude_ppts_prop), " participants."))
+  } else {
+    exclude_ppts_prop = c()
+  }
   
   exclude_trials = c(exclude_trials_zs,
                      exclude_trials_props,

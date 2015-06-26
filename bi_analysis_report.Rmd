@@ -42,7 +42,7 @@ We remove participants and trials with high trackloss. We also remove participan
 
 ```{r, warning=FALSE, message=FALSE}
 tl = trackloss_analysis(df4, data_options)
-hist(tl$Part_ZScore)
+hist(tl$TracklossForParticipant)
 df5 = clean_by_trackloss(data = df4, data_options = data_options, participant_z_thresh = 3, trial_z_thresh = 3)
 rm(df4,df3); gc()
 ```
