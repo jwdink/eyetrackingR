@@ -438,7 +438,7 @@ window_analysis <- function(data,
   # For Multiple DVs:
   if (length(dv) > 1) {
     list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
-      message("Analyzing", this_dv, "...")
+      message("Analyzing ", this_dv, "...")
       window_analysis(data, data_options, dv = this_dv, condition_columns)
     })
     out = bind_rows(list_of_dfs)
@@ -496,7 +496,7 @@ time_analysis <- function (data,
   # For Multiple DVs:
   if (length(dv) > 1) {
     list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
-      message("Creating Summary for", this_dv, "...")
+      message("Creating Summary for ", this_dv, "...")
       time_analysis(data, data_options, time_bin_size, this_dv, condition_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
@@ -819,4 +819,24 @@ center_predictors = function(data, predictors) {
     mutate_(.dots = mutate_argument)
   
 }
+
+
+# Friendly Dplyr Verbs ----------------------------------------------------------------------------------
+# dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
+
+filter_.time_analysis = filter_.window_analysis = filter_.seq_bin = function(data, ...) {
+  
+  # remove class names (avoid infinite recursion):
+  temp_remove = class(data)[ class(data) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
+  class(data) = class(data)[!class(data) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
+  
+  out = filter_(data, ...)
+  
+  # reapply class names
+  class(out) = c(temp_remove, class(out) )
+  
+  return(out)
+}
+
+# [ TO DO ]
 

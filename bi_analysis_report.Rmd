@@ -136,15 +136,18 @@ Overall, these analyses suggest that dissatisfaction with a body-part predicts o
 ### Analysis: How Does Looking Change over Time?
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-df5$TimeInExp = ifelse(as.numeric(df5$Trial) < 25, "Early","Late")
+#df5$TimeInExp = ifelse(as.numeric(df5$Trial) < 25, "Early","Late")
 df_time = time_analysis(data = df5, data_options, time_bin_size = 500, 
-                        condition_columns = "TimeInExp",
                         dv = c("IA_bust","IA_waist","IA_hips","IA_thighs") )
-plot(df_time, data_options, condition_column = "TimeInExp")
-df_time = left_join(df_time, df_measures, by = c("Participant", "AOI") )
+df_time = df_time %>%
+  left_join(df_measures, by = c("Participant", "AOI") ) %>%
+  filter(!is.na(DissBP))
 
-seq_bins = analyze_time_bins(data = df_time, data_options, condition_column = "TimeInExp", within = TRUE)
+plot(df_time, data_options, condition_column = "DissBP")
+
+seq_bins = analyze_time_bins(data = df_time, data_options, condition_column = "DissBP", within = FALSE)
 plot(seq_bins)
+
 ```
 
 Now we'll examine how the relationship between dissatisfaction and looking changes over the course of a trial.
@@ -152,31 +155,24 @@ Now we'll examine how the relationship between dissatisfaction and looking chang
 First, we examine these two effects independently.
 
 ```{r, message=FALSE}
-# fit_main_diss = lmer(ArcSin ~ DissBPC+TimeInSecC + BodyPart + DissNoBPC + (1+BodyPart|Participant) + (1+BodyPart|Image), 
-#                      REML = FALSE,
-#                      data = df_binned)
-# drop1(fit_main_diss, test = "Chisq")
+df_time =center_predictors(df_time, c("DissBP", "DissNoBP", "TimeBin"))
+fit_main_diss = lmer(elog ~ DissBPC+TimeBinC + AOI + DissNoBPC + (1+AOI|Participant) + (1+AOI|Image), 
+                     REML = FALSE,
+                     data = df_time)
+drop1(fit_main_diss, test = "Chisq")
 ```
 
 We still have an effect of dissatisfaction, as well as a large effect of trial-time (people tend to look less as the trial progresses). Nothing interesting here.
 
 ```{r, message=FALSE}
-# fit_diss_int_time = lmer(ArcSin ~ DissBPC*TimeInSecC + BodyPart + DissNoBPC + (1+BodyPart|Participant) + (1+BodyPart|Image), 
-#          REML = FALSE,
-#          data = df_binned)
-# drop1(fit_diss_int_time, test = "Chisq")
-# tidy(fit_diss_int_time, effects = "fixed")
+fit_int_time_diss = lmer(elog ~ DissBPC*TimeBinC + AOI + DissNoBPC + (1+AOI|Participant) + (1+AOI|Image), 
+                     REML = FALSE,
+                     data = df_time)
+drop1(fit_int_time_diss, test = "Chisq")
 ```
 
 The result of this test suggests that the relationship between dissatisfaction and looking changes over the course of a trial: people's intial looking gravitates towards low-satisfaction body-parts, but as the trial progresses this behavior lessens.
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
-# 
-# plot(df_cleaner, data_options, dv = "InAOI", group_factor = "DissBP", time_bin_size = 1000, type = 'empirical')
-# 
-# plot(df_cleaner, data_options, dv = "InAOI", group_factor = "DissBP", time_bin_size = 500, type = 'smoothed')
-
-```
 
 Here we can see the interaction visually, by performing a median split on high/low dissatisfaction. 
 
