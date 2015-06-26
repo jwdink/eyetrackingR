@@ -316,13 +316,8 @@ trackloss_analysis = function(data, data_options, time_window = NULL) {
 #
 # @return dataframe 
 
-# TODO (Brock): Add "Trial counts" function to return final trial counts with average trackloss, etc. for each
-# participant
-
-# TODO (Brock): Indicate how many trials/participants were removed by each metric
-
 clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, trial_z_thresh = Inf, participant_prop_thresh = 1, trial_prop_thresh = 1, time_window = NULL) {
-  data$TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
+  data$.TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
   
   # Trackloss Analysis:
   message("Performing Trackloss Analysis...")
@@ -330,26 +325,40 @@ clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, tr
   
   # Bad Trials:
   message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
-  exclude_trials = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
+  exclude_trials_zs = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
                          tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
                          sep="_")
   
+  message(paste("\t...removed ", length(exclude_trials_zs), " trials."))
+  
   message("Will exclude trials whose trackloss proportion is greater than : ", trial_prop_thresh)
-  exclude_trials = paste(tl$Participant[tl$TracklossForTrial > trial_prop_thresh], 
-                         tl$Trial[tl$TracklossForTrial > trial_prop_thresh], 
+  exclude_trials_props = paste(tl$Participant[tl$TracklossForTrial >= trial_prop_thresh], 
+                         tl$Trial[tl$TracklossForTrial >= trial_prop_thresh], 
                          sep="_")
+  
+  message(paste("\t...removed ", length(exclude_trials_props), " trials."))
   
   # Bad Participants
   message("Will exclude participants whose trackloss-z-score is greater than : ", participant_z_thresh)
-  message("Will exclude participants whose trackloss proportion is greater than : ", participant_prop_thresh)
   part_vec = data[[data_options$participant_col]]
-  exclude_ppts = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh | tl$TracklossForParticipant > participant_prop_thresh])
-  exclude_trials = c(exclude_trials, 
-                     unique( data$TrialID[part_vec %in% exclude_ppts] ) )
+  exclude_ppts_z = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
+  
+  message(paste("\t...removed ", length(exclude_ppts_z), " participants."))
+  
+  message("Will exclude participants whose trackloss proportion is greater than : ", participant_prop_thresh)
+  exclude_ppts_prop = unique(tl$Participant[tl$TracklossForParticipant >= participant_prop_thresh])
+  
+  message(paste("\t...removed ", length(exclude_ppts_prop), " participants."))
+  
+  exclude_trials = c(exclude_trials_zs,
+                     exclude_trials_props,
+                     unique( data$TrialID[part_vec %in% exclude_ppts_z] ),
+                     unique( data$TrialID[part_vec %in% exclude_ppts_prop] ))
   
   # Remove:
   data_clean = data %>%
-    filter(! TrialID %in% exclude_trials) 
+    filter(! .TrialID %in% exclude_trials) %>%
+    select(-.TrialID)
 
   data_clean
 }
