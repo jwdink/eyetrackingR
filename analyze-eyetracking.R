@@ -293,7 +293,9 @@ trackloss_analysis = function(data, data_options, time_window = NULL) {
     ungroup() %>%
     # Get Z-Scores:
     group_by_(.dots = list(dopts$participant_column, dopts$trial_column) )%>%
-    summarise(TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
+    summarise(Samples = mean(TotalTrialLength, na.rm=TRUE),
+              TracklossSamples = mean(SumTracklossForTrial, na.rm=TRUE),
+              TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
               TracklossForParticipant = mean(TracklossForParticipant, na.rm=TRUE)) %>%
     ungroup() %>%
     mutate(Part_ZScore  = .zscore(TracklossForParticipant),
@@ -308,18 +310,23 @@ trackloss_analysis = function(data, data_options, time_window = NULL) {
 # @param list data_options
 # @param numeric participant_z_thresh Maximum amount of trackloss for participants, in terms of z-scores
 # @param numeric trial_z_thresh Maxmimum amount of trackloss for trials, in terms of z-scores
+# @param numeric participant_prop_thresh Maximum proportion of trackloss for participants
+# @param numeric trial_prop_thresh Maximum proportion of trackloss for trials
+# @param numeric.vector time_window First number specifies start of timewindow, second specifies end of timewindow
 #
 # @return dataframe 
 
 # TODO (Brock): Add "Trial counts" function to return final trial counts with average trackloss, etc. for each
 # participant
 
-clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, trial_z_thresh = Inf) {
+# TODO (Brock): Indicate how many trials/participants were removed by each metric
+
+clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, trial_z_thresh = Inf, participant_prop_thresh = 1, trial_prop_thresh = 1, time_window = NULL) {
   data$TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
   
   # Trackloss Analysis:
   message("Performing Trackloss Analysis...")
-  tl = trackloss_analysis(data, data_options)
+  tl = trackloss_analysis(data, data_options, time_window)
   
   # Bad Trials:
   message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
@@ -327,10 +334,16 @@ clean_by_trackloss = function(data, data_options, participant_z_thresh = Inf, tr
                          tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
                          sep="_")
   
+  message("Will exclude trials whose trackloss proportion is greater than : ", trial_prop_thresh)
+  exclude_trials = paste(tl$Participant[tl$TracklossForTrial > trial_prop_thresh], 
+                         tl$Trial[tl$TracklossForTrial > trial_prop_thresh], 
+                         sep="_")
+  
   # Bad Participants
-  message("Will exclude participants whose trackloss-z-score is greater than : ", trial_z_thresh)
+  message("Will exclude participants whose trackloss-z-score is greater than : ", participant_z_thresh)
+  message("Will exclude participants whose trackloss proportion is greater than : ", participant_prop_thresh)
   part_vec = data[[data_options$participant_col]]
-  exclude_ppts = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
+  exclude_ppts = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh | tl$TracklossForParticipant > participant_prop_thresh])
   exclude_trials = c(exclude_trials, 
                      unique( data$TrialID[part_vec %in% exclude_ppts] ) )
   
