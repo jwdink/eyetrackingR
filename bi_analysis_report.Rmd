@@ -169,6 +169,7 @@ fit_int_time_diss = lmer(elog ~ DissBPC*TimeBinC + AOI + DissNoBPC + (1+AOI|Part
                      REML = FALSE,
                      data = df_time)
 drop1(fit_int_time_diss, test = "Chisq")
+tidy(fit_int_time_diss, effects="fixed")
 ```
 
 The result of this test suggests that the relationship between dissatisfaction and looking changes over the course of a trial: people's intial looking gravitates towards low-satisfaction body-parts, but as the trial progresses this behavior lessens.

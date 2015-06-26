@@ -824,6 +824,20 @@ center_predictors = function(data, predictors) {
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
 
+mutate_.time_analysis = mutate_.window_analysis = mutate_.seq_bin = function(data, ...) {
+  
+  # remove class names (avoid infinite recursion):
+  temp_remove = class(data)[ class(data) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
+  class(data) = class(data)[!class(data) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
+  
+  out = mutate_(data, ...)
+  
+  # reapply class names
+  class(out) = c(temp_remove, class(out) )
+  
+  return(out)
+}
+
 filter_.time_analysis = filter_.window_analysis = filter_.seq_bin = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
