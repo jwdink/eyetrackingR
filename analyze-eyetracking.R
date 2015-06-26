@@ -94,7 +94,7 @@ verify_dataset <- function(data, data_options) {
   
   for (col in names(col_type_converter) ) {
     for(i in seq_along(data_options[[col]])) {
-      if (is.null(out[[ data_options[[col]][i] ]])) stop("Data are missing", col)
+      if (is.null(out[[ data_options[[col]][i] ]])) stop("Data are missing: ", col)
       out[[ data_options[[col]][i] ]] = col_type_converter[[col]]( out[[ data_options[[col]][i] ]] )
     }
   }
@@ -320,19 +320,23 @@ clean_by_trackloss = function(data, data_options,
 # @return dataframe 
 
 convert_non_aoi_to_trackloss = function(data, data_options) {
+  replace_na_arg = lapply(data_options$aoi_columns,
+                          FUN = function(aoi) make_dplyr_argument("ifelse(is.na(",aoi,"), 0, ", aoi,")" ))
   
-  replace_na_arg = lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(is.na(",aoi,"), 0, ", aoi,")" ))
   names(replace_na_arg) = paste0(".", data_options$aoi_columns)
   
   out = data %>%
-    mutate_(.dots= replace_na_arg) %>%
+    mutate_(.dots = replace_na_arg) %>%
     mutate_(.dots = list(.Trackloss = make_dplyr_argument(data_options$trackloss_column))) %>%
-    mutate_(.dots= list(.AOISum = make_dplyr_argument(paste(data_options$aoi_columns, collapse = "+"))) ) %>%
-    mutate(.Trackloss = (.AOISum == 0) | .Trackloss )
+    mutate_(.dots = list(.AOISum = make_dplyr_argument(paste(paste0('.',data_options$aoi_columns), collapse = "+"))) ) %>%
+    mutate(.Trackloss = ifelse(.AOISum == 0, TRUE, .Trackloss))
   
+  out[[data_options$trackloss_column]] <- out$.Trackloss
+    
   for (aoi in paste0(".", data_options$aoi_columns)) {
     out[[aoi]] = NULL
   }
+  
   out[[".AOISum"]] = NULL
   out[[".Trackloss"]] = NULL
   
@@ -534,7 +538,7 @@ time_analysis <- function (data,
   summarized = data %>%
     # Make Time Bins:
     mutate_(
-      .dots = list(TimeBin = make_dplyr_argument("ceiling(", dopts$time_column, "/", time_bin_size, ")" ) )
+      .dots = list(TimeBin = make_dplyr_argument("floor(", dopts$time_column, "/", time_bin_size, ")" ) )
     ) %>%
     
     # Group by Sub/Item, Summarize Samples in AOI:
@@ -542,7 +546,12 @@ time_analysis <- function (data,
     summarise_(.dots =  list(SamplesInAOI = make_dplyr_argument( "sum(", dv, ", na.rm=TRUE)"),
                              SamplesTotal = make_dplyr_argument( "sum(!is.na(", dv, "))"),
                              StartTime    = make_dplyr_argument( dopts$time_column, "[1]")
+                             # TODO (Brock): Get rid of "Start Time??" it's not consistent when
+                             # there's trackloss
     )) %>%
+    
+    # Add TimeZeroed so we have a time value that perfectly corresponds to TimeBin
+    mutate_(.dots = list(TimeZero = make_dplyr_argument('TimeBin * ', time_bin_size))) %>%
     
     # Compute Proportion, Empirical Logit, etc.:
     mutate(AOI = dv,
@@ -553,6 +562,16 @@ time_analysis <- function (data,
     ) %>%
     ungroup()
   
+  # add orthogonal polynomials for Growth Curve Analyses
+  time_bin_column <- summarized$TimeBin
+  orthogonal_polynomials <- poly(sort(as.vector(unique(time_bin_column))), 7)
+  time_codes <- data.frame(
+    sort(as.vector(unique(time_bin_column))),
+    orthogonal_polynomials[, c(1:7)]
+  )
+  colnames(time_codes) <- c('TimeBin','ot1','ot2','ot3','ot4','ot5','ot6','ot7')
+  
+  summarized <- merge(summarized, time_codes, by='TimeBin')
   
   class(summarized) = c('time_analysis', class(summarized))
   
@@ -721,7 +740,7 @@ plot.window_analysis <- function(data, data_options, x_axis_column, group_column
 # @param character condition_column
 #
 # @return list A ggplot list object  
-plot.time_analysis <- function(data, data_options, condition_column) {
+plot.time_analysis <- function(data, data_options, condition_column, dv='Prop') {
   
   require('ggplot2')
   
@@ -740,15 +759,19 @@ plot.time_analysis <- function(data, data_options, condition_column) {
     )
     out = data %>%
       mutate_(.dots = median_split_arg) %>%
-      ggplot(aes(x = StartTime, y= Prop, group=GroupFactor, color=GroupFactor)) +
-      stat_smooth() + 
+      ggplot(aes(x = TimeZero, y=dv, group=GroupFactor, color=GroupFactor)) +
+      #stat_smooth() + 
+      stat_summary(fun.y='mean', geom='line') +
+      stat_summary(fun.data='mean_cl_normal', geom='errorbar', mult=1, width=.5) +
       facet_wrap( ~ AOI) +
       guides(color= guide_legend(title= condition_column)) +
       xlab('Time (ms) in Trial')
     return(out)
   } else {
-    out = ggplot(data, aes_string(x = "StartTime", y= "Prop", group= condition_column, color= condition_column)) +
-      stat_smooth() + 
+    out = ggplot(data, aes_string(x = "TimeZero", y=dv, group=condition_column, color=condition_column, fill=condition_column)) +
+      #stat_smooth() + 
+      stat_summary(fun.y='mean', geom='line') +
+      stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
       xlab('Time (ms) in Trial')
     return(out)
