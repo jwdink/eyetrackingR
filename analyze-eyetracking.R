@@ -778,32 +778,6 @@ make_dplyr_argument = function(...) {
   return( as.formula(arg_string, env = parent.frame()) )
 }
 
-
-# center_predictors()
-#
-# Center predictors in preparation for statistical analyses
-#
-# @param dataframe data
-# @param character.vector predictors
-#
-# @return dataframe data with modified columns appended with "C"
-
-center_predictors = function(data, predictors) {
-  require('dplyr')
-    
-  mutate_argument = list()
-  for (i in seq_along(predictors)) {
-    name = paste0(predictors[i], "C")
-    mutate_argument[[name]] = make_dplyr_argument("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm=TRUE)" )
-  }
-
-  data %>% 
-    ungroup() %>%
-    mutate_(.dots = mutate_argument)
-  
-}
-
-
 # center_predictors()
 #
 # Center predictors in preparation for statistical analyses
