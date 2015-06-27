@@ -564,12 +564,14 @@ time_analysis <- function (data,
   
   # add orthogonal polynomials for Growth Curve Analyses
   time_bin_column <- summarized$TimeBin
-  orthogonal_polynomials <- poly(sort(as.vector(unique(time_bin_column))), 7)
+  max_degree = min( length(unique(time_bin_column))-1 , 7 )
+  if (max_degree < 7) warning("Fewer time bins than polynomial degrees-- consider decreasing size of time bin.")
+  orthogonal_polynomials <- poly(sort(as.vector(unique(time_bin_column))), max_degree)
   time_codes <- data.frame(
     sort(as.vector(unique(time_bin_column))),
-    orthogonal_polynomials[, c(1:7)]
+    orthogonal_polynomials[, c(1:max_degree)]
   )
-  colnames(time_codes) <- c('TimeBin','ot1','ot2','ot3','ot4','ot5','ot6','ot7')
+  colnames(time_codes) <- c('TimeBin',paste0("ot", 1:max_degree))
   
   summarized <- merge(summarized, time_codes, by='TimeBin')
   

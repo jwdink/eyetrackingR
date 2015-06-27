@@ -40,6 +40,8 @@ df4 = df3 %>%
 
 # 
 
+df5 = subset_by_window(data = df4, data_options, window_start = 500, rezero = FALSE)
+
 ```
 
 ### Trackloss & Exclusions:
@@ -47,10 +49,10 @@ df4 = df3 %>%
 We remove participants and trials with high trackloss. We also remove participants for whom we do not have dissatisfaction-rating data. Finally, we remove rows with trackloss, and restrict our analysis to the time the stimulus was on the screen.
 
 ```{r, warning=FALSE, message=FALSE}
-tl = trackloss_analysis(df4, data_options)
+tl = trackloss_analysis(df5, data_options)
 hist(tl$TracklossForParticipant)
-df5 = clean_by_trackloss(data = df4, data_options = data_options, participant_z_thresh = 3, trial_z_thresh = 3)
-rm(df4,df3); gc()
+df6 = clean_by_trackloss(data = df5, data_options = data_options, participant_z_thresh = 3, trial_z_thresh = 3)
+rm(df5,df4,df3); gc()
 ```
 
 ## Analysis
@@ -99,7 +101,7 @@ We can see that, while there's a correlation with specific dissatisfaction and o
 #### Main Effect:
 
 ```{r, message=FALSE}
-df_window = window_analysis(data = df5, data_options = data_options, 
+df_window = window_analysis(data = df6, data_options = data_options, 
                 dv = c("IA_bust","IA_waist","IA_hips","IA_thighs") )
 df_window = left_join(df_window, df_measures, by = c("Participant", "AOI") )
 
@@ -117,10 +119,6 @@ We see that it does. There's an effect of BP-specific dissatifaction, even contr
 
 ```{r, message=FALSE}
 tidy(fit_overall, effects = "fixed")
-
-ggplot(df_window, aes(x = DissBP, y = Prop, group = BodyPart, color = BodyPart)) +
-  geom_smooth(method="lm") +
-  coord_cartesian(ylim=c(0,.33))
 ```
 
 Drilling into this a bit, we can see that there's a positive correlation between BP-specific dissatisfaction and looking, and a mild negative correlation between general dissatisfaction and looking.
@@ -143,8 +141,8 @@ Overall, these analyses suggest that dissatisfaction with a body-part predicts o
 ### Analysis: How Does Looking Change over Time?
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-#df5$TimeInExp = ifelse(as.numeric(df5$Trial) < 25, "Early","Late")
-df_time = time_analysis(data = df5, data_options, time_bin_size = 500, 
+#df6$TimeInExp = ifelse(as.numeric(df6$Trial) < 25, "Early","Late")
+df_time = time_analysis(data = df6, data_options, time_bin_size = 100, 
                         dv = c("IA_bust","IA_waist","IA_hips","IA_thighs") )
 df_time = df_time %>%
   left_join(df_measures, by = c("Participant", "AOI") ) %>%
@@ -162,17 +160,19 @@ Now we'll examine how the relationship between dissatisfaction and looking chang
 First, we examine these two effects independently.
 
 ```{r, message=FALSE}
-df_time =center_predictors(df_time, c("DissBP", "DissNoBP", "TimeBin"))
-fit_main_diss = lmer(elog ~ DissBPC+TimeBinC + AOI + DissNoBPC + (1+AOI|Participant) + (1+AOI|Image), 
-                     REML = FALSE,
-                     data = df_time)
-drop1(fit_main_diss, test = "Chisq")
+# 
+# fit_main_diss = lmer(elog ~ DissBPC+ot1+ot2 + AOI + DissNoBPC + (1+ot1+ot2+AOI|Participant) + (1+ot1+ot2+AOI|Image), 
+#                      REML = FALSE,
+#                      data = df_time)
+# drop1(fit_main_diss, test = "Chisq")
 ```
 
 We still have an effect of dissatisfaction, as well as a large effect of trial-time (people tend to look less as the trial progresses). Nothing interesting here.
 
 ```{r, message=FALSE}
-fit_int_time_diss = lmer(elog ~ DissBPC*TimeBinC + AOI + DissNoBPC + (1+AOI|Participant) + (1+AOI|Image), 
+df_time =center_predictors(df_time, c("DissBP", "DissNoBP"))
+fit_int_time_diss = lmer(elog ~ ot1 + ot2 + ot3 + DissBPC:ot1 + DissBPC:ot2 + DissBPC:ot3 + AOI + DissNoBPC + # fixed
+                           (1+ot1+ot2+ot3+AOI|Participant) + (1+ot1+ot2+ot3+AOI|Image),                       # random
                      REML = FALSE,
                      data = df_time)
 drop1(fit_int_time_diss, test = "Chisq")
