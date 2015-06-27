@@ -544,10 +544,7 @@ time_analysis <- function (data,
     # Group by Sub/Item, Summarize Samples in AOI:
     group_by_(.dots =  group_by_arg) %>%
     summarise_(.dots =  list(SamplesInAOI = make_dplyr_argument( "sum(", dv, ", na.rm=TRUE)"),
-                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", dv, "))"),
-                             StartTime    = make_dplyr_argument( dopts$time_column, "[1]")
-                             # TODO (Brock): Get rid of "Start Time??" it's not consistent when
-                             # there's trackloss
+                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", dv, "))")
     )) %>%
     
     # Add TimeZeroed so we have a time value that perfectly corresponds to TimeBin
