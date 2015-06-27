@@ -703,7 +703,7 @@ plot.window_analysis <- function(data, data_options, x_axis_column, group_column
     if (is.numeric(data[[group_column]])) {
       message("The variable '", group_column, "' is continous, will perform median split for visualization.")
       split_col = paste0(group_column, "_Split")
-      data[[split_col]] = ifelse(data[[group_column]] > median(data[[group_column]]), 'High', 'Low')
+      data[[split_col]] = ifelse(data[[group_column]] > median(data[[group_column]], na.rm=TRUE), 'High', 'Low')
       group_column = split_col
     }
   }
@@ -759,10 +759,10 @@ plot.time_analysis <- function(data, data_options, condition_column, dv='Prop') 
     )
     out = data %>%
       mutate_(.dots = median_split_arg) %>%
-      ggplot(aes(x = TimeZero, y=dv, group=GroupFactor, color=GroupFactor)) +
+      ggplot(aes_string(x = "TimeZero", y=dv, group="GroupFactor", color="GroupFactor")) +
       #stat_smooth() + 
       stat_summary(fun.y='mean', geom='line') +
-      stat_summary(fun.data='mean_cl_normal', geom='errorbar', mult=1, width=.5) +
+      stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
       guides(color= guide_legend(title= condition_column)) +
       xlab('Time (ms) in Trial')

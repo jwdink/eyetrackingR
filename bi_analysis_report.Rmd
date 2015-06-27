@@ -26,10 +26,16 @@ data_options = set_data_options(
                  participant_column = "Participant", 
                  aoi_columns = c("IA_head","IA_bust","IA_waist","IA_hips","IA_thighs"))
 
+safe_msg_checker = function(msg_vec, msg, other_vec) {
+  bool = (msg_vec==msg)
+  if (length(which(bool)) != 1) return(NA)
+  return(other_vec[bool])
+}
+
 df4 = df3 %>%
   group_by(Participant, Trial) %>%
-  mutate(StartTime = Timestamp[Message=="PICTURE"],
-         StopTime  = Timestamp[Message=="Time Out"]) %>%
+  mutate(StartTime = safe_msg_checker(Message, "PICTURE", Timestamp), #Timestamp[Message=="PICTURE"],
+         StopTime  = safe_msg_checker(Message, "Time Out", Timestamp)) %>% #Timestamp[Message=="Time Out"]) %>%
   subset_by_window(data_options, window_start="StartTime", window_end="StopTime")
 
 # 
@@ -98,6 +104,7 @@ df_window = window_analysis(data = df5, data_options = data_options,
 df_window = left_join(df_window, df_measures, by = c("Participant", "AOI") )
 
 df_window = center_predictors(df_window, c("DissBP","DissNoBP") )
+plot(df_window, data_options, x_axis_column = "DissBP", group_column = "DissNoBP")
 fit_overall = lmer(formula = ArcSin ~ DissBPC + DissNoBPC + BodyPart + (1+BodyPart|Participant) + (1+BodyPart|Image), 
      REML = FALSE,
      data = df_window)
