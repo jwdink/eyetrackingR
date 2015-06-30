@@ -8,10 +8,6 @@
 #
 # It also includes several functions for cleaning the dataset before each of these analyses.
 #
-# Required columns in dataset (names are configurable):
-#   * ParticipantName (participant subject code)
-#   * SceneType (active AOI)
-#   * A column for each active AOI, set to 1 or 0
 #
 # @author Brock Ferguson
 #         brock.ferguson@gmail.com
@@ -63,7 +59,6 @@ set_data_options <- function(
 # verify_dataset()
 #
 # Verify, and fix, the status of the dataset by assessing columns in your data_options. 
-# Assigns data to "sample_data" class, so that plot and other functions will know what to do with it.
 #
 # @param dataframe data
 # @param list data_options
@@ -73,7 +68,6 @@ set_data_options <- function(
 
 verify_dataset <- function(data, data_options) {
   out = data
-  class(out) = c("sample_data", class(out))
   
   as.numeric2 = function(x) as.numeric(as.character(x))
   check_then_convert = function(x, checkfunc, convertfunc, colname) { 
@@ -431,7 +425,8 @@ remove_trackloss = function(data, data_options, delete_rows = FALSE) {
 window_analysis <- function(data, 
                             data_options, 
                             dv, 
-                            condition_columns = NULL
+                            condition_columns = NULL,
+                            summarize_by = 'crossed'
 ) {
   require('dplyr')
   
@@ -450,10 +445,17 @@ window_analysis <- function(data,
     return( out )
   }
   
+  # How to Group? By Sub? Item? Both?
+  group_by_arg = switch(match.arg(summarize_by, c('crossed', 'subjects', 'participants', 'items')),
+                        crossed      = as.list( c(dopts$participant_column, dopts$item_columns, condition_columns) ),
+                        subjects     = as.list( c(dopts$participant_column, condition_columns) ),
+                        participants = as.list( c(dopts$participant_column, condition_columns) ),
+                        items        = as.list( c(dopts$item_columns, condition_columns) )
+  )
   
   # Summarise:
   summarized = data %>% 
-    group_by_(.dots = as.list(c(dopts$participant_column, dopts$trial_column, dopts$item_columns, condition_columns)) ) %>%
+    group_by_(.dots = group_by_arg ) %>%
     summarise_( .dots = list(SamplesInAOI = make_dplyr_argument( "sum(", dv, ", na.rm= TRUE)" ),
                              SamplesTotal = make_dplyr_argument( "sum(!is.na(", dv, "))" ) # ignore all NAs 
     ) ) %>%
@@ -484,8 +486,6 @@ window_analysis <- function(data,
 # @param character summarize_by Should the data by summarized by participant, by item, or crossed (both)?
 #
 # @return dataframe summarized
-
-# TODO (Brock): Add growth curve polynomials
 
 time_analysis <- function (data, 
                            data_options, 

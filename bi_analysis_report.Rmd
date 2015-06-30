@@ -8,6 +8,14 @@ output:
     fig_width: 7
 ---
 
+
+**********
+Options for order of presentation:
+
+(1) First, we did a HMM to analyze whether prop-looking at body-part was predicted by insecurity with body-part. Then, we did a HMM to analyze whether this vari 
+
+**********
+
 ## Data Loading & Cleaning
 
 ### Load:
@@ -19,7 +27,7 @@ packs = lapply(X = c('readr', 'plyr', 'dplyr', 'pbapply', 'tidyr', 'ggplot2', 'b
 # source('load_and_clean_bi_data_from_scratch.R') # <--- only run once
 df3 = readRDS("./data/cleaned_et_data_w_all_interest_areas.RDS")
 data_options = set_data_options(
-                 item_columns = "Image",
+                 #item_columns = "Image",
                  trial_column = "Trial",
                  time_column = "Timestamp",
                  trackloss_column = "Trackloss",
@@ -37,8 +45,6 @@ df4 = df3 %>%
   mutate(StartTime = safe_msg_checker(Message, "PICTURE", Timestamp), #Timestamp[Message=="PICTURE"],
          StopTime  = safe_msg_checker(Message, "Time Out", Timestamp)) %>% #Timestamp[Message=="Time Out"]) %>%
   subset_by_window(data_options, window_start="StartTime", window_end="StopTime")
-
-# 
 
 df5 = subset_by_window(data = df4, data_options, window_start = 500, rezero = FALSE)
 
@@ -107,10 +113,57 @@ df_window = left_join(df_window, df_measures, by = c("Participant", "AOI") )
 
 df_window = center_predictors(df_window, c("DissBP","DissNoBP") )
 plot(df_window, data_options, x_axis_column = "DissBP", group_column = "DissNoBP")
-fit_overall = lmer(formula = ArcSin ~ DissBPC + DissNoBPC + BodyPart + (1+BodyPart|Participant) + (1+BodyPart|Image), 
-     REML = FALSE,
-     data = df_window)
-drop1(fit_overall, test = "Chisq")
+
+fit_overall = lmer(formula = elog ~ DissBPC+DissNoBPC + (1|Participant) + (1|AOI), 
+                   control = lmerControl(optimizer = "nloptwrap"), 
+                   REML = FALSE,
+                   data = df_window)
+fit_null    = lmer(formula = elog ~         DissNoBPC + (1|Participant) + (1|AOI), 
+                   control = lmerControl(optimizer = "nloptwrap"), 
+                   REML = FALSE,
+                   data = df_window)
+anova(fit_overall, fit_null)
+```
+
+```{r}
+fit_int_bodypart = lmer(formula = elog ~ DissBPC*AOI + DissNoBPC*AOI + (1 |Participant),
+                        control = lmerControl(optimizer = "nloptwrap"),
+                        REML = FALSE,
+                        data = df_window)
+fit_null_bodypart = lmer(formula = elog ~            + DissNoBPC*AOI + (1 |Participant), 
+                        control = lmerControl(optimizer = "nloptwrap"),
+                        REML = FALSE,
+                        data = df_window)
+tidy(fit_int_bodypart, effects="fixed")
+anova(fit_int_bodypart, fit_null_bodypart)
+
+df_window$DissNoBPC_SPLIT = ifelse(df_window$DissNoBPC > median(df_window$DissNoBPC, na.rm=TRUE), "High", "Low")
+
+ggplot(data=df_window, subset = AOI==aoi, mapping = aes(x = DissBPC, y = elog, group = AOI, color=AOI)) +
+    geom_point() +
+    geom_smooth(method="lm") 
+
+# bod_fits = list()
+# bod_summaries = list()
+# for (aoi in unique(df_window$AOI)) {
+#   bod_fits[[aoi]] = lm(formula = elog ~ DissBPC+DissNoBPC, data=df_window, subset = AOI==aoi)
+#   temp = tidy(bod_fits[[aoi]])
+#   temp[,-1] = apply(temp[,-1], MARGIN = 2, FUN = round, digits=3)
+#   bod_summaries[[aoi]] = temp
+# }
+# bod_summaries
+# 
+# bod_fits = list()
+# for (aoi in unique(df_window$AOI)) {
+#   cat("\n", aoi)
+#   bod_fits[[aoi]] = lmer(formula = elog ~ DissBPC + DissNoBPC + (1 + DissBPC+DissNoBPC |Participant),
+#                         REML = FALSE,
+#                         data = filter(df_window, AOI==aoi) )
+# }
+# drop1(bod_fits$IA_bust, test= "Chisq")
+# drop1(bod_fits$IA_waist, test= "Chisq")
+# drop1(bod_fits$IA_hips, test= "Chisq")
+# drop1(bod_fits$IA_thighs, test= "Chisq")
 ```
 
 First, we run an analysis that examines whether dissatisfaction with a particular body part predicts looking at that body part, controlling for overall dissatisfaction.
@@ -128,10 +181,10 @@ Graphing the data suggests a possible dissatisfaction-by-bodypart interaction...
 #### Interaction:
 
 ```{r, message=FALSE}
-fit_bpart_int = lmer(formula = ArcSin ~ DissBPC*BodyPart + DissNoBPC + (1+BodyPart|Participant) + (1+BodyPart|Image), 
-     REML = FALSE,
-     data = df_window)
-drop1(fit_bpart_int, test = "Chisq")
+# fit_bpart_int = lmer(formula = ArcSin ~ DissBPC*BodyPart + DissNoBPC + (1+BodyPart|Participant) + (1+BodyPart|Image), 
+#      REML = FALSE,
+#      data = df_window)
+# drop1(fit_bpart_int, test = "Chisq")
 ```
 
 ...however, this is not significant.
@@ -171,13 +224,44 @@ We still have an effect of dissatisfaction, as well as a large effect of trial-t
 
 ```{r, message=FALSE}
 df_time =center_predictors(df_time, c("DissBP", "DissNoBP"))
-fit_int_time_diss = lmer(elog ~ ot1 + ot2 + ot3 + DissBPC:ot1 + DissBPC:ot2 + DissBPC:ot3 + AOI + DissNoBPC + # fixed
-                           (1+ot1+ot2+ot3+AOI|Participant) + (1+ot1+ot2+ot3+AOI|Image),                       # random
-                     REML = FALSE,
-                     data = df_time)
-drop1(fit_int_time_diss, test = "Chisq")
+df_time$DissBPC = df_time$DissBPC / 5
+df_time$DissNoBPC = df_time$DissNoBPC / 10
+summary(df_time[,c("DissBPC","DissNoBPC","ot1","ot2","ot3")])
+the_formula = "elog ~ 
+ot1*DissNoBPC + ot1*DissBPC + ot2 + ot3 +
+(1 + DissBPC*ot1 | Participant) +
+(1 + DissBPC*ot1 | AOI)"
+fit_int_time_diss = lmer(
+              formula = ot1*DissNoBPC + ot1*DissBPC + ot2 + ot3 + (1 + DissBPC*ot1 | Participant) + (1 + DissBPC*ot1 | AOI)
+                         REML = FALSE,
+                         data = df_time)
+fit_null_time_diss = lmer(
+              formula = ot1*DissNoBPC +               ot2 + ot3 + (1 + DissBPC*ot1 | Participant) + (1 + DissBPC*ot1 | AOI)
+                         REML = FALSE,
+                         data = df_time)
 tidy(fit_int_time_diss, effects="fixed")
+anova(fit_int_time_diss,fit_null_time_diss)
+
+df_time$Predicted =predict(fit_int_time_diss, newdata = df_time)
+
+df_time$DissBPSplit = ifelse(df_time$DissBP > 3.5, "High", "Low")
+ggplot(df_time, aes(x = TimeBin, y= elog, group=DissBPSplit, color=DissBPSplit)) +
+  facet_wrap( ~ AOI ) +
+  stat_summary(fun.dat = mean_se) + 
+  stat_summary(fun.y = mean, geom="line", mapping = aes(x = TimeBin, y= Predicted, group=DissBPSplit, color=DissBPSplit))
+  
+ggplot(df_time, aes(x = TimeBin, y= elog, group=DissBPSplit, color=DissBPSplit )) +
+  stat_summary(fun.y = mean, geom="line", linetype="dashed") +
+  stat_summary(mapping = aes(x = TimeBin, y= Predicted, group=DissBPSplit, color=DissBPSplit),
+               fun.dat = mean_se, geom="line") +
+  stat_summary(mapping = aes(x = TimeBin, y= Predicted, group=DissBPSplit, color=DissBPSplit),
+               fun.dat = mean_se, geom="ribbon", colour=NA, alpha=.2)
+
+  
+hist(df_time$elog)
+hist(df_time$Predicted)
 ```
+
 
 The result of this test suggests that the relationship between dissatisfaction and looking changes over the course of a trial: people's intial looking gravitates towards low-satisfaction body-parts, but as the trial progresses this behavior lessens.
 
