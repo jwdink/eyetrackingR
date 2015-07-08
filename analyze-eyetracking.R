@@ -270,11 +270,11 @@ clean_by_trackloss = function(data, data_options,
   }
   
   # Bad Participants
+  part_vec = data[[data_options$participant_col]]
   if (participant_z_thresh < Inf) {
     message("Will exclude participants whose trackloss-z-score is greater than : ", participant_z_thresh)
     prop_thresh_ppt = sd(tl$TracklossForParticipant)*participant_z_thresh + mean(tl$TracklossForParticipant)
     message("i.e., whose trackloss is greater than : ", round(prop_thresh_ppt*100, 2), "%")
-    part_vec = data[[data_options$participant_col]]
     exclude_ppts_z = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
     message(paste("\t...removed ", length(exclude_ppts_z), " participants."))
   } else {
