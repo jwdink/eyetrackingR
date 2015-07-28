@@ -874,5 +874,19 @@ filter_.time_analysis = filter_.window_analysis = filter_.seq_bin = function(dat
   return(out)
 }
 
+left_join.time_analysis = left_join.window_analysis = left_join.seq_bin = function(x, y, by = NULL, copy = FALSE, ...) {
+  
+  # remove class names (avoid infinite recursion):
+  temp_remove = class(x)[ class(x) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
+  class(x) = class(x)[!class(x) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
+  
+  out = left_join(x=x, y=y, by = by, copy = copy, ...)
+  
+  # reapply class names
+  class(out) = c(temp_remove, class(out) )
+  
+  return(out)
+}
+
 # [ TO DO ]
 
