@@ -274,11 +274,7 @@ clean_by_trackloss = function(data, data_options,
   }
   
   # Bad Participants
-<<<<<<< Updated upstream
   part_vec = data[[data_options$participant_col]]
-=======
-  part_vec <- c()
->>>>>>> Stashed changes
   if (participant_z_thresh < Inf) {
     message("Will exclude participants whose trackloss-z-score is greater than : ", participant_z_thresh)
     prop_thresh_ppt = sd(tl$TracklossForParticipant)*participant_z_thresh + mean(tl$TracklossForParticipant)
@@ -481,19 +477,19 @@ window_analysis <- function(data,
 
 
 
-# time_analysis()
-#
-# Creates time-bins and summarizes proportion-looking within each time-bin, by-participants,
-# by-items, or crossed. Returns the summarized dataframe, ready for timecourse analyses.
-#
-# @param dataframe data
-# @param list data_options
-# @param integer time_bin_size The time (ms) to fit into each bin
-# @param string dv The dependent variable column
-# @param character.vector condition_columns 
-# @param character summarize_by Should the data by summarized by participant, by item, or crossed (both)?
-#
-# @return dataframe summarized
+#' time_analysis()
+#' 
+#' Creates time-bins and summarizes proportion-looking within each time-bin, by-participants,
+#' by-items, or crossed. Returns the summarized dataframe, ready for timecourse analyses.
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' @param integer time_bin_size The time (ms) to fit into each bin
+#' @param string dv The dependent variable column
+#' @param character.vector condition_columns 
+#' @param character summarize_by Should the data by summarized by participant, by item, or crossed (both)?
+#' 
+#' @return dataframe summarized
 
 time_analysis <- function (data, 
                            data_options, 
@@ -586,11 +582,12 @@ time_analysis <- function (data,
   
 }
 
-# analyze_time_bins()
-#
-# @param dataframe.time_analysis data The output of the 'time_analysis' function
-#...
-# @return dataframe 
+
+#' analyze_time_bins()
+#' 
+#' @param dataframe.time_analysis data The output of the 'time_analysis' function
+#' ...
+#' @return dataframe 
 analyze_time_bins <- function(data, 
                               data_options, 
                               condition_column,
@@ -667,6 +664,74 @@ analyze_time_bins <- function(data,
   out
 }
 
+#' onset_contingent_analysis()
+#' 
+#' divide trials into which AOI they started on; calculate time of first switch
+#' 
+#' @param dataframe data The original (verified) data
+#' @param list data_options
+#' @param numeric onset_time   When should we check for their "starting" AOI? 
+#' @param numeric window_size  Which AOI was being focused on timepoint X is determined by the AOI with max proportion
+#'                             looking within a small time window (from X to X+window_size). 
+#' @return dataframe 
+
+onset_contingent_analysis = function(data, data_options, onset_time, window_size, target_aoi, distractor_aoi) {
+  require(zoo)
+  
+  ## Helper Function:
+  na_replace_rollmean = function(col) {
+    col = ifelse(is.na(col), 0, col)
+    rollmean(col, k = window_size_rows, partial=TRUE, fill= NA, align="left")
+  }
+  
+  ## Translate TimeWindow units from time to number of rows (for rolling mean):
+  df_time_per_row = data %>%
+    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) ) %>%
+    summarise_(.dots = list(TimePerRow = make_dplyr_argument("mean(diff(",data_options$time_column,"))")))
+  time_per_row = round(mean(df_time_per_row[["TimePerRow"]]))
+  window_size_rows = window_size / time_per_row
+
+  # Determine First AOI, Assign Switch Value for each timepoint:
+  out = data %>%
+    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) ) %>%
+    mutate_(.dots = list(.Target     = make_dplyr_argument("na_replace_rollmean(", target_aoi, ")"),
+                         .Distractor = make_dplyr_argument("na_replace_rollmean(", distractor_aoi, ")"),
+                         .Time       = make_dplyr_argument(data_options$time_column)
+    ) ) %>%
+    mutate(FirstAOI = ifelse(length(which(.Time==onset_time))==1, 
+                             ifelse(.Target[.Time==onset_time] > .Distractor[.Time==onset_time], target_aoi, distractor_aoi), 
+                             "Unknown"),
+           WhichAOI = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
+           SwitchAOI = FirstAOI != WhichAOI) %>%
+    select(-.Target, -.Distractor, -.Time) %>%
+    ungroup()
+  
+  # Assign class information:
+  class(out) = c('onset_contingent_analysis', class(out))
+  attr(out, 'onset_contingent') = list(distractor_aoi =distractor_aoi, target_aoi = target_aoi, onset_time = onset_time)
+
+  return(out)
+
+}
+
+#' analyze_switches()
+#' 
+#' takes trials split by initial-AOI, and determines how quickly subjects switch away from that AOI
+#' 
+#' @param dataframe data The output of "onset_contingent_analysis"
+#' @param list data_options
+#' 
+#' @return dataframe 
+#' 
+
+analyze_switches. = function(data, data_options) {
+  
+  # Must be an onset_contingent_analysis:
+  if (!'onset_contingent_analysis' %in% class(data)) stop('This function can only be run on the output of the "onset_contingent_analysis" function.')
+  
+  #[ ... write me ...]
+  
+}
 
 # Visualizing ------------------------------------------------------------------------------------------
 
@@ -742,7 +807,8 @@ plot.window_analysis <- function(data, data_options, x_axis_column, group_column
 # @param character condition_column
 #
 # @return list A ggplot list object  
-plot.time_analysis <- function(data, data_options, condition_column, dv='Prop') {  
+plot.time_analysis <- function(data, data_options, condition_column=NULL, dv='Prop') {
+
   require('ggplot2')
   
   # Prelims:
@@ -801,62 +867,106 @@ plot.seq_bin <- function(data) {
   
 }
 
-# plot.onset_contingent()
+
+# plot.onset_contingent_analysis()
 #
-# divide trials into which AOI they started on; plot proportion looking away from that AOI
+# divide trials into which AOI they started on; plot proportion looking away from that AOI.
+# this is NOT to be confused with the plot method for an onset_contingent dataframe.
 #
 # @param dataframe.time_analysis data The output of the 'time_analysis' function
 #...
 # @return dataframe 
 
-plot.onset_contingent = function(data, data_options, onset_time, target_aoi, distractor_aoi, condition_factor=NULL, plot_type="switch") {
-  
-  
+plot.onset_contingent_analysis = function(data, data_options, condition_factors=NULL, smoothing_window_size=50) {
+
   ## Prelims:
-  if (length(condition_factor) > 2) {
+  if (length(condition_factors) > 2) {
     stop("Maximum two condition factors")
   }
-  plot_type = match.arg(plot_type, choices = c("switch", "stay"))
-  time_bin_starts = unique(data$TimeZero)
-  onset_bin = time_bin_starts[which.min(abs(time_bin_starts - onset_time))]
+  attributes = attr(data, "onset_contingent")
+  if (is.null(attributes)) stop("Dataframe has been corrupted.") # <----- fix later
   
-  ## Determine Start AOI for every trial:
-  df_start_aois = data %>%
-    filter(TimeZero==onset_bin) %>%
-    group_by_(.dots = as.list(c(data_options$participant_column, data_options$item_columns)) ) %>%
-    summarise(StartAOI = ifelse(length(which.max(Prop)) == 1, as.character(AOI[which.max(Prop)]), ".Unknown")) # not NA b/c bug in dplyr
+  ## Prepare for Graphing:
+  out = data %>%
+    mutate_(.dots = list(.Time = make_dplyr_argument("floor(", data_options$time_column, "/smoothing_window_size)*smoothing_window_size" )))  %>%
+    group_by_(.dots = c(".Time", condition_factors, "FirstAOI")) %>%
+    summarise(SwitchAOI = mean(SwitchAOI, na.rm=TRUE)) %>%
+    mutate(Max= max(SwitchAOI),
+           Min= min(SwitchAOI),
+           Top= SwitchAOI[FirstAOI==attributes$distractor_aoi] )
+  out$Max = with(out, ifelse(Max==Top, Max, NA))
+  out$Min = with(out, ifelse(Max==Top, Min, NA))
   
-  ## Transform Data for Graphing:
-  out = left_join(data, df_start_aois, by=c(data_options$participant_column, data_options$item_columns) ) %>%
-    mutate(AOI = as.character(AOI),
-           .Time = TimeZero - onset_time,
-           .PropSwitch = 1 - Prop) %>%
-    filter(StartAOI != ".Unknown",
-           .Time >= 0,
-           AOI == StartAOI) %>%
-    group_by_(.dots=as.list(c(".Time", condition_factor, "StartAOI"))) %>%
-    summarise(.Y = ifelse(plot_type=="switch",mean(.PropSwitch, na.rm=TRUE),mean(Prop, na.rm=TRUE)) ) %>% 
-    # StartAOI is no longer grouping factor
-    mutate(.Top    = ifelse(plot_type=="switch", .Y[StartAOI==distractor_aoi], .Y[StartAOI==target_aoi]),
-           .Bottom = ifelse(plot_type=="switch", .Y[StartAOI==target_aoi],     .Y[StartAOI==distractor_aoi]))
-  out$.Max = ifelse(out$.Top > out$.Bottom, out$.Top,    NA)
-  out$.Min = ifelse(out$.Top > out$.Bottom, out$.Bottom, NA)
+  ## Graph:
+  if (is.null(condition_factors)) {
+    color_factor= NULL
+  } else {
+    color_factor = condition_factors[1]
+  }
+  g = ggplot(out, aes_string(x = ".Time", y = "SwitchAOI", 
+                             group = "FirstAOI", 
+                             color = color_factor)) +
+    geom_line(size=1.5, aes(linetype=FirstAOI)) +
+    geom_ribbon(aes(ymin= Min, ymax= Max), fill= "gray", alpha= .2, colour= NA) +
+    coord_cartesian(xlim=c(attributes$onset_time, max(out$.Time) )) +
+    ylab("Proportion Switch Looking") + 
+    xlab("Time") 
   
-  # Graph:
-  g = ggplot(out, aes_string(x = ".Time", y = ".Y", group = "StartAOI", color=condition_factor[1])) +
-    geom_line(aes(linetype=StartAOI), size=1.5) +
-    geom_ribbon(aes(ymin= .Min, ymax= .Max), fill= "gray", alpha= .2, colour= NA) +
-    coord_cartesian(ylim=c(0,1)) +
-    ylab(ifelse(plot_type=="switch", "Proportion Switch Looking", "Proportion Persist Looking")) + 
-    xlab("Time From Onset") +
-    theme_bw()
-  
-  # Add Facets for Conditions:
-  if (length(condition_factor)>1) return(g+facet_grid(as.formula(paste(condition_factor, collapse="~"))))
-  if (length(condition_factor)>0) return(g+facet_grid(as.formula(paste(condition_factor, "~ ."))))
+  ## Add Facets for Conditions:
+  if (length(condition_factors)>1) return(g+facet_grid(as.formula(paste(condition_factors, collapse="~"))))
+  if (length(condition_factors)>0) return(g+facet_grid(as.formula(paste(condition_factors, "~ ."))))
   return(g)
   
 }
+  
+  #   
+#   
+#   ## Prelims:
+#   if (length(condition_factors) > 2) {
+#     stop("Maximum two condition factors")
+#   }
+#   plot_type = match.arg(plot_type, choices = c("switch", "stay"))
+#   time_bin_starts = unique(data$TimeZero)
+#   onset_bin = time_bin_starts[which.min(abs(time_bin_starts - onset_time))]
+#   
+#   ## Determine Start AOI for every trial:
+#   df_start_aois = data %>%
+#     filter(TimeZero==onset_bin) %>%
+#     group_by_(.dots = as.list(c(data_options$participant_column, data_options$trial_column)) ) %>%
+#     summarise(StartAOI = ifelse(length(which.max(Prop)) == 1, as.character(AOI[which.max(Prop)]), ".Unknown")) # not NA b/c bug in dplyr
+#   
+#   return(df_start_aois)
+#   
+#   ## Transform Data for Graphing:
+#   out = left_join(data, df_start_aois, by=c(data_options$participant_column, data_options$item_columns) ) %>%
+#     mutate(AOI = as.character(AOI),
+#            .Time = TimeZero - onset_time,
+#            .PropSwitch = 1 - Prop) %>%
+#     filter(StartAOI != ".Unknown",
+#            .Time >= 0,
+#            AOI == StartAOI) %>%
+#     group_by_(.dots=as.list(c(".Time", condition_factors, "StartAOI"))) %>%
+#     summarise(.Y = ifelse(plot_type=="switch",mean(.PropSwitch, na.rm=TRUE),mean(Prop, na.rm=TRUE)) ) %>% 
+#     # StartAOI is no longer grouping factor
+#     mutate(.Top    = ifelse(plot_type=="switch", .Y[StartAOI==distractor_aoi], .Y[StartAOI==target_aoi]),
+#            .Bottom = ifelse(plot_type=="switch", .Y[StartAOI==target_aoi],     .Y[StartAOI==distractor_aoi]))
+#   out$.Max = ifelse(out$.Top > out$.Bottom, out$.Top,    NA)
+#   out$.Min = ifelse(out$.Top > out$.Bottom, out$.Bottom, NA)
+#   
+#   # Graph:
+#   g = ggplot(out, aes_string(x = ".Time", y = ".Y", group = "StartAOI", color=condition_factors[1])) +
+#     geom_line(aes(linetype=StartAOI), size=1.5) +
+#     geom_ribbon(aes(ymin= .Min, ymax= .Max), fill= "gray", alpha= .2, colour= NA) +
+#     coord_cartesian(ylim=c(0,1)) +
+#     ylab(ifelse(plot_type=="switch", "Proportion Switch Looking", "Proportion Persist Looking")) + 
+#     xlab("Time From Onset") 
+#   
+#   # Add Facets for Conditions:
+#   if (length(condition_factors)>1) return(g+facet_grid(as.formula(paste(condition_factors, collapse="~"))))
+#   if (length(condition_factors)>0) return(g+facet_grid(as.formula(paste(condition_factors, "~ ."))))
+#   return(g)
+#   
+# }
 
 
 
@@ -906,47 +1016,56 @@ center_predictors = function(data, predictors) {
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
 
-mutate_.time_analysis = mutate_.window_analysis = mutate_.seq_bin = function(data, ...) {
+mutate_.time_analysis = mutate_.window_analysis = mutate_.seq_bin = mutate_.onset_contingent_analysis = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  temp_remove = class(data)[ class(data) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
-  class(data) = class(data)[!class(data) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
+  potential_classes = c('time_analysis', 'window_analysis', 'seq_bin', 'onset_contingent_analysis')
+  temp_remove = class(data)[ class(data) %in% potential_classes]
+  class(data) = class(data)[!class(data) %in% potential_classes]
+  temp_attr = attr(data, "onset_contingent") # also attributes
   
   out = mutate_(data, ...)
   
-  # reapply class names
+  # reapply class/attributes
   class(out) = c(temp_remove, class(out) )
+  if ("onset_contingent_analysis" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
   
   return(out)
 }
 
-filter_.time_analysis = filter_.window_analysis = filter_.seq_bin = function(data, ...) {
+filter_.time_analysis = filter_.window_analysis = filter_.seq_bin =  filter_.onset_contingent_analysis = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  temp_remove = class(data)[ class(data) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
-  class(data) = class(data)[!class(data) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
+  potential_classes = c('time_analysis', 'window_analysis', 'seq_bin', 'onset_contingent_analysis')
+  temp_remove = class(data)[ class(data) %in% potential_classes]
+  class(data) = class(data)[!class(data) %in% potential_classes]
+  temp_attr = attr(data, "onset_contingent") # also attributes
   
   out = filter_(data, ...)
   
-  # reapply class names
+  # reapply class/attributes
   class(out) = c(temp_remove, class(out) )
+  if ("onset_contingent_analysis" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
   
   return(out)
 }
 
-left_join.time_analysis = left_join.window_analysis = left_join.seq_bin = function(x, y, by = NULL, copy = FALSE, ...) {
+left_join.time_analysis = left_join.window_analysis = left_join.seq_bin = left_join.onset_contingent_analysis = function(x, y, by = NULL, copy = FALSE, ...) {
   
   # remove class names (avoid infinite recursion):
-  temp_remove = class(x)[ class(x) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
-  class(x) = class(x)[!class(x) %in% c('time_analysis', 'window_analysis', 'seq_bin')]
+  potential_classes = c('time_analysis', 'window_analysis', 'seq_bin', 'onset_contingent_analysis')
+  temp_remove = class(x)[ class(x) %in% potential_classes]
+  class(x) = class(x)[!class(x) %in% potential_classes]
+  temp_attr = attr(x, "onset_contingent") # also attributes
   
   out = left_join(x=x, y=y, by = by, copy = copy, ...)
   
-  # reapply class names
+  # reapply class/attributes
   class(out) = c(temp_remove, class(out) )
+  if ("onset_contingent_analysis" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
   
   return(out)
 }
-
+ 
 # [ TO DO ]
 
