@@ -274,7 +274,11 @@ clean_by_trackloss = function(data, data_options,
   }
   
   # Bad Participants
+<<<<<<< Updated upstream
   part_vec = data[[data_options$participant_col]]
+=======
+  part_vec <- c()
+>>>>>>> Stashed changes
   if (participant_z_thresh < Inf) {
     message("Will exclude participants whose trackloss-z-score is greater than : ", participant_z_thresh)
     prop_thresh_ppt = sd(tl$TracklossForParticipant)*participant_z_thresh + mean(tl$TracklossForParticipant)
@@ -738,8 +742,7 @@ plot.window_analysis <- function(data, data_options, x_axis_column, group_column
 # @param character condition_column
 #
 # @return list A ggplot list object  
-plot.time_analysis <- function(data, data_options, condition_column, dv='Prop') {
-  
+plot.time_analysis <- function(data, data_options, condition_column, dv='Prop') {  
   require('ggplot2')
   
   # Prelims:
