@@ -69,6 +69,10 @@ set_data_options <- function(
 verify_dataset <- function(data, data_options) {
   out = data
   
+  if (!all(data_options$aoi_columns %in% colnames(data))) {
+    stop('Not all of the AOI columns specified in data_options are in the data.')
+  }
+  
   as.numeric2 = function(x) as.numeric(as.character(x))
   check_then_convert = function(x, checkfunc, convertfunc, colname) { 
     if ( !checkfunc(x) ) {
@@ -659,11 +663,6 @@ analyze_time_bins <- function(data,
   out
 }
 
-### NEW ANALYSIS FUNCTIONS:
-
-# * first_looks_analysis
-# * bootstrapped splines
-
 
 # Visualizing ------------------------------------------------------------------------------------------
 
@@ -798,6 +797,64 @@ plot.seq_bin <- function(data) {
     facet_wrap( ~ AOI)
   
 }
+
+# plot.onset_contingent()
+#
+# divide trials into which AOI they started on; plot proportion looking away from that AOI
+#
+# @param dataframe.time_analysis data The output of the 'time_analysis' function
+#...
+# @return dataframe 
+
+plot.onset_contingent = function(data, data_options, onset_time, target_aoi, distractor_aoi, condition_factor=NULL, plot_type="switch") {
+  
+  
+  ## Prelims:
+  if (length(condition_factor) > 2) {
+    stop("Maximum two condition factors")
+  }
+  plot_type = match.arg(plot_type, choices = c("switch", "stay"))
+  time_bin_starts = unique(data$TimeZero)
+  onset_bin = time_bin_starts[which.min(abs(time_bin_starts - onset_time))]
+  
+  ## Determine Start AOI for every trial:
+  df_start_aois = data %>%
+    filter(TimeZero==onset_bin) %>%
+    group_by_(.dots = as.list(c(data_options$participant_column, data_options$item_columns)) ) %>%
+    summarise(StartAOI = ifelse(length(which.max(Prop)) == 1, as.character(AOI[which.max(Prop)]), ".Unknown")) # not NA b/c bug in dplyr
+  
+  ## Transform Data for Graphing:
+  out = left_join(data, df_start_aois, by=c(data_options$participant_column, data_options$item_columns) ) %>%
+    mutate(AOI = as.character(AOI),
+           .Time = TimeZero - onset_time,
+           .PropSwitch = 1 - Prop) %>%
+    filter(StartAOI != ".Unknown",
+           .Time >= 0,
+           AOI == StartAOI) %>%
+    group_by_(.dots=as.list(c(".Time", condition_factor, "StartAOI"))) %>%
+    summarise(.Y = ifelse(plot_type=="switch",mean(.PropSwitch, na.rm=TRUE),mean(Prop, na.rm=TRUE)) ) %>% 
+    # StartAOI is no longer grouping factor
+    mutate(.Top    = ifelse(plot_type=="switch", .Y[StartAOI==distractor_aoi], .Y[StartAOI==target_aoi]),
+           .Bottom = ifelse(plot_type=="switch", .Y[StartAOI==target_aoi],     .Y[StartAOI==distractor_aoi]))
+  out$.Max = ifelse(out$.Top > out$.Bottom, out$.Top,    NA)
+  out$.Min = ifelse(out$.Top > out$.Bottom, out$.Bottom, NA)
+  
+  # Graph:
+  g = ggplot(out, aes_string(x = ".Time", y = ".Y", group = "StartAOI", color=condition_factor[1])) +
+    geom_line(aes(linetype=StartAOI), size=1.5) +
+    geom_ribbon(aes(ymin= .Min, ymax= .Max), fill= "gray", alpha= .2, colour= NA) +
+    coord_cartesian(ylim=c(0,1)) +
+    ylab(ifelse(plot_type=="switch", "Proportion Switch Looking", "Proportion Persist Looking")) + 
+    xlab("Time From Onset") +
+    theme_bw()
+  
+  # Add Facets for Conditions:
+  if (length(condition_factor)>1) return(g+facet_grid(as.formula(paste(condition_factor, collapse="~"))))
+  if (length(condition_factor)>0) return(g+facet_grid(as.formula(paste(condition_factor, "~ ."))))
+  return(g)
+  
+}
+
 
 
 # Helpers -----------------------------------------------------------------------------------------------
