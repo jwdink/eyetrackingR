@@ -698,14 +698,15 @@ onset_contingent_analysis = function(data, data_options, onset_time, window_size
                          .Distractor = make_dplyr_argument("na_replace_rollmean(", distractor_aoi, ")"),
                          .Time       = make_dplyr_argument(data_options$time_column)
     ) ) %>%
-    mutate(FirstAOI = ifelse(length(which(.Time==onset_time))==1, 
-                             ifelse(.Target[.Time==onset_time] > .Distractor[.Time==onset_time], target_aoi, distractor_aoi), 
-                             "Unknown"),
-           WhichAOI = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
-           SwitchAOI = FirstAOI != WhichAOI) %>%
-    select(-.Target, -.Distractor, -.Time) %>%
+    mutate(.ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
+           FirstAOI     = ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi)) %>%
+    ungroup() %>%
+    mutate(FirstAOI     = ifelse(abs(.ClosestTime-onset_time) > window_size, NA, FirstAOI),
+           WhichAOI     = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
+           SwitchAOI    = FirstAOI != WhichAOI) %>%
+    select(-.Target, -.Distractor, -.Time, -.ClosestTime) %>%
     ungroup()
-  
+
   # Assign class information:
   class(out) = c('onset_contingent_analysis', class(out))
   attr(out, 'onset_contingent') = list(distractor_aoi =distractor_aoi, target_aoi = target_aoi, onset_time = onset_time)
@@ -888,6 +889,7 @@ plot.onset_contingent_analysis = function(data, data_options, condition_factors=
   
   ## Prepare for Graphing:
   out = data %>%
+    filter(!is.na(FirstAOI)) %>%
     mutate_(.dots = list(.Time = make_dplyr_argument("floor(", data_options$time_column, "/smoothing_window_size)*smoothing_window_size" )))  %>%
     group_by_(.dots = c(".Time", condition_factors, "FirstAOI")) %>%
     summarise(SwitchAOI = mean(SwitchAOI, na.rm=TRUE)) %>%
@@ -918,55 +920,6 @@ plot.onset_contingent_analysis = function(data, data_options, condition_factors=
   return(g)
   
 }
-  
-  #   
-#   
-#   ## Prelims:
-#   if (length(condition_factors) > 2) {
-#     stop("Maximum two condition factors")
-#   }
-#   plot_type = match.arg(plot_type, choices = c("switch", "stay"))
-#   time_bin_starts = unique(data$TimeZero)
-#   onset_bin = time_bin_starts[which.min(abs(time_bin_starts - onset_time))]
-#   
-#   ## Determine Start AOI for every trial:
-#   df_start_aois = data %>%
-#     filter(TimeZero==onset_bin) %>%
-#     group_by_(.dots = as.list(c(data_options$participant_column, data_options$trial_column)) ) %>%
-#     summarise(StartAOI = ifelse(length(which.max(Prop)) == 1, as.character(AOI[which.max(Prop)]), ".Unknown")) # not NA b/c bug in dplyr
-#   
-#   return(df_start_aois)
-#   
-#   ## Transform Data for Graphing:
-#   out = left_join(data, df_start_aois, by=c(data_options$participant_column, data_options$item_columns) ) %>%
-#     mutate(AOI = as.character(AOI),
-#            .Time = TimeZero - onset_time,
-#            .PropSwitch = 1 - Prop) %>%
-#     filter(StartAOI != ".Unknown",
-#            .Time >= 0,
-#            AOI == StartAOI) %>%
-#     group_by_(.dots=as.list(c(".Time", condition_factors, "StartAOI"))) %>%
-#     summarise(.Y = ifelse(plot_type=="switch",mean(.PropSwitch, na.rm=TRUE),mean(Prop, na.rm=TRUE)) ) %>% 
-#     # StartAOI is no longer grouping factor
-#     mutate(.Top    = ifelse(plot_type=="switch", .Y[StartAOI==distractor_aoi], .Y[StartAOI==target_aoi]),
-#            .Bottom = ifelse(plot_type=="switch", .Y[StartAOI==target_aoi],     .Y[StartAOI==distractor_aoi]))
-#   out$.Max = ifelse(out$.Top > out$.Bottom, out$.Top,    NA)
-#   out$.Min = ifelse(out$.Top > out$.Bottom, out$.Bottom, NA)
-#   
-#   # Graph:
-#   g = ggplot(out, aes_string(x = ".Time", y = ".Y", group = "StartAOI", color=condition_factors[1])) +
-#     geom_line(aes(linetype=StartAOI), size=1.5) +
-#     geom_ribbon(aes(ymin= .Min, ymax= .Max), fill= "gray", alpha= .2, colour= NA) +
-#     coord_cartesian(ylim=c(0,1)) +
-#     ylab(ifelse(plot_type=="switch", "Proportion Switch Looking", "Proportion Persist Looking")) + 
-#     xlab("Time From Onset") 
-#   
-#   # Add Facets for Conditions:
-#   if (length(condition_factors)>1) return(g+facet_grid(as.formula(paste(condition_factors, collapse="~"))))
-#   if (length(condition_factors)>0) return(g+facet_grid(as.formula(paste(condition_factors, "~ ."))))
-#   return(g)
-#   
-# }
 
 
 
