@@ -593,7 +593,8 @@ analyze_time_bins <- function(data,
                               condition_column,
                               within = FALSE,
                               return_model = FALSE,
-                              dv_type = 'elog')
+                              dv_type = 'elog',
+                              alpha = .05)
 {
   
   require('dplyr')
@@ -614,7 +615,7 @@ analyze_time_bins <- function(data,
       message("Analyzing", this_dv, "...")
       this_df = filter(data, AOI == this_dv)
       class(this_df) = class(data)
-      analyze_time_bins(data = this_df, data_options, condition_column, within, return_model)
+      analyze_time_bins(data = this_df, data_options, condition_column, within, return_model, dv_type, alpha)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('seq_bin', class(out))
@@ -647,10 +648,10 @@ analyze_time_bins <- function(data,
   
   # Extract F and Critical F:
   model_params = lapply(aov_models, FUN = function(x) tidy(x) )   
-  f_vals = sapply(X = model_params, FUN = function(x) x[['statistic']][1+within])
-  numer  = sapply(X = model_params, FUN = function(x) x[['df']][1+within])
-  denom  = sapply(X = model_params, FUN = function(x) x[['df']][2+within])
-  crit_f = qf(p = .975, df1 = numer, df2= denom)
+  f_vals = sapply(X = model_params, FUN = function(x) ifelse(nrow(x)>0, x[['statistic']][1+within], NA) )
+  numer  = sapply(X = model_params, FUN = function(x) ifelse(nrow(x)>0, x[['df']][1+within], NA) )
+  denom  = sapply(X = model_params, FUN = function(x) ifelse(nrow(x)>0, x[['df']][2+within], NA) )
+  crit_f = qf(p = 1 - alpha/2, df1 = numer, df2= denom)
 
   # Summarize:
   out = data.frame(stringsAsFactors = FALSE,
@@ -666,22 +667,30 @@ analyze_time_bins <- function(data,
 
 #' onset_contingent_analysis()
 #' 
-#' divide trials into which AOI they started on; calculate time of first switch
+#' divide trials into which AOI they started on; augment with column indicating switch away from that AOI
 #' 
 #' @param dataframe data The original (verified) data
 #' @param list data_options
-#' @param numeric onset_time   When should we check for their "starting" AOI? 
-#' @param numeric window_size  Which AOI was being focused on timepoint X is determined by the AOI with max proportion
-#'                             looking within a small time window (from X to X+window_size). 
+#' @param numeric onset_time        When should we check for their "starting" AOI? 
+#' @param numeric window_size       Which AOI was being focused on timepoint X is determined by the AOI with max proportion
+#'                                  looking within a small time window (from X to X+window_size). 
+#' @param character target_aoi      Which AOI is the target that should be switched *to*
+#' @param character distractor_aoi  Which AOI is the distractor that should be switched *from* (if not supplied, then = !target_aoi)
 #' @return dataframe 
 
-onset_contingent_analysis = function(data, data_options, onset_time, window_size, target_aoi, distractor_aoi) {
+onset_contingent_analysis = function(data, data_options, onset_time, window_size, target_aoi, distractor_aoi = NULL) {
   require(zoo)
   
   ## Helper Function:
   na_replace_rollmean = function(col) {
     col = ifelse(is.na(col), 0, col)
     rollmean(col, k = window_size_rows, partial=TRUE, fill= NA, align="left")
+  }
+  
+  ## Prelims:
+  if (is.null(distractor_aoi)) {
+    distractor_aoi = paste0("NOT_", target_aoi)
+    data[[distractor_aoi]] = !data[[target_aoi]]
   }
   
   ## Translate TimeWindow units from time to number of rows (for rolling mean):
@@ -709,7 +718,10 @@ onset_contingent_analysis = function(data, data_options, onset_time, window_size
 
   # Assign class information:
   class(out) = c('onset_contingent_analysis', class(out))
-  attr(out, 'onset_contingent') = list(distractor_aoi =distractor_aoi, target_aoi = target_aoi, onset_time = onset_time)
+  attr(out, 'onset_contingent') = list(distractor_aoi =distractor_aoi, 
+                                       target_aoi = target_aoi, 
+                                       onset_time = onset_time,
+                                       window_size = window_size)
 
   return(out)
 
@@ -721,6 +733,7 @@ onset_contingent_analysis = function(data, data_options, onset_time, window_size
 #' 
 #' @param dataframe data The output of "onset_contingent_analysis"
 #' @param list data_options
+#' @param character.vector condition_columns
 #' 
 #' @return dataframe 
 #' 
@@ -884,8 +897,8 @@ plot.onset_contingent_analysis = function(data, data_options, condition_factors=
   if (length(condition_factors) > 2) {
     stop("Maximum two condition factors")
   }
-  attributes = attr(data, "onset_contingent")
-  if (is.null(attributes)) stop("Dataframe has been corrupted.") # <----- fix later
+  onset_attr = attr(data, "onset_contingent")
+  if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   ## Prepare for Graphing:
   out = data %>%
@@ -895,7 +908,7 @@ plot.onset_contingent_analysis = function(data, data_options, condition_factors=
     summarise(SwitchAOI = mean(SwitchAOI, na.rm=TRUE)) %>%
     mutate(Max= max(SwitchAOI),
            Min= min(SwitchAOI),
-           Top= SwitchAOI[FirstAOI==attributes$distractor_aoi] )
+           Top= SwitchAOI[FirstAOI==onset_attr$distractor_aoi] )
   out$Max = with(out, ifelse(Max==Top, Max, NA))
   out$Min = with(out, ifelse(Max==Top, Min, NA))
   
@@ -910,7 +923,7 @@ plot.onset_contingent_analysis = function(data, data_options, condition_factors=
                              color = color_factor)) +
     geom_line(size=1.5, aes(linetype=FirstAOI)) +
     geom_ribbon(aes(ymin= Min, ymax= Max), fill= "gray", alpha= .2, colour= NA) +
-    coord_cartesian(xlim=c(attributes$onset_time, max(out$.Time) )) +
+    coord_cartesian(xlim=c(onset_attr$onset_time, max(out$.Time) )) +
     ylab("Proportion Switch Looking") + 
     xlab("Time") 
   
