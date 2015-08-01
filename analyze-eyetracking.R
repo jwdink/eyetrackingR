@@ -421,14 +421,14 @@ remove_trackloss = function(data, data_options, delete_rows = FALSE) {
 #
 # @param dataframe data
 # @param list data_options
-# @param string dv
+# @param string aoi
 # @param character.vector condition_columns
 # @param numeric.vector window
 #
 # @return dataframe
 window_analysis <- function(data, 
                             data_options, 
-                            dv, 
+                            aoi, 
                             condition_columns = NULL,
                             summarize_by = 'crossed'
 ) {
@@ -439,10 +439,10 @@ window_analysis <- function(data,
   dopts = data_options
   
   # For Multiple DVs:
-  if (length(dv) > 1) {
-    list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
+  if (length(aoi) > 1) {
+    list_of_dfs = lapply(X = aoi, FUN = function(this_dv) {
       message("Analyzing ", this_dv, "...")
-      window_analysis(data, data_options, dv = this_dv, condition_columns)
+      window_analysis(data, data_options, aoi = this_dv, condition_columns)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('window_analysis', class(out))
@@ -460,10 +460,10 @@ window_analysis <- function(data,
   # Summarise:
   summarized = data %>% 
     group_by_(.dots = group_by_arg ) %>%
-    summarise_( .dots = list(SamplesInAOI = make_dplyr_argument( "sum(", dv, ", na.rm= TRUE)" ),
-                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", dv, "))" ) # ignore all NAs 
+    summarise_( .dots = list(SamplesInAOI = make_dplyr_argument( "sum(", aoi, ", na.rm= TRUE)" ),
+                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", aoi, "))" ) # ignore all NAs 
     ) ) %>%
-    mutate(AOI = dv,
+    mutate(AOI = aoi,
            elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
            weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
            Prop = SamplesInAOI / SamplesTotal,
@@ -485,7 +485,7 @@ window_analysis <- function(data,
 #' @param dataframe data
 #' @param list data_options
 #' @param integer time_bin_size The time (ms) to fit into each bin
-#' @param string dv The dependent variable column
+#' @param string aoi Which AOI(s) do you want to analyze?
 #' @param character.vector condition_columns 
 #' @param character summarize_by Should the data by summarized by participant, by item, or crossed (both)?
 #' 
@@ -494,18 +494,18 @@ window_analysis <- function(data,
 time_analysis <- function (data, 
                            data_options, 
                            time_bin_size = 250, 
-                           dv, 
+                           aoi = data_options$aoi_columns, 
                            condition_columns = NULL,
                            summarize_by = 'crossed') {
   
   
   require('dplyr')
   
-  # For Multiple DVs:
-  if (length(dv) > 1) {
-    list_of_dfs = lapply(X = dv, FUN = function(this_dv) {
-      message("Creating Summary for ", this_dv, "...")
-      time_analysis(data, data_options, time_bin_size, this_dv, condition_columns, summarize_by)
+  # For Multiple aois:
+  if (length(aoi) > 1) {
+    list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
+      message("Creating Summary for ", this_aoi, "...")
+      time_analysis(data, data_options, time_bin_size, this_aoi, condition_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('time_analysis', class(out))
@@ -547,15 +547,15 @@ time_analysis <- function (data,
     
     # Group by Sub/Item, Summarize Samples in AOI:
     group_by_(.dots =  group_by_arg) %>%
-    summarise_(.dots =  list(SamplesInAOI = make_dplyr_argument( "sum(", dv, ", na.rm=TRUE)"),
-                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", dv, "))")
+    summarise_(.dots =  list(SamplesInAOI = make_dplyr_argument( "sum(", aoi, ", na.rm=TRUE)"),
+                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", aoi, "))")
     )) %>%
     
     # Add TimeZeroed so we have a time value that perfectly corresponds to TimeBin
     mutate_(.dots = list(TimeZero = make_dplyr_argument('TimeBin * ', time_bin_size))) %>%
     
     # Compute Proportion, Empirical Logit, etc.:
-    mutate(AOI = dv,
+    mutate(AOI = aoi,
            elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ),
            weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
            Prop = SamplesInAOI / SamplesTotal,
@@ -832,15 +832,21 @@ plot.time_analysis <- function(data, data_options, condition_column=NULL, dv='Pr
 
   require('ggplot2')
   
-  # Prelims:
+  ## Prelims:
   data = ungroup(data)
   dopts = data_options
   
-  # Check condition factor
+  ## Check condition factor
   if ( length(condition_column) > 1 ) {
     stop('Can only plot time-analysis for one factor at a time.')
+  } 
+  numeric_condition_col = FALSE
+  if (!is.null(condition_column)) {
+    if (is.numeric(data[[condition_column]])) numeric_condition_col = TRUE
   }
-  if ( is.numeric(data[[condition_column]]) ) {
+  
+  ## Plot:
+  if (numeric_condition_col) {
     message("Condition factor is numeric, performing median split...")
     median_split_arg = list(GroupFactor = 
                               make_dplyr_argument("ifelse(", condition_column, ">median(", condition_column, ", na.rm=TRUE), 'High', 'Low')" )
@@ -848,7 +854,6 @@ plot.time_analysis <- function(data, data_options, condition_column=NULL, dv='Pr
     out = data %>%
       mutate_(.dots = median_split_arg) %>%
       ggplot(aes_string(x = "TimeZero", y=dv, group="GroupFactor", color="GroupFactor")) +
-      #stat_smooth() + 
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
@@ -857,7 +862,6 @@ plot.time_analysis <- function(data, data_options, condition_column=NULL, dv='Pr
     return(out)
   } else {
     out = ggplot(data, aes_string(x = "TimeZero", y=dv, group=condition_column, color=condition_column, fill=condition_column)) +
-      #stat_smooth() + 
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
