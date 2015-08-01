@@ -588,10 +588,11 @@ time_analysis <- function (data,
 #' @param dataframe.time_analysis data The output of the 'time_analysis' function
 #' ...
 #' @return dataframe 
+
 analyze_time_bins <- function(data, 
                               data_options, 
                               condition_column,
-                              within = FALSE,
+                              paired = FALSE,
                               return_model = FALSE,
                               dv_type = 'elog',
                               alpha = .05)
@@ -600,22 +601,21 @@ analyze_time_bins <- function(data,
   require('dplyr')
   require('broom')
   
-  ## Main: ===
-  
   # Must be a time_analysis:
   if (!'time_analysis' %in% class(data)) stop('This function can only be run on the output of the "time_analysis" function.')
   
   # Only support one-way anova:
-  if (length(condition_column)>1) stop('This function only supports one-way ANOVA (single condition column).')
+  if (length(condition_column) !=1 ) stop('This function only supports a single condition.')
+  if (n_distinct(na.omit(data[[condition_column]])) != 2 ) stop('This function only supports two groups within a condition')
 
-  # For Multiple DVs:
-  dvs = unique(data[['AOI']])
-  if ( length(dvs) > 1 ) {
-    list_of_dfs = lapply(X = dvs, FUN = function(this_dv) {
-      message("Analyzing", this_dv, "...")
-      this_df = filter(data, AOI == this_dv)
+  # For Multiple aois:
+  aois = unique(data[['AOI']])
+  if ( length(aois) > 1 ) {
+    list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
+      message("Analyzing ", this_aoi, "...")
+      this_df = filter(data, AOI == this_aoi)
       class(this_df) = class(data)
-      analyze_time_bins(data = this_df, data_options, condition_column, within, return_model, dv_type, alpha)
+      analyze_time_bins(data = this_df, data_options, condition_column, paired, return_model, dv_type, alpha)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('seq_bin', class(out))
@@ -629,37 +629,32 @@ analyze_time_bins <- function(data,
   # Collapse by Participant:
   dv_type = match.arg(dv_type, choices = c("ArcSin", "elog", "Prop"))
   summarise_arg = list(make_dplyr_argument("mean(",dv_type,",na.rm=TRUE)"))
-  names(summarise_arg) = c(dv_type)
+  names(summarise_arg) = dv_type
   by_part = data %>% 
     group_by_(.dots = as.list(c(dopts$participant_column, condition_column, "AOI", "TimeBin") ) ) %>%
     summarise_(.dots = summarise_arg)
   
-  # Do an ANOVA for each TimeBin:
+  # Do a t-test for each TimeBin:
   the_formula = paste(dv_type, "~", condition_column)
-  if (within) {
-    message("Performing within-subject ANOVAs for time-bins.")
-    the_formula = paste(the_formula, "+", "Error(", dopts$participant_column, "/", condition_column, ")")
-  } else {
-    message("Performing between-subject ANOVAs for time-bins.")
-  }
-  aov_models = lapply(X = unique(by_part$TimeBin), FUN = function(tb) {
-    aov(formula = as.formula(the_formula), data = filter(by_part, TimeBin==tb), x = TRUE, y = TRUE)
+  t_models = lapply(X = unique(by_part$TimeBin), FUN = function(tb) {
+    resil_t = failwith(NA, f = t.test, quiet=TRUE)
+    resil_t(formula = as.formula(the_formula), data = filter(by_part, TimeBin==tb), paired=paired)
   })
   
-  # Extract F and Critical F:
-  model_params = lapply(aov_models, FUN = function(x) tidy(x) )   
-  f_vals = sapply(X = model_params, FUN = function(x) ifelse(nrow(x)>0, x[['statistic']][1+within], NA) )
-  numer  = sapply(X = model_params, FUN = function(x) ifelse(nrow(x)>0, x[['df']][1+within], NA) )
-  denom  = sapply(X = model_params, FUN = function(x) ifelse(nrow(x)>0, x[['df']][2+within], NA) )
-  crit_f = qf(p = 1 - alpha/2, df1 = numer, df2= denom)
+  # Extract T and Critical T:
+  model_params = lapply(t_models, FUN = function(x) tidy(x) )   
+  t_vals = unlist(sapply(X = model_params, FUN = function(x) ifelse('statistic' %in% names(x), x['statistic'], NA)))
+  dfs    = unlist(sapply(X = model_params, FUN = function(x) ifelse('parameter' %in% names(x), x['parameter'], NA)))
+  crit_t = qt(p = 1 - alpha/2, df = dfs)
 
   # Summarize:
   out = data.frame(stringsAsFactors = FALSE,
-                   F= f_vals, 
-                   CritF = crit_f, 
+                   Statistic= t_vals, 
+                   CritStatisticPos =  crit_t, 
+                   CritStatisticNeg = -crit_t, 
                    TimeBin = unique(by_part$TimeBin),
                    AOI = unique(by_part$AOI))
-  if (return_model) out$Model = aov_models
+  if (return_model) out$Model = t_models
   
   class(out) = c('seq_bin', class(out))
   out
@@ -884,9 +879,10 @@ plot.seq_bin <- function(data) {
   require('ggplot2')
 
   ggplot(data = data) +
-    geom_line(mapping = aes(x = TimeBin, y= F)) +
-    geom_line(mapping = aes(x = TimeBin, y= CritF), linetype="dashed") +
-    ylab("F-Statistic") +
+    geom_line(mapping = aes(x = TimeBin, y= Statistic)) +
+    geom_line(mapping = aes(x = TimeBin, y= CritStatisticPos), linetype="dashed") +
+    geom_line(mapping = aes(x = TimeBin, y= CritStatisticNeg), linetype="dashed") +
+    ylab("T-Statistic") +
     xlab("TimeBin") +
     facet_wrap( ~ AOI)
   
