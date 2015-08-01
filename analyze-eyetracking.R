@@ -738,12 +738,19 @@ onset_contingent_analysis = function(data, data_options, onset_time, window_size
 #' @return dataframe 
 #' 
 
-analyze_switches. = function(data, data_options) {
+analyze_switches = function(data, data_options, condition_columns=NULL) {
   
   # Must be an onset_contingent_analysis:
   if (!'onset_contingent_analysis' %in% class(data)) stop('This function can only be run on the output of the "onset_contingent_analysis" function.')
   
-  #[ ... write me ...]
+  dopts = data_options
+  
+  data %>%
+    filter(!is.na(FirstAOI)) %>%
+    group_by_(.dots = as.list(c(dopts$participant_column, dopts$trial_column, dopts$item_columns, "FirstAOI", condition_columns))  ) %>%
+    summarise_(.dots = list(
+      FirstSwitch = make_dplyr_argument(dopts$time_column,"[first(which(SwitchAOI), order_by=", dopts$time_column, ")]")
+      ))
   
 }
 
