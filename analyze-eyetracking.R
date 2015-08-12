@@ -550,8 +550,8 @@ time_analysis <- function (data,
                              SamplesTotal = make_dplyr_argument( "sum(!is.na(", aoi, "))")
     )) %>%
     
-    # Add TimeZeroed so we have a time value that perfectly corresponds to TimeBin
-    mutate_(.dots = list(TimeZero = make_dplyr_argument('TimeBin * ', time_bin_size))) %>%
+    # Add Time -- a time value that perfectly corresponds to TimeBin
+    mutate_(.dots = list(Time = make_dplyr_argument('TimeBin * ', time_bin_size))) %>%
     
     # Compute Proportion, Empirical Logit, etc.:
     mutate(AOI = aoi,
@@ -902,7 +902,7 @@ plot.time_analysis <- function(data, data_options, condition_column=NULL, dv='Pr
     )
     out = data %>%
       mutate_(.dots = median_split_arg) %>%
-      ggplot(aes_string(x = "TimeZero", y=dv, group="GroupFactor", color="GroupFactor")) +
+      ggplot(aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
@@ -910,7 +910,7 @@ plot.time_analysis <- function(data, data_options, condition_column=NULL, dv='Pr
       xlab('Time (ms) in Trial')
     return(out)
   } else {
-    out = ggplot(data, aes_string(x = "TimeZero", y=dv, group=condition_column, color=condition_column, fill=condition_column)) +
+    out = ggplot(data, aes_string(x = "Time", y=dv, group=condition_column, color=condition_column, fill=condition_column)) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
