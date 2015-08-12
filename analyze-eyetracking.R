@@ -640,19 +640,19 @@ time_shape <- function (data,
 #' @param dataframe data            The original (verified) data
 #' @param list data_options
 #' @param numeric onset_time        When should we check for their "starting" AOI? 
-#' @param numeric window_size       Which AOI was being focused on timepoint X is determined by the AOI with max proportion
-#'                                  looking within a small time window (from X to X+window_size) (default: 1).
+#' @param numeric fixation_window_length       Smoothes the data by determining the fixated AOI using a moving average over time bins that are this long
+#'                                             (e.g., "100" means that the fixated AOI is determined over a 100ms rolling window)
 #' @param character target_aoi      Which AOI is the target that should be switched *to*
 #' @param character distractor_aoi  Which AOI is the distractor that should be switched *from* (default = !target_aoi)
 #' @return dataframe 
 
-onset_shape = function(data, data_options, onset_time, window_size = 1, target_aoi, distractor_aoi = NULL) {
+onset_shape = function(data, data_options, onset_time, fixation_window_length = NULL, target_aoi, distractor_aoi = NULL) {
   require(zoo)
   
   ## Helper Function:
   na_replace_rollmean = function(col) {
     col = ifelse(is.na(col), 0, col)
-    rollmean(col, k = window_size_rows, partial=TRUE, fill= NA, align="left")
+    rollmean(col, k = fixation_window_length_rows, partial=TRUE, fill= NA, align="left")
   }
   
   ## Prelims:
@@ -666,7 +666,7 @@ onset_shape = function(data, data_options, onset_time, window_size = 1, target_a
     group_by_(.dots = list(data_options$participant_column, data_options$trial_column) ) %>%
     summarise_(.dots = list(TimePerRow = make_dplyr_argument("mean(diff(",data_options$time_column,"))")))
   time_per_row = round(mean(df_time_per_row[["TimePerRow"]]))
-  window_size_rows = window_size / time_per_row
+  fixation_window_length_rows = fixation_window_length / time_per_row
   
   # Determine First AOI, Assign Switch Value for each timepoint:
   out = data %>%
@@ -678,7 +678,7 @@ onset_shape = function(data, data_options, onset_time, window_size = 1, target_a
     mutate(.ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
            FirstAOI     = ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi)) %>%
     ungroup() %>%
-    mutate(FirstAOI     = ifelse(abs(.ClosestTime-onset_time) > window_size, NA, FirstAOI),
+    mutate(FirstAOI     = ifelse(abs(.ClosestTime-onset_time) > fixation_window_length, NA, FirstAOI),
            WhichAOI     = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
            SwitchAOI    = FirstAOI != WhichAOI) %>%
     select(-.Target, -.Distractor, -.Time, -.ClosestTime) %>%
@@ -689,7 +689,7 @@ onset_shape = function(data, data_options, onset_time, window_size = 1, target_a
   attr(out, 'onset_contingent') = list(distractor_aoi = distractor_aoi, 
                                        target_aoi = target_aoi, 
                                        onset_time = onset_time,
-                                       window_size = window_size)
+                                       fixation_window_length = fixation_window_length)
   
   return(out)
 }
@@ -798,7 +798,7 @@ analyze_switches = function(data, data_options, condition_columns=NULL) {
     filter(!is.na(FirstAOI)) %>%
     group_by_(.dots = as.list(c(dopts$participant_column, dopts$trial_column, dopts$item_columns, "FirstAOI", condition_columns))  ) %>%
     summarise_(.dots = list(
-      FirstSwitch = make_dplyr_argument(dopts$time_column,"[first(which(SwitchAOI), order_by=", dopts$time_column, ")]")
+      FirstSwitch = make_dplyr_argument(dopts$time_column,"[first(which(SwitchAOI), order_by=", dopts$time_column, ")]-first(",dopts$time_column,")")
       ))
   
 }
@@ -952,20 +952,23 @@ plot.bin_shape <- function(data) {
 #...
 # @return dataframe 
 
-plot.onset_shape = function(data, data_options, condition_factors=NULL, smoothing_window_size=50) {
-
+plot.onset_shape = function(data, data_options, condition_columns=NULL) {
   ## Prelims:
-  if (length(condition_factors) > 2) {
+  if (length(condition_columns) > 2) {
     stop("Maximum two condition factors")
   }
   onset_attr = attr(data, "onset_contingent")
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
+  # Brock: set smoothing_window_size based on fixation_window_length in attr's
+  # TODO: any problem with this?
+  smoothing_window_size <- onset_attr$fixation_window_length
+  
   ## Prepare for Graphing:
   out = data %>%
     filter(!is.na(FirstAOI)) %>%
     mutate_(.dots = list(.Time = make_dplyr_argument("floor(", data_options$time_column, "/smoothing_window_size)*smoothing_window_size" )))  %>%
-    group_by_(.dots = c(".Time", condition_factors, "FirstAOI")) %>%
+    group_by_(.dots = c(".Time", condition_columns, "FirstAOI")) %>%
     summarise(SwitchAOI = mean(SwitchAOI, na.rm=TRUE)) %>%
     mutate(Max= max(SwitchAOI),
            Min= min(SwitchAOI),
@@ -974,10 +977,10 @@ plot.onset_shape = function(data, data_options, condition_factors=NULL, smoothin
   out$Min = with(out, ifelse(Max==Top, Min, NA))
   
   ## Graph:
-  if (is.null(condition_factors)) {
+  if (is.null(condition_columns)) {
     color_factor= NULL
   } else {
-    color_factor = condition_factors[1]
+    color_factor = condition_columns[1]
   }
   g = ggplot(out, aes_string(x = ".Time", y = "SwitchAOI", 
                              group = "FirstAOI", 
@@ -989,8 +992,8 @@ plot.onset_shape = function(data, data_options, condition_factors=NULL, smoothin
     xlab("Time") 
   
   ## Add Facets for Conditions:
-  if (length(condition_factors)>1) return(g+facet_grid(as.formula(paste(condition_factors, collapse="~"))))
-  if (length(condition_factors)>0) return(g+facet_grid(as.formula(paste(condition_factors, "~ ."))))
+  if (length(condition_columns)>1) return(g+facet_grid(as.formula(paste(condition_columns, collapse="~"))))
+  if (length(condition_columns)>0) return(g+facet_grid(as.formula(paste(condition_columns, "~ ."))))
   return(g)
   
 }
