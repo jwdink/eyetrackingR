@@ -412,9 +412,9 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
   out
 }
 
-# Analyzing ------------------------------------------------------------------------------------------
+# Shaping ------------------------------------------------------------------------------------------
 
-# window_analysis()
+# window_shape()
 #
 # Collapse time across our entire window and return a dataframe ready for LMERing
 #
@@ -425,7 +425,7 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
 # @param numeric.vector window
 #
 # @return dataframe
-window_analysis <- function(data, 
+window_shape <- function(data, 
                             data_options, 
                             aoi, 
                             condition_columns = NULL,
@@ -441,10 +441,10 @@ window_analysis <- function(data,
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_dv) {
       message("Analyzing ", this_dv, "...")
-      window_analysis(data, data_options, aoi = this_dv, condition_columns)
+      window_shape(data, data_options, aoi = this_dv, condition_columns)
     })
     out = bind_rows(list_of_dfs)
-    class(out) = c('window_analysis', class(out))
+    class(out) = c('window_shape', class(out))
     return( out )
   }
   
@@ -469,14 +469,14 @@ window_analysis <- function(data,
            ArcSin = asin( sqrt( Prop ) )
     )
   
-  class(summarized) = c('window_analysis', class(summarized))
+  class(summarized) = c('window_shape', class(summarized))
   return(summarized)
   
 }
 
 
 
-#' time_analysis()
+#' time_shape()
 #' 
 #' Creates time-bins and summarizes proportion-looking within each time-bin, by-participants,
 #' by-items, or crossed. Returns the summarized dataframe, ready for timecourse analyses.
@@ -490,7 +490,7 @@ window_analysis <- function(data,
 #' 
 #' @return dataframe summarized
 
-time_analysis <- function (data, 
+time_shape <- function (data, 
                            data_options, 
                            time_bin_size = 250, 
                            aoi = data_options$aoi_columns, 
@@ -504,10 +504,10 @@ time_analysis <- function (data,
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
       message("Creating Summary for ", this_aoi, "...")
-      time_analysis(data, data_options, time_bin_size, this_aoi, condition_columns, summarize_by)
+      time_shape(data, data_options, time_bin_size, this_aoi, condition_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
-    class(out) = c('time_analysis', class(out))
+    class(out) = c('time_shape', class(out))
     return( out )
   }
   
@@ -575,7 +575,7 @@ time_analysis <- function (data,
   
   summarized <- merge(summarized, time_codes, by='TimeBin')
   
-  class(summarized) = c('time_analysis', class(summarized))
+  class(summarized) = c('time_shape', class(summarized))
   
   return(summarized)
   
@@ -587,7 +587,7 @@ time_analysis <- function (data,
 # 
 # #' cluster_analysis.data.frame()
 # #' 
-# #' @param dataframe data The output of the 'time_analysis' function
+# #' @param dataframe data The output of the 'time_shape' function
 # #' @param list data_options            
 # #' ...
 # #' @return dataframe 
@@ -600,18 +600,18 @@ time_analysis <- function (data,
 #   
 # }
 # 
-# #' cluster_analysis.time_analysis()
+# #' cluster_analysis.time_shape()
 # #' 
 # #' Takes data that has been summarized into time-bins, and finds adjacent time bins that
 # #' pass some threshold of significance, and assigns these adjacent groups into clusters
 # #' for further examination.
 # #' 
-# #' @param dataframe.time_analysis data The output of the 'time_analysis' function
+# #' @param dataframe.time_shape data The output of the 'time_shape' function
 # #' @param list data_options            
 # #' ...
 # #' @return dataframe 
 # 
-# cluster_analysis.time_analysis = function(data, data_options, condition_column, paired=FALSE, alpha = .10) {
+# cluster_analysis.time_shape = function(data, data_options, condition_column, paired=FALSE, alpha = .10) {
 #   
 #   ## Helper:
 #   label_clusters = function(vec) {
@@ -633,12 +633,74 @@ time_analysis <- function (data,
 #   cat("")
 # }
 
+#' onset_shape()
+#' 
+#' divide trials into which AOI they started on; augment with column indicating switch away from that AOI
+#' 
+#' @param dataframe data            The original (verified) data
+#' @param list data_options
+#' @param numeric onset_time        When should we check for their "starting" AOI? 
+#' @param numeric window_size       Which AOI was being focused on timepoint X is determined by the AOI with max proportion
+#'                                  looking within a small time window (from X to X+window_size) (default: 1).
+#' @param character target_aoi      Which AOI is the target that should be switched *to*
+#' @param character distractor_aoi  Which AOI is the distractor that should be switched *from* (default = !target_aoi)
+#' @return dataframe 
+
+onset_shape = function(data, data_options, onset_time, window_size = 1, target_aoi, distractor_aoi = NULL) {
+  require(zoo)
+  
+  ## Helper Function:
+  na_replace_rollmean = function(col) {
+    col = ifelse(is.na(col), 0, col)
+    rollmean(col, k = window_size_rows, partial=TRUE, fill= NA, align="left")
+  }
+  
+  ## Prelims:
+  if (is.null(distractor_aoi)) {
+    distractor_aoi = paste0("NOT_", target_aoi)
+    data[[distractor_aoi]] = !data[[target_aoi]]
+  }
+  
+  ## Translate TimeWindow units from time to number of rows (for rolling mean):
+  df_time_per_row = data %>%
+    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) ) %>%
+    summarise_(.dots = list(TimePerRow = make_dplyr_argument("mean(diff(",data_options$time_column,"))")))
+  time_per_row = round(mean(df_time_per_row[["TimePerRow"]]))
+  window_size_rows = window_size / time_per_row
+  
+  # Determine First AOI, Assign Switch Value for each timepoint:
+  out = data %>%
+    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) ) %>%
+    mutate_(.dots = list(.Target     = make_dplyr_argument("na_replace_rollmean(", target_aoi, ")"),
+                         .Distractor = make_dplyr_argument("na_replace_rollmean(", distractor_aoi, ")"),
+                         .Time       = make_dplyr_argument(data_options$time_column)
+    ) ) %>%
+    mutate(.ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
+           FirstAOI     = ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi)) %>%
+    ungroup() %>%
+    mutate(FirstAOI     = ifelse(abs(.ClosestTime-onset_time) > window_size, NA, FirstAOI),
+           WhichAOI     = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
+           SwitchAOI    = FirstAOI != WhichAOI) %>%
+    select(-.Target, -.Distractor, -.Time, -.ClosestTime) %>%
+    ungroup()
+  
+  # Assign class information:
+  class(out) = c('onset_shape', class(out))
+  attr(out, 'onset_contingent') = list(distractor_aoi = distractor_aoi, 
+                                       target_aoi = target_aoi, 
+                                       onset_time = onset_time,
+                                       window_size = window_size)
+  
+  return(out)
+}
+
+# Analyzing ------------------------------------------------------------------------------------------
 
 #' analyze_time_bins()
 #' 
 #' Runs a test on each time-bin of a time-analysis. Defaults to a t-test, but supports wilcox, lm, and lmer as well.
 #' 
-#' @param dataframe.time_analysis data The output of the 'time_analysis' function
+#' @param dataframe.time_shape data The output of the 'time_shape' function
 #' ...
 #' @return dataframe 
 
@@ -655,8 +717,8 @@ analyze_time_bins <- function(data,
   require('dplyr')
   require('broom')
   
-  # Must be a time_analysis:
-  if (!'time_analysis' %in% class(data)) stop('This function can only be run on the output of the "time_analysis" function.')
+  # Must be a time_shape:
+  if (!'time_shape' %in% class(data)) stop('This function can only be run on the output of the "time_shape" function.')
   
 #   # Only support one-way anova:
 #   if (length(condition_column) !=1 ) stop('This function only supports a single condition.')
@@ -672,7 +734,7 @@ analyze_time_bins <- function(data,
 #       analyze_time_bins(data = this_df, data_options, condition_column, paired, return_model, dv_type, alpha)
 #     })
 #     out = bind_rows(list_of_dfs)
-#     class(out) = c('seq_bin', class(out))
+#     class(out) = c('bin_shape', class(out))
 #     return( out )
 #   }
 #   
@@ -710,77 +772,15 @@ analyze_time_bins <- function(data,
 #                    AOI = unique(by_part$AOI))
 #   if (return_model) out$Model = t_models
 #   
-#   class(out) = c('seq_bin', class(out))
+#   class(out) = c('bin_shape', class(out))
 #   out
-}
-
-#' onset_contingent_analysis()
-#' 
-#' divide trials into which AOI they started on; augment with column indicating switch away from that AOI
-#' 
-#' @param dataframe data The original (verified) data
-#' @param list data_options
-#' @param numeric onset_time        When should we check for their "starting" AOI? 
-#' @param numeric window_size       Which AOI was being focused on timepoint X is determined by the AOI with max proportion
-#'                                  looking within a small time window (from X to X+window_size). 
-#' @param character target_aoi      Which AOI is the target that should be switched *to*
-#' @param character distractor_aoi  Which AOI is the distractor that should be switched *from* (if not supplied, then = !target_aoi)
-#' @return dataframe 
-
-onset_contingent_analysis = function(data, data_options, onset_time, window_size, target_aoi, distractor_aoi = NULL) {
-  require(zoo)
-  
-  ## Helper Function:
-  na_replace_rollmean = function(col) {
-    col = ifelse(is.na(col), 0, col)
-    rollmean(col, k = window_size_rows, partial=TRUE, fill= NA, align="left")
-  }
-  
-  ## Prelims:
-  if (is.null(distractor_aoi)) {
-    distractor_aoi = paste0("NOT_", target_aoi)
-    data[[distractor_aoi]] = !data[[target_aoi]]
-  }
-  
-  ## Translate TimeWindow units from time to number of rows (for rolling mean):
-  df_time_per_row = data %>%
-    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) ) %>%
-    summarise_(.dots = list(TimePerRow = make_dplyr_argument("mean(diff(",data_options$time_column,"))")))
-  time_per_row = round(mean(df_time_per_row[["TimePerRow"]]))
-  window_size_rows = window_size / time_per_row
-
-  # Determine First AOI, Assign Switch Value for each timepoint:
-  out = data %>%
-    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) ) %>%
-    mutate_(.dots = list(.Target     = make_dplyr_argument("na_replace_rollmean(", target_aoi, ")"),
-                         .Distractor = make_dplyr_argument("na_replace_rollmean(", distractor_aoi, ")"),
-                         .Time       = make_dplyr_argument(data_options$time_column)
-    ) ) %>%
-    mutate(.ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
-           FirstAOI     = ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi)) %>%
-    ungroup() %>%
-    mutate(FirstAOI     = ifelse(abs(.ClosestTime-onset_time) > window_size, NA, FirstAOI),
-           WhichAOI     = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
-           SwitchAOI    = FirstAOI != WhichAOI) %>%
-    select(-.Target, -.Distractor, -.Time, -.ClosestTime) %>%
-    ungroup()
-
-  # Assign class information:
-  class(out) = c('onset_contingent_analysis', class(out))
-  attr(out, 'onset_contingent') = list(distractor_aoi =distractor_aoi, 
-                                       target_aoi = target_aoi, 
-                                       onset_time = onset_time,
-                                       window_size = window_size)
-
-  return(out)
-
 }
 
 #' analyze_switches()
 #' 
 #' takes trials split by initial-AOI, and determines how quickly subjects switch away from that AOI
 #' 
-#' @param dataframe data The output of "onset_contingent_analysis"
+#' @param dataframe data The output of "onset_shape"
 #' @param list data_options
 #' @param character.vector condition_columns
 #' 
@@ -789,8 +789,8 @@ onset_contingent_analysis = function(data, data_options, onset_time, window_size
 
 analyze_switches = function(data, data_options, condition_columns=NULL) {
   
-  # Must be an onset_contingent_analysis:
-  if (!'onset_contingent_analysis' %in% class(data)) stop('This function can only be run on the output of the "onset_contingent_analysis" function.')
+  # Must be an onset_shape:
+  if (!'onset_shape' %in% class(data)) stop('This function can only be run on the output of the "onset_shape" function.')
   
   dopts = data_options
   
@@ -822,7 +822,7 @@ plot.data.frame <- function(data, data_options, condition_column) {
 }
 
 
-# plot.window_analysis()
+# plot.window_shape()
 #
 # Plots the result of a window analysis
 #
@@ -831,7 +831,7 @@ plot.data.frame <- function(data, data_options, condition_column) {
 # @param character condition_columns Maximum 2
 #
 # @return list A ggplot list object  
-plot.window_analysis <- function(data, data_options, x_axis_column, group_column = NULL) {
+plot.window_shape <- function(data, data_options, x_axis_column, group_column = NULL) {
   
   dopts = data_options
   
@@ -868,7 +868,7 @@ plot.window_analysis <- function(data, data_options, x_axis_column, group_column
 
 }
 
-# plot.time_analysis()
+# plot.time_shape()
 #
 # Plot the timecourse of looking across groups. Median split if factor is continous
 #
@@ -877,7 +877,7 @@ plot.window_analysis <- function(data, data_options, x_axis_column, group_column
 # @param character condition_column
 #
 # @return list A ggplot list object  
-plot.time_analysis <- function(data, data_options, condition_column=NULL, dv='Prop') {
+plot.time_shape <- function(data, data_options, condition_column=NULL, dv='Prop') {
 
   require('ggplot2')
   
@@ -921,14 +921,14 @@ plot.time_analysis <- function(data, data_options, condition_column=NULL, dv='Pr
 }
 
 
-# plot.seq_bin()
+# plot.bin_shape()
 #
 # Plot the confidence intervals that result from the 'analyze_time_bins' function
 #
 # @param dataframe data
 #
 # @return list A ggplot list object  
-plot.seq_bin <- function(data) {
+plot.bin_shape <- function(data) {
   
   require('ggplot2')
 
@@ -943,16 +943,16 @@ plot.seq_bin <- function(data) {
 }
 
 
-# plot.onset_contingent_analysis()
+# plot.onset_shape()
 #
 # divide trials into which AOI they started on; plot proportion looking away from that AOI.
 # this is NOT to be confused with the plot method for an onset_contingent dataframe.
 #
-# @param dataframe.time_analysis data The output of the 'time_analysis' function
+# @param dataframe.time_shape data The output of the 'time_shape' function
 #...
 # @return dataframe 
 
-plot.onset_contingent_analysis = function(data, data_options, condition_factors=NULL, smoothing_window_size=50) {
+plot.onset_shape = function(data, data_options, condition_factors=NULL, smoothing_window_size=50) {
 
   ## Prelims:
   if (length(condition_factors) > 2) {
@@ -1043,10 +1043,10 @@ center_predictors = function(data, predictors) {
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
 
-mutate_.time_analysis = mutate_.window_analysis = mutate_.seq_bin = mutate_.onset_contingent_analysis = function(data, ...) {
+mutate_.time_shape = mutate_.window_shape = mutate_.bin_shape = mutate_.onset_shape = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_analysis', 'window_analysis', 'seq_bin', 'onset_contingent_analysis')
+  potential_classes = c('time_shape', 'window_shape', 'bin_shape', 'onset_shape')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "onset_contingent") # also attributes
@@ -1055,15 +1055,15 @@ mutate_.time_analysis = mutate_.window_analysis = mutate_.seq_bin = mutate_.onse
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out) )
-  if ("onset_contingent_analysis" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
+  if ("onset_shape" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
   
   return(out)
 }
 
-filter_.time_analysis = filter_.window_analysis = filter_.seq_bin =  filter_.onset_contingent_analysis = function(data, ...) {
+filter_.time_shape = filter_.window_shape = filter_.bin_shape =  filter_.onset_shape = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_analysis', 'window_analysis', 'seq_bin', 'onset_contingent_analysis')
+  potential_classes = c('time_shape', 'window_shape', 'bin_shape', 'onset_shape')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "onset_contingent") # also attributes
@@ -1072,15 +1072,15 @@ filter_.time_analysis = filter_.window_analysis = filter_.seq_bin =  filter_.ons
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out) )
-  if ("onset_contingent_analysis" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
+  if ("onset_shape" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
   
   return(out)
 }
 
-left_join.time_analysis = left_join.window_analysis = left_join.seq_bin = left_join.onset_contingent_analysis = function(x, y, by = NULL, copy = FALSE, ...) {
+left_join.time_shape = left_join.window_shape = left_join.bin_shape = left_join.onset_shape = function(x, y, by = NULL, copy = FALSE, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_analysis', 'window_analysis', 'seq_bin', 'onset_contingent_analysis')
+  potential_classes = c('time_shape', 'window_shape', 'bin_shape', 'onset_shape')
   temp_remove = class(x)[ class(x) %in% potential_classes]
   class(x) = class(x)[!class(x) %in% potential_classes]
   temp_attr = attr(x, "onset_contingent") # also attributes
@@ -1089,7 +1089,7 @@ left_join.time_analysis = left_join.window_analysis = left_join.seq_bin = left_j
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out) )
-  if ("onset_contingent_analysis" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
+  if ("onset_shape" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
   
   return(out)
 }
