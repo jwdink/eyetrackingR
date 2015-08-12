@@ -388,11 +388,10 @@ keep_trackloss = function(data, data_options) {
 #
 # @param dataframe data
 # @param list data_options
-# @param logical delete_rows Should rows with trackloss be deleted, throwing out all of the other useful information those rows might hold? A pretty controversial decision. Fortunately, this is by default set to FALSE.
+# @param logical delete_rows (default: TRUE) Should rows with trackloss be deleted, throwing out all of the other useful information those rows might hold?
 #
 # @return dataframe 
-remove_trackloss = function(data, data_options, delete_rows = FALSE) {
-  
+remove_trackloss = function(data, data_options, delete_rows = TRUE) {
   if (delete_rows) {
     # Remove all rows with Trackloss:
     out = data %>%
@@ -404,10 +403,10 @@ remove_trackloss = function(data, data_options, delete_rows = FALSE) {
   } else {
     # Set Looking-at-AOI to NA for any samples where there is Trackloss:
     filter_trackloss_arg = 
-      lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(",data_options$trackloss_column,"==1, NA, ", aoi,")" ))
+      lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(!is.na(",data_options$trackloss_column,"), NA, ", aoi,")" ))
     names(filter_trackloss_arg) = data_options$aoi_columns
-    out= data %>%
-      mutate_(.dots= filter_trackloss_arg)
+    out = data %>%
+          mutate_(.dots= filter_trackloss_arg)
   }
   
   out
