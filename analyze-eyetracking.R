@@ -582,8 +582,62 @@ time_analysis <- function (data,
   
 }
 
+# cluster_analysis = function(data, data_options, condition_column, method, alpha, ...) {
+#   UseMethod("cluster_analysis")
+# }
+# 
+# #' cluster_analysis.data.frame()
+# #' 
+# #' @param dataframe data The output of the 'time_analysis' function
+# #' @param list data_options            
+# #' ...
+# #' @return dataframe 
+# 
+# cluster_analysis.data.frame = function(data, data_options, condition_column, method, alpha = .10) {
+#   #[write me]
+# }
+# 
+# cluster_analysis_helper = function(data, data_options, formula, stat_func, ...) {
+#   
+# }
+# 
+# #' cluster_analysis.time_analysis()
+# #' 
+# #' Takes data that has been summarized into time-bins, and finds adjacent time bins that
+# #' pass some threshold of significance, and assigns these adjacent groups into clusters
+# #' for further examination.
+# #' 
+# #' @param dataframe.time_analysis data The output of the 'time_analysis' function
+# #' @param list data_options            
+# #' ...
+# #' @return dataframe 
+# 
+# cluster_analysis.time_analysis = function(data, data_options, condition_column, paired=FALSE, alpha = .10) {
+#   
+#   ## Helper:
+#   label_clusters = function(vec) {
+#     vec[is.na(vec)] = 0
+#     out = c(cumsum(diff(vec)==1))
+#     out[!vec] = NA
+#     out
+#   }
+#   
+#   ## Test Bins:
+#   time_bin_summary = analyze_time_bins(data, data_options, condition_column, paired=paired, alpha = alpha)
+#   
+#   ## Label Adjacent Clusters:
+#   time_bin_summary$Sig = time_bin_summary$Statistic > time_bin_summary$CritStatistic
+#   time_bin_summary %>%
+#     group_by(AOI) %>%
+#     mutate(Cluster = label_clusters(Sig))
+#   
+#   cat("")
+# }
+
 
 #' analyze_time_bins()
+#' 
+#' Runs a test on each time-bin of a time-analysis. Defaults to a t-test, but supports wilcox, lm, and lmer as well.
 #' 
 #' @param dataframe.time_analysis data The output of the 'time_analysis' function
 #' ...
@@ -592,10 +646,11 @@ time_analysis <- function (data,
 analyze_time_bins <- function(data, 
                               data_options, 
                               condition_column,
-                              paired = FALSE,
+                              threshold = NULL,
+                              alpha = .05,
+                              test = "t.test",
                               return_model = FALSE,
-                              dv_type = 'elog',
-                              alpha = .05)
+                              ...)
 {
   
   require('dplyr')
@@ -604,60 +659,60 @@ analyze_time_bins <- function(data,
   # Must be a time_analysis:
   if (!'time_analysis' %in% class(data)) stop('This function can only be run on the output of the "time_analysis" function.')
   
-  # Only support one-way anova:
-  if (length(condition_column) !=1 ) stop('This function only supports a single condition.')
-  if (n_distinct(na.omit(data[[condition_column]])) != 2 ) stop('This function only supports two groups within a condition')
-
-  # For Multiple aois:
-  aois = unique(data[['AOI']])
-  if ( length(aois) > 1 ) {
-    list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
-      message("Analyzing ", this_aoi, "...")
-      this_df = filter(data, AOI == this_aoi)
-      class(this_df) = class(data)
-      analyze_time_bins(data = this_df, data_options, condition_column, paired, return_model, dv_type, alpha)
-    })
-    out = bind_rows(list_of_dfs)
-    class(out) = c('seq_bin', class(out))
-    return( out )
-  }
-  
-  # Prelims:
-  data = ungroup(data) # shouldn't be necessary, but just in case
-  dopts = data_options
-  
-  # Collapse by Participant:
-  dv_type = match.arg(dv_type, choices = c("ArcSin", "elog", "Prop"))
-  summarise_arg = list(make_dplyr_argument("mean(",dv_type,",na.rm=TRUE)"))
-  names(summarise_arg) = dv_type
-  by_part = data %>% 
-    group_by_(.dots = as.list(c(dopts$participant_column, condition_column, "AOI", "TimeBin") ) ) %>%
-    summarise_(.dots = summarise_arg)
-  
-  # Do a t-test for each TimeBin:
-  the_formula = paste(dv_type, "~", condition_column)
-  t_models = lapply(X = unique(by_part$TimeBin), FUN = function(tb) {
-    resil_t = failwith(NA, f = t.test, quiet=TRUE)
-    resil_t(formula = as.formula(the_formula), data = filter(by_part, TimeBin==tb), paired=paired)
-  })
-  
-  # Extract T and Critical T:
-  model_params = lapply(t_models, FUN = function(x) tidy(x) )   
-  t_vals = unlist(sapply(X = model_params, FUN = function(x) ifelse('statistic' %in% names(x), x['statistic'], NA)))
-  dfs    = unlist(sapply(X = model_params, FUN = function(x) ifelse('parameter' %in% names(x), x['parameter'], NA)))
-  crit_t = qt(p = 1 - alpha/2, df = dfs)
-
-  # Summarize:
-  out = data.frame(stringsAsFactors = FALSE,
-                   Statistic= t_vals, 
-                   CritStatisticPos =  crit_t, 
-                   CritStatisticNeg = -crit_t, 
-                   TimeBin = unique(by_part$TimeBin),
-                   AOI = unique(by_part$AOI))
-  if (return_model) out$Model = t_models
-  
-  class(out) = c('seq_bin', class(out))
-  out
+#   # Only support one-way anova:
+#   if (length(condition_column) !=1 ) stop('This function only supports a single condition.')
+#   if (n_distinct(na.omit(data[[condition_column]])) != 2 ) stop('This function only supports two groups within a condition')
+# 
+#   # For Multiple aois:
+#   aois = unique(data[['AOI']])
+#   if ( length(aois) > 1 ) {
+#     list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
+#       message("Analyzing ", this_aoi, "...")
+#       this_df = filter(data, AOI == this_aoi)
+#       class(this_df) = class(data)
+#       analyze_time_bins(data = this_df, data_options, condition_column, paired, return_model, dv_type, alpha)
+#     })
+#     out = bind_rows(list_of_dfs)
+#     class(out) = c('seq_bin', class(out))
+#     return( out )
+#   }
+#   
+#   # Prelims:
+#   data = ungroup(data) # shouldn't be necessary, but just in case
+#   dopts = data_options
+#   
+#   # Collapse by Participant:
+#   dv_type = match.arg(dv_type, choices = c("ArcSin", "elog", "Prop"))
+#   summarise_arg = list(make_dplyr_argument("mean(",dv_type,",na.rm=TRUE)"))
+#   names(summarise_arg) = dv_type
+#   by_part = data %>% 
+#     group_by_(.dots = as.list(c(dopts$participant_column, condition_column, "AOI", "TimeBin") ) ) %>%
+#     summarise_(.dots = summarise_arg)
+#   
+#   # Do a t-test for each TimeBin:
+#   the_formula = paste(dv_type, "~", condition_column)
+#   t_models = lapply(X = unique(by_part$TimeBin), FUN = function(tb) {
+#     resil_t = failwith(NA, f = t.test, quiet=TRUE)
+#     resil_t(formula = as.formula(the_formula), data = filter(by_part, TimeBin==tb), paired=paired)
+#   })
+#   
+#   # Extract T and Critical T:
+#   model_params = lapply(t_models, FUN = function(x) tidy(x) )   
+#   t_vals = unlist(sapply(X = model_params, FUN = function(x) ifelse('statistic' %in% names(x), x['statistic'], NA)))
+#   dfs    = unlist(sapply(X = model_params, FUN = function(x) ifelse('parameter' %in% names(x), x['parameter'], NA)))
+#   crit_t = qt(p = 1 - alpha/2, df = dfs)
+# 
+#   # Summarize:
+#   out = data.frame(stringsAsFactors = FALSE,
+#                    Statistic= t_vals, 
+#                    CritStatisticPos =  crit_t, 
+#                    CritStatisticNeg = -crit_t, 
+#                    TimeBin = unique(by_part$TimeBin),
+#                    AOI = unique(by_part$AOI))
+#   if (return_model) out$Model = t_models
+#   
+#   class(out) = c('seq_bin', class(out))
+#   out
 }
 
 #' onset_contingent_analysis()
