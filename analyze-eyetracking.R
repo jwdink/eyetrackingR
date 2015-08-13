@@ -220,8 +220,8 @@ trackloss_analysis = function(data, data_options, window_start = -Inf, window_en
                             Samples = mean(TotalTrialLength, na.rm=TRUE),
                             TracklossSamples = mean(SumTracklossForTrial, na.rm=TRUE),
                             TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
-                            TracklossForParticipant = mean(TracklossForParticipant, na.rm=TRUE)) %>%
-    ungroup()
+                            TracklossForParticipant = mean(TracklossForParticipant, na.rm=TRUE))
+  df_summarized = ungroup(df_summarized)
   
   return(df_summarized)
 }
@@ -818,7 +818,13 @@ analyze_clusters = function(data, data_options, condition_column, method, alpha,
 #' ...
 #' @return dataframe 
 
-analyze_clusters.time_shape = function(data, data_options, condition_column, paired=FALSE, alpha = .10) {
+analyze_clusters.time_shape = function(data, 
+                                       data_options,
+                                       condition_column,
+                                       threshold = NULL,
+                                       alpha = .05,
+                                       test = "t.test",
+                                       formula = NULL) {
   
   ## Helper:
   label_clusters = function(vec) {
@@ -828,18 +834,37 @@ analyze_clusters.time_shape = function(data, data_options, condition_column, pai
     out
   }
   
-  ## Test Bins:
-  time_bin_summary = analyze_time_bins(data, data_options, condition_column, paired=paired, alpha = alpha)
+  time_bin_summary = analyze_time_bins(data, data_options)
+  analyze_clusters(time_bin_summary, data_options)
   
+}
+
+#' analyze_clusters.bin_analysis()
+#' 
+#' Takes data that has been summarized into time-bins, and finds adjacent time bins that
+#' pass some threshold of significance, and assigns these adjacent groups into clusters
+#' for further examination.
+#' 
+#' @param dataframe.time_shape data The output of the 'time_shape' function
+#' @param list data_options            
+#' ...
+#' @return dataframe 
+
+analyze_clusters.bin_analysis = function(data, 
+                                         data_options,
+                                         condition_column,
+                                         threshold = NULL,
+                                         alpha = .05,
+                                         test = "t.test",
+                                         formula = NULL) {
   #   ## Label Adjacent Clusters:
-  #   time_bin_summary$Sig = time_bin_summary$Statistic > time_bin_summary$CritStatistic
-  #   time_bin_summary %>%
+  #   data$Sig = data$Statistic > data$CritStatistic
+  #   data %>%
   #     group_by(AOI) %>%
   #     mutate(Cluster = label_clusters(Sig))
   #   
   #   cat("")
 }
-
 
 #' analyze_time_bins()
 #' 
@@ -1174,13 +1199,9 @@ plot.time_shape <- function(data, data_options, condition_column=NULL, dv='Prop'
   ## Plot:
   if (numeric_condition_col) {
     message("Condition factor is numeric, performing median split...")
-    median_split_arg = list(GroupFactor = 
-                              make_dplyr_argument("ifelse(", condition_column, ">median(", condition_column, ", na.rm=TRUE), 'High', 'Low')" )
-    )
-    out = data %>%
-      mutate_(.dots = median_split_arg)
-    
-    g <-  ggplot(out, aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
+    data[["GroupFactor"]] = ifelse(data[[condition_column]] > median(data[[condition_column]], na.rm=TRUE), "High", "Low")
+
+    g <- ggplot(out, aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
@@ -1437,7 +1458,7 @@ center_predictors = function(data, predictors) {
   mutate_argument = list()
   for (i in seq_along(predictors)) {
     name = paste0(predictors[i], "C")
-    mutate_argument[[name]] = make_dplyr_argument("as.numeric(", predictors[i], ") - mean(as.numeric(",  predictors[i], "), na.rm=TRUE)" )
+    mutate_argument[[name]] = interp(~as.numeric(PREDICTOR) - mean(as.numeric(PREDICTOR), na.rm=TRUE), PREDICTOR = as.name(predictors[i]) )
   }
   
   data %>% 
