@@ -582,57 +582,6 @@ time_shape <- function (data,
   
 }
 
-# cluster_analysis = function(data, data_options, condition_column, method, alpha, ...) {
-#   UseMethod("cluster_analysis")
-# }
-# 
-# #' cluster_analysis.data.frame()
-# #' 
-# #' @param dataframe data The output of the 'time_shape' function
-# #' @param list data_options            
-# #' ...
-# #' @return dataframe 
-# 
-# cluster_analysis.data.frame = function(data, data_options, condition_column, method, alpha = .10) {
-#   #[write me]
-# }
-# 
-# cluster_analysis_helper = function(data, data_options, formula, stat_func, ...) {
-#   
-# }
-# 
-# #' cluster_analysis.time_shape()
-# #' 
-# #' Takes data that has been summarized into time-bins, and finds adjacent time bins that
-# #' pass some threshold of significance, and assigns these adjacent groups into clusters
-# #' for further examination.
-# #' 
-# #' @param dataframe.time_shape data The output of the 'time_shape' function
-# #' @param list data_options            
-# #' ...
-# #' @return dataframe 
-# 
-# cluster_analysis.time_shape = function(data, data_options, condition_column, paired=FALSE, alpha = .10) {
-#   
-#   ## Helper:
-#   label_clusters = function(vec) {
-#     vec[is.na(vec)] = 0
-#     out = c(cumsum(diff(vec)==1))
-#     out[!vec] = NA
-#     out
-#   }
-#   
-#   ## Test Bins:
-#   time_bin_summary = analyze_time_bins(data, data_options, condition_column, paired=paired, alpha = alpha)
-#   
-#   ## Label Adjacent Clusters:
-#   time_bin_summary$Sig = time_bin_summary$Statistic > time_bin_summary$CritStatistic
-#   time_bin_summary %>%
-#     group_by(AOI) %>%
-#     mutate(Cluster = label_clusters(Sig))
-#   
-#   cat("")
-# }
 
 #' onset_shape()
 #' 
@@ -865,6 +814,44 @@ bootstrapped_spline_shape <- function (data, data_options, condition_column = NA
 }
 
 # Analyzing ------------------------------------------------------------------------------------------
+
+analyze_clusters = function(data, data_options, condition_column, method, alpha, ...) {
+  UseMethod("analyze_clusters")
+}
+
+#' analyze_clusters.time_shape()
+#' 
+#' Takes data that has been summarized into time-bins, and finds adjacent time bins that
+#' pass some threshold of significance, and assigns these adjacent groups into clusters
+#' for further examination.
+#' 
+#' @param dataframe.time_shape data The output of the 'time_shape' function
+#' @param list data_options            
+#' ...
+#' @return dataframe 
+
+analyze_clusters.time_shape = function(data, data_options, condition_column, paired=FALSE, alpha = .10) {
+  
+  ## Helper:
+  label_clusters = function(vec) {
+    vec[is.na(vec)] = 0
+    out = c(cumsum(diff(vec)==1))
+    out[!vec] = NA
+    out
+  }
+  
+  ## Test Bins:
+  time_bin_summary = analyze_time_bins(data, data_options, condition_column, paired=paired, alpha = alpha)
+  
+#   ## Label Adjacent Clusters:
+#   time_bin_summary$Sig = time_bin_summary$Statistic > time_bin_summary$CritStatistic
+#   time_bin_summary %>%
+#     group_by(AOI) %>%
+#     mutate(Cluster = label_clusters(Sig))
+#   
+#   cat("")
+}
+
 
 #' analyze_time_bins()
 #' 
