@@ -455,8 +455,6 @@ window_shape <- function(data,
   
 }
 
-
-
 #' time_shape()
 #' 
 #' Creates time-bins and summarizes proportion-looking within each time-bin
@@ -530,19 +528,21 @@ time_shape <- function (data,
 #' @param dataframe data            The original (verified) data
 #' @param list data_options
 #' @param numeric onset_time        When should we check for their "starting" AOI? 
-#' @param numeric fixation_window_length       Smoothes the data by determining the fixated AOI using a moving average over time bins that are this long
+#' @param numeric fixation_wind_len       Smoothes the data by determining the fixated AOI using a moving average over time bins that are this long
 #'                                             (e.g., "100" means that the fixated AOI is determined over a 100ms rolling window)
 #' @param character target_aoi      Which AOI is the target that should be switched *to*
 #' @param character distractor_aoi  Which AOI is the distractor that should be switched *from* (default = !target_aoi)
 #' @return dataframe 
 
-onset_shape = function(data, data_options, onset_time, fixation_window_length = NULL, target_aoi, distractor_aoi = NULL) {
-  require(zoo, quietly=TRUE)
+onset_shape = function(data, data_options, onset_time, fixation_wind_len, target_aoi, distractor_aoi = NULL, condition_columns = NULL) {
+  require("dplyr", quietly=TRUE)
+  require("lazyeval", quietly = TRUE)
+  require("zoo", quietly=TRUE)
   
   ## Helper Function:
   na_replace_rollmean = function(col) {
     col = ifelse(is.na(col), 0, col)
-    rollmean(col, k = fixation_window_length_rows, partial=TRUE, fill= NA, align="left")
+    rollmean(col, k = fixation_wind_len_rows, partial=TRUE, fill= NA, align="left")
   }
   
   ## Prelims:
@@ -550,36 +550,48 @@ onset_shape = function(data, data_options, onset_time, fixation_window_length = 
     distractor_aoi = paste0("NOT_", target_aoi)
     data[[distractor_aoi]] = !data[[target_aoi]]
   }
+  time_col = as.name(data_options$time_column)
   
   ## Translate TimeWindow units from time to number of rows (for rolling mean):
-  df_time_per_row = data %>%
-    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) ) %>%
-    summarise_(.dots = list(TimePerRow = make_dplyr_argument("mean(diff(",data_options$time_column,"))")))
+  df_time_per_row = group_by_(data, .dots = c(data_options$participant_column, data_options$trial_column, condition_columns) )
+  df_time_per_row = summarise_(df_time_per_row,
+                               .dots = list(TimePerRow = interp(~mean(diff(TIME_COL)), TIME_COL = time_col)
+                                            ))
   time_per_row = round(mean(df_time_per_row[["TimePerRow"]]))
-  fixation_window_length_rows = fixation_window_length / time_per_row
+  fixation_wind_len_rows = fixation_wind_len / time_per_row
   
-  # Determine First AOI, Assign Switch Value for each timepoint:
-  out = data %>%
-    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) ) %>%
-    mutate_(.dots = list(.Target     = make_dplyr_argument("na_replace_rollmean(", target_aoi, ")"),
-                         .Distractor = make_dplyr_argument("na_replace_rollmean(", distractor_aoi, ")"),
-                         .Time       = make_dplyr_argument(data_options$time_column)
-    ) ) %>%
-    mutate(.ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
-           FirstAOI     = ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi)) %>%
-    ungroup() %>%
-    mutate(FirstAOI     = ifelse(abs(.ClosestTime-onset_time) > fixation_window_length, NA, FirstAOI),
-           WhichAOI     = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
-           SwitchAOI    = FirstAOI != WhichAOI) %>%
-    select(-.Target, -.Distractor, -.Time, -.ClosestTime) %>%
-    ungroup()
+  ## Determine First AOI, Assign Switch Value for each timepoint
   
+  # Group by Ppt*Trial:
+  df_grouped = group_by( .dots = list(data_options$participant_column, data_options$trial_column) )
+  # Create a rolling-average of 'inside-aoi' logical for target and distractor, to give a smoother estimate of fixations
+  df_smoothed = mutate_(df_grouped,
+                        .dots = list(.Target    = interp(~na_replace_rollmean(TARGET_AOI), TARGET_AOI = as.name(target_aoi)),
+                                     .Distractor= interp(~na_replace_rollmean(DISTRACTOR_AOI), DISTRACTOR_AOI = as.name(distractor_aoi)),
+                                     .Time      = interp(~TIME_COL, TIME_COL = time_col)
+                                     ))
+  # For any trials where no data for onset timepoint is available, find the closest timepoint. 
+  # Calculate FirstAOI
+  df_first_aoi = mutate(df_smoothed,
+                        .ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
+                        FirstAOI     = ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi)
+  )
+  df_first_aoi = ungroup(df_first_aoi)
+  
+  # If closest timepoint was too far away from onset window, record FirstAOI as unknown
+  # Create a column specifying whether they have switched away from FirstAOI
+  out = mutate(df_first_aoi,
+         FirstAOI  = ifelse(abs(.ClosestTime-onset_time) > fixation_wind_len, NA, FirstAOI),
+         WhichAOI  = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
+         SwitchAOI = FirstAOI != WhichAOI)
+  out = select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
+
   # Assign class information:
   class(out) = c('onset_shape', class(out))
   attr(out, 'onset_contingent') = list(distractor_aoi = distractor_aoi, 
                                        target_aoi = target_aoi, 
                                        onset_time = onset_time,
-                                       fixation_window_length = fixation_window_length)
+                                       fixation_wind_len = fixation_wind_len)
   
   return(out)
 }
@@ -1184,7 +1196,7 @@ plot.time_shape <- function(data, data_options, condition_column=NULL, dv='Prop'
 
 # plot.bin_analysis()
 #
-# Plot the confidence intervals that result from the 'analyze_time_bins' function
+# Plot the result from the 'analyze_time_bins' function
 #
 # @param dataframe data
 #
@@ -1221,9 +1233,9 @@ plot.onset_shape = function(data, data_options, condition_columns=NULL) {
   onset_attr = attr(data, "onset_contingent")
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
-  # Brock: set smoothing_window_size based on fixation_window_length in attr's
+  # Brock: set smoothing_window_size based on fixation_wind_len in attr's
   # TODO: any problem with this?
-  smoothing_window_size <- onset_attr$fixation_window_length
+  smoothing_window_size <- onset_attr$fixation_wind_len
   
   ## Prepare for Graphing:
   out = data %>%
