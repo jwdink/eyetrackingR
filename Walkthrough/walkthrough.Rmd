@@ -177,7 +177,7 @@ plot(onsets, data_options)
 # compare switch times
 onset_switches <- switch_shape(onsets, data_options)
 
-plot(onset_switches, data_options)
+plot(onset_switches, data_options) # TO DO: remove NA from grouping
 
 onset_switches$FirstAOIC <- ifelse(onset_switches$FirstAOI == 'TrialTarget', .5, -.5)
 onset_switches$FirstAOIC <- scale(onset_switches$FirstAOIC, center=T, scale=F)
@@ -192,7 +192,7 @@ drop1(model,~.,test="Chi")
 Do a proper within-subjects analysis for the familiar trials.
 
 ```{r}
-bootstrapped_familiar <- bootstrapped_shape(response_time, data_options, condition_column = 'Target', within_subj = TRUE, samples = 1000, resolution = 100, alpha = .05, smoother = 'smooth.spline')
+bootstrapped_familiar <- bootstrapped_shape(response_time, data_options, condition_column = 'Target', within_subj = TRUE, samples = 1000, resolution = 100, alpha = .05, smoother = 'smooth.spline') # TO DO: fix warning with dplyr join
 
 plot(bootstrapped_familiar, data_options)
 
