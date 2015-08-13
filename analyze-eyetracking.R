@@ -686,12 +686,13 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
 # @param float alpha p-value when the groups are sufficiently "diverged"
 #
 # @return list(samples, divergence)
-bootstrapped_spline_shape <- function (data, data_options, condition_column = NA, within_subj = F, samples = 1000, resolution = 10, alpha = .05) {
+bootstrapped_spline_shape <- function (data, data_options, condition_column, within_subj = F, samples = 1000, resolution = 10, alpha = .05) {
   require(dplyr, quietly=T)
   require(reshape2, quietly=T)
   
   # validate arguments
-  if (is.na(condition_column) || (length(levels(factor(data[, condition_column]))) != 2)) {
+  if (!condition_column %in% colnames(data)) stop("Condition column not found in data")
+  if ( length(levels(as.factor(data[[condition_column]]))) != 2 ) {
     stop('bootstrapped_splines requires a condition_column with 2 levels.')
   }
   
