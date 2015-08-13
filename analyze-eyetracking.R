@@ -1345,6 +1345,51 @@ plot.switch_shape = function(data, data_options, condition_columns=NULL) {
   
 }
 
+# plot.bootstrapped_spline_shape()
+#
+# Plot the means and CIs of bootstrapped splines (either within-subjects or between-subjects)
+#
+# @param dataframe.bootstrapped_spline_shape data The output of the 'bootstrapped_spline_shape' function
+#...
+# @return dataframe 
+
+plot.bootstrapped_spline_shape = function(data, data_options) {
+  require(ggplot2, quietly=TRUE)
+  
+  # make sure there is the proper kind of data frame, and check its attributes
+  bootstrap_attr = attr(data, "bootstrapped_splines")
+  if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
+  
+  # if within-subjects, plot difference score
+  if (bootstrap_attr$within_subj == TRUE) {
+    # use analyze_bootstrapped_splines() to get MeanDiff and CI
+    data <- analyze_bootstrapped_splines(data, data_options)
+    
+    g <- ggplot(data, aes(x=Time, y=MeanDiff)) +
+      geom_line() +
+      geom_ribbon(aes(ymax=CI_high, ymin=CI_low), mult=1, alpha=.2, colour=NA) +
+      xlab('Time') +
+      ylab('Difference Score')
+  }
+  else {
+    data$Mean <- apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, mean)
+    data$SE <- apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, sd)
+    
+    low_prob <- .5 - ((1-bootstrap_attr$alpha)/2)
+    high_prob <- .5 + ((1-bootstrap_attr$alpha)/2)
+    
+    data$CI_high <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=high_prob) }),5)
+    data$CI_low <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=low_prob) }),5)
+    
+    g <- ggplot(data, aes_string(x='Time', y='Mean', color=bootstrap_attr$condition_column)) +
+      geom_line() +
+      geom_ribbon(aes_string(ymax='CI_high', ymin='CI_low', fill=bootstrap_attr$condition_column), mult=1, alpha=.2, colour=NA) +
+      xlab('Time') +
+      ylab('Proportion')
+  }
+  
+  g
+}
 
 # Helpers -----------------------------------------------------------------------------------------------
 
