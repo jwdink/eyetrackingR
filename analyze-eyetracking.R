@@ -141,7 +141,7 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
                          .dots = list( interp(~ TIME_COL > .WindowStart & TIME_COL < .WindowEnd, 
                                               TIME_COL= time_col)
                          ))
-  
+
   # Rezero
   if (rezero) {
     df_grouped = group_by_(.data = df_subsetted, .dots = list(data_options$participant_column, data_options$trial_column) )
@@ -303,11 +303,11 @@ clean_by_trackloss = function(data, data_options,
   # Remove:
   data_clean = data %>%
     filter(! .TrialID %in% exclude_trials)
-
+  
   data_clean$.TrialID = NULL
   
   data_clean
-
+  
 }
 
 # convert_non_aoi_to_trackloss ()
@@ -333,7 +333,7 @@ convert_non_aoi_to_trackloss = function(data, data_options) {
     mutate(.Trackloss = ifelse(.AOISum == 0, TRUE, .Trackloss))
   
   out[[data_options$trackloss_column]] <- out$.Trackloss
-    
+  
   for (aoi in paste0(".", data_options$aoi_columns)) {
     out[[aoi]] = NULL
   }
@@ -371,7 +371,7 @@ keep_trackloss = function(data, data_options) {
               "'' column. These samples will be interpreted as being outside of the ", aoi, " AOI.")
     }
   }
-
+  
   # Replace any Lingering Missing AOI Data:
   replace_na_arg = 
     lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(is.na(",aoi,"), 0, ", aoi,")" ))
@@ -398,10 +398,10 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
   if (delete_rows) {
     # Remove all rows with Trackloss:
     out = data %>%
-           mutate_(.dots = list(
-             TracklossBoolean = make_dplyr_argument('ifelse(is.na(', data_options$trackloss_column, '), 0, ', data_options$trackloss_column, ')')
-             )) %>%
-           filter(TracklossBoolean == 0)
+      mutate_(.dots = list(
+        TracklossBoolean = make_dplyr_argument('ifelse(is.na(', data_options$trackloss_column, '), 0, ', data_options$trackloss_column, ')')
+      )) %>%
+      filter(TracklossBoolean == 0)
     
   } else {
     # Set Looking-at-AOI to NA for any samples where there is Trackloss:
@@ -409,7 +409,7 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
       lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(!is.na(",data_options$trackloss_column,"), NA, ", aoi,")" ))
     names(filter_trackloss_arg) = data_options$aoi_columns
     out = data %>%
-          mutate_(.dots= filter_trackloss_arg)
+      mutate_(.dots= filter_trackloss_arg)
   }
   
   out
@@ -429,10 +429,10 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
 #
 # @return dataframe
 window_shape <- function(data, 
-                            data_options, 
-                            aoi, 
-                            condition_columns = NULL,
-                            summarize_by = 'crossed'
+                         data_options, 
+                         aoi, 
+                         condition_columns = NULL,
+                         summarize_by = 'crossed'
 ) {
   require('dplyr', quietly=TRUE)
   
@@ -495,11 +495,11 @@ window_shape <- function(data,
 #' @return dataframe summarized
 
 time_shape <- function (data, 
-                           data_options, 
-                           time_bin_size = 250, 
-                           aoi = data_options$aoi_columns, 
-                           condition_columns = NULL,
-                           summarize_by = 'crossed') {
+                        data_options, 
+                        time_bin_size = 250, 
+                        aoi = data_options$aoi_columns, 
+                        condition_columns = NULL,
+                        summarize_by = 'crossed') {
   
   
   require('dplyr', quietly=TRUE)
@@ -676,7 +676,7 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
   return(out)
 }
 
-# bootstrapped_spline_shape(data, data_options, condition_column, within_subj, samples, resolution, alpha)
+# bootstrapped_shape(data, data_options, condition_column, within_subj, samples, resolution, alpha)
 #
 # Bootstrap splines from a time_shape() shape. Return bootstrapped splines.
 #
@@ -687,23 +687,28 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
 # @param int samples How many (re)samples to take?
 # @param float resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
 # @param float alpha p-value when the groups are sufficiently "diverged"
-#
+# @param string smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing 
+# 
 # @return list(samples, divergence)
-bootstrapped_spline_shape <- function (data, data_options, condition_column, within_subj = F, samples = 1000, resolution = 10, alpha = .05) {
+bootstrapped_shape <- function (data, data_options, condition_column, within_subj = F, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
   require(dplyr, quietly=T)
   require(reshape2, quietly=T)
   
   # validate arguments
   if (!condition_column %in% colnames(data)) {
-    stop("Condition column not found in data")
+    stop("bootstrapped_shape failed to find data in condition_column")
   }
   
   if ( length(levels(as.factor(data[[condition_column]]))) != 2 ) {
-    stop('bootstrapped_splines requires a condition_column with 2 levels.')
+    stop('bootstrapped_shape requires a condition_column with 2 levels.')
   }
   
-  # define sampler for splines...
-  spline_sampler <- function (dataframe, data_options, resolution) {
+  if (!(smoother %in% c('smooth.spline','loess','none'))) {
+    stop('bootstrapped_shape requires that "smoother" be set to "none", "smooth.spline", or "loess")')
+  }
+  
+  # define sampler/bootstrapper:
+  sampler <- function (dataframe, data_options, resolution, smoother) {
     # show a . everyone 10th sample to indicate progress
     if (rbinom(1,1,.1) == 1) {
       cat('.')
@@ -725,7 +730,6 @@ bootstrapped_spline_shape <- function (data, data_options, condition_column, wit
     run_rows <- length(run_sampled) * length(run_times)
     run_data <- data.frame(matrix(nrow=run_rows,ncol=2))
     
-    # use data.table's setnames for speed increase
     colnames(run_data) <- c(data_options$participant_column,'Time')
     
     run_data[, data_options$participant_column] <- rep(run_sampled, each=length(run_times))
@@ -735,15 +739,36 @@ bootstrapped_spline_shape <- function (data, data_options, condition_column, wit
     
     run_data <- inner_join(run_data, run_original[, c(data_options$participant_column,'Time','Prop')], by = c(data_options$participant_column,'Time'))
     
-    # spline! 
-    # with generalized cross-validation setting smoothing parameter
-    run_spline <- with(run_data, smooth.spline(Time, Prop, cv=FALSE))
-    
-    # get interpolated spline predictions for total time at *resolution*
-    run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
-    run_predictions <- predict(run_spline, run_predicted_times)
-    
-    run_predictions$y
+    if (smoother == "none") {
+      # use straight linear approximation on the values
+      run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
+      
+      run_predictions <- with(run_data,
+                              approx(run_data$Time, run_data$Prop, xout=run_predicted_times))
+    }
+    else if (smoother == 'smooth.spline') {
+      # spline! 
+      # with generalized cross-validation setting smoothing parameter
+      run_spline <- with(run_data,
+                         smooth.spline(Time, Prop, cv=FALSE))
+      
+      # get interpolated spline predictions for total time at *resolution*
+      run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
+      run_predictions <- predict(run_spline, run_predicted_times)
+      
+      return(run_predictions$y)
+    }
+    else if (smoother == 'loess') {
+      # loess!
+      run_loess <- with(run_data,
+                        loess(Prop ~ Time))
+      
+      # get interpolated loess predictions for total time at *resolution*
+      run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
+      run_predictions <- predict(run_loess, run_predicted_times)
+      
+      return (run_predictions)
+    }
   }
   
   # this dataframe will hold our final dataset
@@ -758,7 +783,7 @@ bootstrapped_spline_shape <- function (data, data_options, condition_column, wit
       subsetted_data <- data[which(data[, condition_column] == level), ]
       
       cat(paste0('Sampling ', level))
-      bootstrapped_data <- replicate(samples, spline_sampler(subsetted_data, data_options, resolution))
+      bootstrapped_data <- replicate(samples, sampler(subsetted_data, data_options, resolution, smoother))
       bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
       
       # label each sample by number
@@ -792,7 +817,7 @@ bootstrapped_spline_shape <- function (data, data_options, condition_column, wit
     data[, data_options$participant_column] <- factor(data[, data_options$participant_column])
     
     cat('Sampling within-subjects')
-    bootstrapped_data <- replicate(samples, spline_sampler(data, data_options, resolution))
+    bootstrapped_data <- replicate(samples, sampler(data, data_options, resolution, smoother))
     bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
     
     sample_rows <- paste('Sample', c(1:samples), sep="")
@@ -808,8 +833,8 @@ bootstrapped_spline_shape <- function (data, data_options, condition_column, wit
   }
   
   # Assign class information:
-  class(combined_bootstrapped_data) = c('bootstrapped_spline_shape', class(combined_bootstrapped_data))
-  attr(combined_bootstrapped_data, 'bootstrapped_splines') = list(
+  class(combined_bootstrapped_data) = c('bootstrapped_shape', class(combined_bootstrapped_data))
+  attr(combined_bootstrapped_data, 'bootstrapped') = list(
     within_subj = within_subj,
     condition_column = condition_column,
     samples = samples,
@@ -851,13 +876,13 @@ analyze_clusters.time_shape = function(data, data_options, condition_column, pai
   ## Test Bins:
   time_bin_summary = analyze_time_bins(data, data_options, condition_column, paired=paired, alpha = alpha)
   
-#   ## Label Adjacent Clusters:
-#   time_bin_summary$Sig = time_bin_summary$Statistic > time_bin_summary$CritStatistic
-#   time_bin_summary %>%
-#     group_by(AOI) %>%
-#     mutate(Cluster = label_clusters(Sig))
-#   
-#   cat("")
+  #   ## Label Adjacent Clusters:
+  #   time_bin_summary$Sig = time_bin_summary$Statistic > time_bin_summary$CritStatistic
+  #   time_bin_summary %>%
+  #     group_by(AOI) %>%
+  #     mutate(Cluster = label_clusters(Sig))
+  #   
+  #   cat("")
 }
 
 
@@ -911,7 +936,7 @@ analyze_time_bins <- function(data,
   } else {
     df_analyze = data
   }
-
+  
   # auto-make a formula, unless they specified one
   if (is.null(formula)) {
     if (test=="lmer") stop("Must specify a formula if using lmer.")
@@ -984,27 +1009,27 @@ analyze_time_bins <- function(data,
                    TimeBin = unique(df_analyze$TimeBin), # same order as for loop that built models
                    AOI = df_analyze$AOI[1]) # all same
   if (return_model) out$Model = models
-
+  
   class(out) = c('bin_analysis', class(out))
   out
 }
 
-#' analyze_bootstrapped_splines()
+#' analyze_bootstraps()
 #' 
 #' Estimates a confidence interval over the difference between means (within- or between-subjects)
-#' from a bootstrapped_spline_shape object. Confidence intervals are derived from the alpha
+#' from a bootstrapped_shape object. Confidence intervals are derived from the alpha
 #' used to shape the dataset (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
 #' 
-#' @param dataframe.bootstrapped_spline_shape data The output of the 'bootstrapped_spline_shape' function
+#' @param dataframe.bootstrapped_shape data The output of the 'bootstrapped_shape' function
 #' ...
 #' @return dataframe 
 #' 
-analyze_bootstrapped_splines <- function(data, data_options) {
-  # Must be a bootstrapped_spline_shape:
-  if (!'bootstrapped_spline_shape' %in% class(data)) stop('This function can only be run on the output of the "bootstrapped_spline_shape" function.')
+analyze_bootstraps <- function(data, data_options) {
+  # Must be a bootstrapped_shape:
+  if (!'bootstrapped_shape' %in% class(data)) stop('This function can only be run on the output of the "bootstrapped_shape" function.')
   
   # make sure there is the proper kind of data frame, and check its attributes
-  bootstrap_attr = attr(data, "bootstrapped_splines")
+  bootstrap_attr = attr(data, "bootstrapped")
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # adjust CI based on alpha
@@ -1057,26 +1082,26 @@ analyze_bootstrapped_splines <- function(data, data_options) {
       mutate(Significant = ifelse((abs(CI_high) - abs(CI_low)) == (CI_high - CI_low), TRUE, FALSE))
   }
   
-  class(bootstrapped_data) = c('bootstrapped_spline_intervals_shape', class(bootstrapped_data))
-  attr(bootstrapped_data, 'bootstrapped_splines') = bootstrap_attr
+  class(bootstrapped_data) = c('bootstrapped_intervals_shape', class(bootstrapped_data))
+  attr(bootstrapped_data, 'bootstrapped') = bootstrap_attr
   
   return(bootstrapped_data)
 }
 
-#' analyze_bootstrapped_spline_divergences()
+#' analyze_bootstrapped_divergences()
 #' 
 #' Returns the windows in which the splines diverged in the bootstrapped analysis.
 #' 
-#' @param dataframe data Returned from analyze_bootstrapped_splines()
+#' @param dataframe data Returned from analyze_bootstraps()
 #' ...
 #' @return dataframe 
 #' 
-analyze_bootstrapped_spline_divergences <- function(data, data_options) {
-  # Must be a bootstrapped_spline_shape:
-  if (!'bootstrapped_spline_intervals_shape' %in% class(data)) stop('This function can only be run on the output of the "analyze_bootstrapped_spline_intervals" function.')
+analyze_bootstrapped_divergences <- function(data, data_options) {
+  # Must be a bootstrapped_shape:
+  if (!'bootstrapped_intervals_shape' %in% class(data)) stop('This function can only be run on the output of the "analyze_bootstrapped_intervals" function.')
   
   # make sure there is the proper kind of data frame, and check its attributes
-  bootstrap_attr = attr(data, "bootstrapped_splines")
+  bootstrap_attr = attr(data, "bootstrapped")
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # find divergences as runs of Significant == TRUE
@@ -1143,9 +1168,9 @@ plot.window_shape <- function(data, data_options, x_axis_column, group_column = 
   
   # Summarize by Participants:
   summarized = data %>%
-              group_by_(.dots = c(dopts$participant_column, x_axis_column, group_column, "AOI")) %>%
-              summarise(Prop = mean(Prop, na.rm= TRUE) ) %>%
-              ungroup()
+    group_by_(.dots = c(dopts$participant_column, x_axis_column, group_column, "AOI")) %>%
+    summarise(Prop = mean(Prop, na.rm= TRUE) ) %>%
+    ungroup()
   
   # Plot:
   if ( is.numeric(summarized[[x_axis_column]]) ) {
@@ -1162,7 +1187,7 @@ plot.window_shape <- function(data, data_options, x_axis_column, group_column = 
       facet_wrap( ~ AOI) +
       ylab("Proportion Looking")
   }
-
+  
 }
 
 # plot.time_shape()
@@ -1198,7 +1223,7 @@ plot.time_shape <- function(data, data_options, condition_column=NULL, dv='Prop'
     )
     out = data %>%
       mutate_(.dots = median_split_arg)
-      
+    
     g <-  ggplot(out, aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
@@ -1228,7 +1253,7 @@ plot.time_shape <- function(data, data_options, condition_column=NULL, dv='Prop'
 # @return list A ggplot list object  
 plot.bin_analysis <- function(data) {
   require('ggplot2', quietly=TRUE)
-
+  
   ggplot(data = data) +
     geom_line(mapping = aes(x = TimeBin, y= Statistic)) +
     geom_line(mapping = aes(x = TimeBin, y= CritStatisticPos), linetype="dashed") +
@@ -1320,9 +1345,9 @@ plot.switch_shape = function(data, data_options, condition_columns=NULL) {
   
   ## Prepare for Graphing:
   out = data %>%
-        group_by_(.dots = c(data_options$participant_column, condition_columns, "FirstAOI")) %>%
-        summarise(MeanFirstSwitch = mean(FirstSwitch)) %>%
-        ungroup()
+    group_by_(.dots = c(data_options$participant_column, condition_columns, "FirstAOI")) %>%
+    summarise(MeanFirstSwitch = mean(FirstSwitch)) %>%
+    ungroup()
   
   ## Graph:
   if (is.null(condition_columns)) {
@@ -1347,29 +1372,29 @@ plot.switch_shape = function(data, data_options, condition_columns=NULL) {
   
 }
 
-# plot.bootstrapped_spline_shape()
+# plot.bootstrapped_shape()
 #
 # Plot the means and CIs of bootstrapped splines (either within-subjects or between-subjects)
 #
-# @param dataframe.bootstrapped_spline_shape data The output of the 'bootstrapped_spline_shape' function
+# @param dataframe.bootstrapped_shape data The output of the 'bootstrapped_shape' function
 #...
 # @return dataframe 
 
-plot.bootstrapped_spline_shape = function(data, data_options) {
+plot.bootstrapped_shape = function(data, data_options) {
   require(ggplot2, quietly=TRUE)
   
-  # Must be a bootstrapped_spline_shape:
-  if (!'bootstrapped_spline_shape' %in% class(data)) stop('This function can only be run on the output of the "bootstrapped_spline_shape" function.')
+  # Must be a bootstrapped_shape:
+  if (!'bootstrapped_shape' %in% class(data)) stop('This function can only be run on the output of the "bootstrapped_shape" function.')
   
   # make sure there is the proper kind of data frame, and check its attributes
-  bootstrap_attr = attr(data, "bootstrapped_splines")
+  bootstrap_attr = attr(data, "bootstrapped")
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # if within-subjects, plot difference score
   if (bootstrap_attr$within_subj == TRUE) {
-    # use plot.bootstrapped_spline_intervals_shape() to plot within-subjects difference
+    # use plot.bootstrapped_intervals_shape() to plot within-subjects difference
     # because, for a within-subjects test, this is all that matters
-    data <- analyze_bootstrapped_splines(data, data_options)
+    data <- analyze_bootstraps(data, data_options)
     
     return (plot(data, data_options))
   }
@@ -1393,23 +1418,23 @@ plot.bootstrapped_spline_shape = function(data, data_options) {
   g
 }
 
-# plot.bootstrapped_spline_intervals()
+# plot.bootstrapped_intervals()
 #
 # Plot the means and CIs of bootstrapped spline difference estimates and intervals
 # (either within-subjects or between-subjects)
 #
-# @param dataframe.bootstrapped_spline_intervals data The output of the 'analyze_bootstrapped_splines' function
+# @param dataframe.bootstrapped_intervals data The output of the 'analyze_bootstraps' function
 #...
 # @return dataframe 
 
-plot.bootstrapped_spline_intervals_shape = function(data, data_options) {
+plot.bootstrapped_intervals_shape = function(data, data_options) {
   require(ggplot2, quietly=TRUE)
   
-  # Must be a bootstrapped_spline_intervals_shape:
-  if (!'bootstrapped_spline_intervals_shape' %in% class(data)) stop('This function can only be run on the output of the "analyze_bootstrapped_spline_intervals" function.')
+  # Must be a bootstrapped_intervals_shape:
+  if (!'bootstrapped_intervals_shape' %in% class(data)) stop('This function can only be run on the output of the "analyze_bootstraps_intervals" function.')
   
   # make sure there is the proper kind of data frame, and check its attributes
-  bootstrap_attr = attr(data, "bootstrapped_splines")
+  bootstrap_attr = attr(data, "bootstrapped")
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # we have a MeanDiff and CI for both within- and between-subjects...
@@ -1458,10 +1483,10 @@ center_predictors = function(data, predictors) {
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
 
-mutate_.time_shape = mutate_.window_shape = mutate_.bin_analysis = mutuate_.bootstrapped_spline_shape = mutate_.bootstrapped_spline_intervals_shape = mutate_.onset_shape = function(data, ...) {
+mutate_.time_shape = mutate_.window_shape = mutate_.bin_analysis = mutuate_.bootstrapped_shape = mutate_.bootstrapped_intervals_shape = mutate_.onset_shape = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_spline_shape', 'bootstrapped_spline_intervals_shape', 'bin_analysis')
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_shape', 'bootstrapped_intervals_shape', 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "onset_contingent") # also attributes
@@ -1475,10 +1500,10 @@ mutate_.time_shape = mutate_.window_shape = mutate_.bin_analysis = mutuate_.boot
   return(out)
 }
 
-filter_.time_shape = filter_.window_shape = filter_.bin_analysis = filter_.bootstrapped_spline_shape = filter_.bootstrapped_spline_intervals_shape = filter_.onset_shape = function(data, ...) {
+filter_.time_shape = filter_.window_shape = filter_.bin_analysis = filter_.bootstrapped_shape = filter_.bootstrapped_intervals_shape = filter_.onset_shape = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_spline_shape', 'bootstrapped_spline_intervals_shape', 'bin_analysis')
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_shape', 'bootstrapped_intervals_shape', 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "onset_contingent") # also attributes
@@ -1492,10 +1517,10 @@ filter_.time_shape = filter_.window_shape = filter_.bin_analysis = filter_.boots
   return(out)
 }
 
-left_join.time_shape = left_join.window_shape = left_join.bin_analysis = left_join.bootstrapped_spline_shape = left_join.bootstrapped_spline_intervals_shape = left_join.onset_shape = function(x, y, by = NULL, copy = FALSE, ...) {
+left_join.time_shape = left_join.window_shape = left_join.bin_analysis = left_join.bootstrapped_shape = left_join.bootstrapped_intervals_shape = left_join.onset_shape = function(x, y, by = NULL, copy = FALSE, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_spline_shape', 'bootstrapped_spline_intervals_shape', 'bin_analysis')
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_shape', 'bootstrapped_intervals_shape', 'bin_analysis')
   temp_remove = class(x)[ class(x) %in% potential_classes]
   class(x) = class(x)[!class(x) %in% potential_classes]
   temp_attr = attr(x, "onset_contingent") # also attributes
