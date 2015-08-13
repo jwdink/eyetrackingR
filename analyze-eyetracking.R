@@ -467,7 +467,8 @@ window_shape <- function(data,
            weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
            Prop = SamplesInAOI / SamplesTotal,
            ArcSin = asin( sqrt( Prop ) )
-    )
+    ) %>%
+    ungroup()
   
   class(summarized) = c('window_shape', class(summarized))
   return(summarized)
@@ -694,6 +695,36 @@ onset_shape = function(data, data_options, onset_time, fixation_window_length = 
   return(out)
 }
 
+#' switch_shape()
+#' 
+#' takes trials split by initial-AOI, and determines how quickly subjects switch away from that AOI
+#' 
+#' @param dataframe data The output of "onset_shape"
+#' @param list data_options
+#' @param character.vector condition_columns
+#' 
+#' @return dataframe 
+#' 
+
+switch_shape = function(data, data_options, condition_columns=NULL) {
+  # Must be an onset_shape:
+  if (!'onset_shape' %in% class(data)) stop('This function can only be run on the output of the "onset_shape" function.')
+  
+  dopts = data_options
+  
+  out <- data %>%
+    filter(!is.na(FirstAOI)) %>%
+    group_by_(.dots = as.list(c(dopts$participant_column, dopts$trial_column, dopts$item_columns, "FirstAOI", condition_columns))  ) %>%
+    summarise_(.dots = list(
+      FirstSwitch = make_dplyr_argument(dopts$time_column,"[first(which(SwitchAOI), order_by=", dopts$time_column, ")]-first(",dopts$time_column,")")
+    ))
+  
+  class(out) = c('switch_shape', class(out))
+  
+  return(out)
+}
+
+
 # Analyzing ------------------------------------------------------------------------------------------
 
 #' analyze_time_bins()
@@ -734,7 +765,7 @@ analyze_time_bins <- function(data,
 #       analyze_time_bins(data = this_df, data_options, condition_column, paired, return_model, dv_type, alpha)
 #     })
 #     out = bind_rows(list_of_dfs)
-#     class(out) = c('bin_shape', class(out))
+#     class(out) = c('bin_analysis', class(out))
 #     return( out )
 #   }
 #   
@@ -772,35 +803,8 @@ analyze_time_bins <- function(data,
 #                    AOI = unique(by_part$AOI))
 #   if (return_model) out$Model = t_models
 #   
-#   class(out) = c('bin_shape', class(out))
+#   class(out) = c('bin_analysis', class(out))
 #   out
-}
-
-#' analyze_switches()
-#' 
-#' takes trials split by initial-AOI, and determines how quickly subjects switch away from that AOI
-#' 
-#' @param dataframe data The output of "onset_shape"
-#' @param list data_options
-#' @param character.vector condition_columns
-#' 
-#' @return dataframe 
-#' 
-
-analyze_switches = function(data, data_options, condition_columns=NULL) {
-  
-  # Must be an onset_shape:
-  if (!'onset_shape' %in% class(data)) stop('This function can only be run on the output of the "onset_shape" function.')
-  
-  dopts = data_options
-  
-  data %>%
-    filter(!is.na(FirstAOI)) %>%
-    group_by_(.dots = as.list(c(dopts$participant_column, dopts$trial_column, dopts$item_columns, "FirstAOI", condition_columns))  ) %>%
-    summarise_(.dots = list(
-      FirstSwitch = make_dplyr_argument(dopts$time_column,"[first(which(SwitchAOI), order_by=", dopts$time_column, ")]-first(",dopts$time_column,")")
-      ))
-  
 }
 
 # Visualizing ------------------------------------------------------------------------------------------
@@ -824,11 +828,12 @@ plot.data.frame <- function(data, data_options, condition_column) {
 
 # plot.window_shape()
 #
-# Plots the result of a window analysis
+# Plots a window shape
 #
-# @param dataframe data
+# @param dataframe data returned by window_shape()
 # @param list data_options
-# @param character condition_columns Maximum 2
+# @param character x_axis_column
+# @param character group_column
 #
 # @return list A ggplot list object  
 plot.window_shape <- function(data, data_options, x_axis_column, group_column = NULL) {
@@ -849,17 +854,20 @@ plot.window_shape <- function(data, data_options, x_axis_column, group_column = 
   
   # Summarize by Participants:
   summarized = data %>%
-    group_by_(.dots = c(dopts$participant_column, x_axis_column, group_column, "AOI")) %>%
-    summarise(Prop = mean(Prop, na.rm= TRUE) )
+              group_by_(.dots = c(dopts$participant_column, x_axis_column, group_column, "AOI")) %>%
+              summarise(Prop = mean(Prop, na.rm= TRUE) ) %>%
+              ungroup()
   
   # Plot:
   if ( is.numeric(summarized[[x_axis_column]]) ) {
     ggplot(summarized, aes_string(x = x_axis_column, y = "Prop", group= group_var, color= color_var)) +
+      geom_point() +
       stat_smooth(method="lm") +
       facet_wrap( ~ AOI) +
       ylab("Proportion Looking")
   } else {
     ggplot(summarized, aes_string(x = x_axis_column, y = "Prop", group= group_var, color= color_var)) +
+      geom_point() +
       stat_summary(fun.y = mean, geom='line') +
       stat_summary(fun.dat = mean_cl_boot) +
       facet_wrap( ~ AOI) +
@@ -878,7 +886,6 @@ plot.window_shape <- function(data, data_options, x_axis_column, group_column = 
 #
 # @return list A ggplot list object  
 plot.time_shape <- function(data, data_options, condition_column=NULL, dv='Prop') {
-
   require('ggplot2')
   
   ## Prelims:
@@ -901,35 +908,36 @@ plot.time_shape <- function(data, data_options, condition_column=NULL, dv='Prop'
                               make_dplyr_argument("ifelse(", condition_column, ">median(", condition_column, ", na.rm=TRUE), 'High', 'Low')" )
     )
     out = data %>%
-      mutate_(.dots = median_split_arg) %>%
-      ggplot(aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
+      mutate_(.dots = median_split_arg)
+      
+    g <-  ggplot(out, aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
       guides(color= guide_legend(title= condition_column)) +
       xlab('Time (ms) in Trial')
-    return(out)
+    return(g)
+    
   } else {
-    out = ggplot(data, aes_string(x = "Time", y=dv, group=condition_column, color=condition_column, fill=condition_column)) +
+    g <- ggplot(data, aes_string(x = "Time", y=dv, group=condition_column, color=condition_column, fill=condition_column)) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
       xlab('Time (ms) in Trial')
-    return(out)
+    return(g)
   }
   
 }
 
 
-# plot.bin_shape()
+# plot.bin_analysis()
 #
 # Plot the confidence intervals that result from the 'analyze_time_bins' function
 #
 # @param dataframe data
 #
 # @return list A ggplot list object  
-plot.bin_shape <- function(data) {
-  
+plot.bin_analysis <- function(data) {
   require('ggplot2')
 
   ggplot(data = data) +
@@ -939,7 +947,6 @@ plot.bin_shape <- function(data) {
     ylab("T-Statistic") +
     xlab("TimeBin") +
     facet_wrap( ~ AOI)
-  
 }
 
 
@@ -948,11 +955,13 @@ plot.bin_shape <- function(data) {
 # divide trials into which AOI they started on; plot proportion looking away from that AOI.
 # this is NOT to be confused with the plot method for an onset_contingent dataframe.
 #
-# @param dataframe.time_shape data The output of the 'time_shape' function
+# @param dataframe.onset_shape data The output of the 'onset_shape' function
 #...
 # @return dataframe 
 
 plot.onset_shape = function(data, data_options, condition_columns=NULL) {
+  require(ggplot2)
+  
   ## Prelims:
   if (length(condition_columns) > 2) {
     stop("Maximum two condition factors")
@@ -967,12 +976,18 @@ plot.onset_shape = function(data, data_options, condition_columns=NULL) {
   ## Prepare for Graphing:
   out = data %>%
     filter(!is.na(FirstAOI)) %>%
+    # aggregate by participant, first
+    group_by_(.dots = c(data_options$participant_column, data_options$time_column, "FirstAOI", onset_attr$distractor_aoi, onset_attr$target_aoi)) %>%
+    summarise(SwitchAOI = mean(SwitchAOI, na.rm=TRUE)) %>%
+    ungroup() %>%
+    # now calculate mean proportion of switches over time
     mutate_(.dots = list(.Time = make_dplyr_argument("floor(", data_options$time_column, "/smoothing_window_size)*smoothing_window_size" )))  %>%
     group_by_(.dots = c(".Time", condition_columns, "FirstAOI")) %>%
     summarise(SwitchAOI = mean(SwitchAOI, na.rm=TRUE)) %>%
     mutate(Max= max(SwitchAOI),
            Min= min(SwitchAOI),
            Top= SwitchAOI[FirstAOI==onset_attr$distractor_aoi] )
+  
   out$Max = with(out, ifelse(Max==Top, Max, NA))
   out$Min = with(out, ifelse(Max==Top, Min, NA))
   
@@ -998,6 +1013,49 @@ plot.onset_shape = function(data, data_options, condition_columns=NULL) {
   
 }
 
+# plot.switch_shape()
+#
+# Boxplot of mean switch time aggregated by subjects within each FirstAOI, potentially faceted by condition_columns.
+#
+# @param dataframe.switch_shape data The output of the 'switch_shape' function
+#...
+# @return dataframe 
+
+plot.switch_shape = function(data, data_options, condition_columns=NULL) {
+  require(ggplot2)
+  
+  ## Prelims:
+  if (length(condition_columns) > 2) {
+    stop("Maximum two condition factors")
+  }
+  
+  ## Prepare for Graphing:
+  out = data %>%
+        group_by_(.dots = c(data_options$participant_column, condition_columns, "FirstAOI")) %>%
+        summarise(MeanFirstSwitch = mean(FirstSwitch)) %>%
+        ungroup()
+  
+  ## Graph:
+  if (is.null(condition_columns)) {
+    color_factor= NULL
+  } else {
+    color_factor = condition_columns[1]
+  }
+  
+  g = ggplot(out, aes_string(x = "FirstAOI", y = "MeanFirstSwitch", 
+                             color = color_factor)) +
+    geom_boxplot() +
+    geom_point(position = position_jitter(.1)) +
+    ylab("Mean Switch Time") + 
+    xlab("Onset AOI") 
+  
+  ## Add Facets for Conditions:
+  if (length(condition_columns)>1) return(g+facet_grid(as.formula(paste(condition_columns, collapse="~"))))
+  if (length(condition_columns)>0) return(g+facet_grid(as.formula(paste(condition_columns, "~ ."))))
+  
+  return(g)
+  
+}
 
 
 # Helpers -----------------------------------------------------------------------------------------------
@@ -1046,10 +1104,10 @@ center_predictors = function(data, predictors) {
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
 
-mutate_.time_shape = mutate_.window_shape = mutate_.bin_shape = mutate_.onset_shape = function(data, ...) {
+mutate_.time_shape = mutate_.window_shape = mutate_.bin_analysis = mutate_.onset_shape = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_shape', 'window_shape', 'bin_shape', 'onset_shape')
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "onset_contingent") # also attributes
@@ -1063,10 +1121,10 @@ mutate_.time_shape = mutate_.window_shape = mutate_.bin_shape = mutate_.onset_sh
   return(out)
 }
 
-filter_.time_shape = filter_.window_shape = filter_.bin_shape =  filter_.onset_shape = function(data, ...) {
+filter_.time_shape = filter_.window_shape = filter_.bin_analysis =  filter_.onset_shape = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_shape', 'window_shape', 'bin_shape', 'onset_shape')
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "onset_contingent") # also attributes
@@ -1080,10 +1138,10 @@ filter_.time_shape = filter_.window_shape = filter_.bin_shape =  filter_.onset_s
   return(out)
 }
 
-left_join.time_shape = left_join.window_shape = left_join.bin_shape = left_join.onset_shape = function(x, y, by = NULL, copy = FALSE, ...) {
+left_join.time_shape = left_join.window_shape = left_join.bin_analysis = left_join.onset_shape = function(x, y, by = NULL, copy = FALSE, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_shape', 'window_shape', 'bin_shape', 'onset_shape')
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bin_analysis')
   temp_remove = class(x)[ class(x) %in% potential_classes]
   class(x) = class(x)[!class(x) %in% potential_classes]
   temp_attr = attr(x, "onset_contingent") # also attributes
