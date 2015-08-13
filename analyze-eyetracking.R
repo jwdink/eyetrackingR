@@ -1076,6 +1076,31 @@ make_dplyr_argument = function(...) {
   return( as.formula(arg_string, env = parent.frame()) )
 }
 
+#' make_dplyr_expression()
+#' 
+#' Create an expression for a dplyr verb. Instead of writing out the bare expression, you write it as a string
+#' with fill-in-the-blank style method for filling in programmatically-defined argument names.
+#' 
+#' @param character         the_expression  A string argument
+#' @param character.vector  the_arguments   A named vector, where names are to-be-replaced placeholders in the expression
+#'                                          (wrapped in curly braces), and values are the names of vars to be inserted
+#' 
+#' @return formula A formula that will be evaluated in the parent environment
+
+
+make_dplyr_expression = function(the_expression, the_arguments) {
+  the_expression_new = the_expression
+  for (i in seq_along(the_arguments)) {
+    this_pattern = paste0("{", names(the_arguments)[i], "}")
+    this_replacement = the_arguments[i]
+    the_expression_new = gsub(pattern = this_pattern, replacement = this_replacement, x = the_expression_new, perl = FALSE)
+  }
+  the_expression_new = paste("~", the_expression_new)
+  return( as.formula(arg_string, env = parent.frame()) )
+}
+
+
+>>>>>>> Stashed changes
 # center_predictors()
 #
 # Center predictors in preparation for statistical analyses
