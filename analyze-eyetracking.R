@@ -115,7 +115,8 @@ verify_dataset <- function(data, data_options) {
 #' @return dataframe 
 
 subset_by_window = function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
-  require(dplyr, quietly=TRUE)
+  require("dplyr", quietly=TRUE)
+  require("lazyeval", quietly = TRUE)
   
   # Prelims:
   time_col = as.name(data_options$time_column)
@@ -174,16 +175,17 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
 #' @return dataframe 
 
 describe_data = function(data, data_options, dv, factors) {
-  require(dplyr, quietly=TRUE)
+  require("dplyr", quietly=TRUE)
+  require("lazyeval", quietly = TRUE)
   
   data %>%
     group_by_(.dots = as.list(factors)) %>%
-    summarise_(.dots = list(Mean = make_dplyr_argument( "mean(",dv,", na.rm=TRUE)" ),
-                            SD   = make_dplyr_argument( "sd(",dv,", na.rm=TRUE)" ),
-                            Var  = make_dplyr_argument( "var(",dv,", na.rm=TRUE)" ),
-                            Min  = make_dplyr_argument( "min(",dv,", na.rm=TRUE)*1.0" ),
-                            Max  = make_dplyr_argument( "max(",dv,", na.rm=TRUE)*1.0" ),
-                            NumTrials = make_dplyr_argument( "length(unique(", data_options$trial_column, "))" )
+    summarise_(.dots = list(Mean = interp( ~mean(DV, na.rm=TRUE),     DV = dv ),
+                            SD   = interp( ~sd(DV, na.rm=TRUE),       DV = dv ),
+                            Var  = interp( ~var(DV, na.rm=TRUE),      DV = dv ),
+                            Min  = interp( ~mean(DV, na.rm=TRUE)*1.0, DV = dv ),
+                            Max  = interp( ~mean(DV, na.rm=TRUE)*1.0, DV = dv ),
+                            NumTrials = interp( ~ n_distinct(TRIAL_COL), TRIAL_COL = data_options$trial_column)
     ))
   
 }
@@ -202,10 +204,14 @@ describe_data = function(data, data_options, dv, factors) {
 
 trackloss_analysis = function(data, data_options, window_start = -Inf, window_end = Inf) {
   .zscore = function(x) (x-mean(x,na.rm=TRUE)) / sd(x,na.rm=TRUE)
-  require('dplyr', quietly=TRUE)
+  require("dplyr", quietly=TRUE)
+  require("lazyeval", quietly = TRUE)
   
   # Filter by Time-Window:
-  subset_by_window(data, data_options, window_start, window_end) %>%
+  df_subsetted = subset_by_window(data, data_options, window_start, window_end)
+  #df_group_trial_participant = group_by_(df_subsetted, )
+  
+   #%>%
     # Get Trackloss-by-Trial:
     group_by_(.dots = list(data_options$participant_column, data_options$trial_column)) %>%
     mutate_(.dots = list(SumTracklossForTrial = make_dplyr_argument("sum(", data_options$trackloss_column, ", na.rm=TRUE)"),
