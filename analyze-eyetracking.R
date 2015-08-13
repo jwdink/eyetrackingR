@@ -1093,7 +1093,7 @@ make_dplyr_expression = function(the_expression, the_arguments) {
   for (i in seq_along(the_arguments)) {
     this_pattern = paste0("{", names(the_arguments)[i], "}")
     this_replacement = the_arguments[i]
-    the_expression_new = gsub(pattern = this_pattern, replacement = this_replacement, x = the_expression_new, perl = FALSE)
+    the_expression_new = gsub(pattern = this_pattern, replacement = this_replacement, x = the_expression_new, fixed = TRUE)
   }
   the_expression_new = paste("~", the_expression_new)
   return( as.formula(arg_string, env = parent.frame()) )
