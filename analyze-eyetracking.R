@@ -56,15 +56,14 @@ set_data_options <- function(
   )
 }
 
-# verify_dataset()
-#
-# Verify, and fix, the status of the dataset by assessing columns in your data_options. 
-#
-# @param dataframe data
-# @param list data_options
-# @param boolean silent
-#
-# @return dataframe data
+#' verify_dataset()
+#' 
+#' Verify, and fix, the status of the dataset by assessing columns in your data_options. 
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' 
+#' @return dataframe data
 
 verify_dataset <- function(data, data_options) {
   out = data
@@ -100,25 +99,26 @@ verify_dataset <- function(data, data_options) {
   return( out )
 }
 
-# subset_by_window ()
-#
-# Extract a subset of the dataset, where each trial falls inside a time-window.
-# Time-window can either be specifed by a number (for a timestamp across all trials) or
-# by a column which picks out a timestamp for each participant/trial
-#
-# @param dataframe data
-# @param list data_options
-# @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
-# @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
-# @param logical rezero Should the beginning of the window be considered the zero point of the timestamp? 
-#                       Default TRUE when window_start is column, FALSE when window_start is number
-#
-# @return dataframe 
+#' subset_by_window ()
+#' 
+#' Extract a subset of the dataset, where each trial falls inside a time-window.
+#' Time-window can either be specifed by a number (for a timestamp across all trials) or
+#' by a column which picks out a timestamp for each participant/trial
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
+#' @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
+#' @param logical rezero Should the beginning of the window be considered the zero point of the timestamp? 
+#'                       Default TRUE when window_start is column, FALSE when window_start is number
+#' 
+#' @return dataframe 
 
 subset_by_window = function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
   require(dplyr, quietly=TRUE)
   
-  dopts = data_options
+  # Prelims:
+  time_col = as.name(data_options$time_column)
   
   # Window Start:
   if (is.character(window_start)) {
@@ -137,19 +137,22 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
   }
   
   # Subset
-  out = data %>%
-    filter_(.dots = list(make_dplyr_argument(dopts$time_column, "> .WindowStart"),
-                         make_dplyr_argument(dopts$time_column, "< .WindowEnd")
-    ))
-    
+  df_subsetted = filter_(.data = data, 
+                         .dots = list( interp(~ TIME_COL > .WindowStart & TIME_COL < .WindowEnd, 
+                                              TIME_COL= time_col)
+                         ))
+  
   # Rezero
   if (rezero) {
-    out = out %>% 
-      group_by_(.dots = list(dopts$participant_column, dopts$trial_column)) %>%
-      mutate_(.dots = list(NewTimeStamp = make_dplyr_argument(dopts$time_column, "- .WindowStart"))) %>%
-      ungroup()
-    out[[dopts$time_column]] = out[["NewTimeStamp"]]
-    out[["NewTimeStamp"]] = NULL
+    df_grouped = group_by_(.data = df_subsetted, .dots = list(data_options$participant_column, data_options$trial_column) )
+    df_rezeroed = mutate_(.data= df_grouped, 
+                          .dots = list(.NewTimeStamp =interp( ~ TIME_COL - .WindowStart, TIME_COL = time_col)
+                          )) 
+    out = ungroup(df_rezeroed)
+    out[[data_options$time_column]] = out[[".NewTimeStamp"]]
+    out[[".NewTimeStamp"]] = NULL
+  } else {
+    out = df_subsetted
   }
   
   out[[".WindowStart"]] = NULL
@@ -159,16 +162,16 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
 }
 
 
-# describe_data ()
-#
-# Describe a DV column in the dataset by a (group of) factor(s)
-#
-# @param dataframe data
-# @param list data_options
-# @param character dv
-# @param character.vector factors
-#
-# @return dataframe 
+#' describe_data ()
+#' 
+#' Describe a DV column in the dataset by a (group of) factor(s)
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' @param character dv
+#' @param character.vector factors
+#' 
+#' @return dataframe 
 
 describe_data = function(data, data_options, dv, factors) {
   require(dplyr, quietly=TRUE)
@@ -1426,50 +1429,6 @@ plot.bootstrapped_spline_intervals_shape = function(data, data_options) {
 }
 
 # Helpers -----------------------------------------------------------------------------------------------
-
-# make_dplyr_argument()
-#
-# Takes strings, and concatenates them into a formula, which will be properly passed as an
-# NSE argument into a dplyr verb
-#
-# @param dots ... An indefinite amount of strings
-#
-# @return formula A formula that will be evaluated in the parent environment
-
-
-make_dplyr_argument = function(...) {
-  parts = list(...)
-  arg_string = paste0("~", paste0(parts, collapse = " ") )
-  return( as.formula(arg_string, env = parent.frame()) )
-}
-
-#' make_dplyr_expression()
-#' 
-#' Create an expression for a dplyr verb. Instead of writing out the bare expression, you write it as a string
-#' with fill-in-the-blank style method for filling in programmatically-defined argument names.
-#' 
-#' The upshot is this is a clean-syntax way of using dplyr programmatically. E.g.,
-#'
-#' > mutate_(.dots = list(MeanRT = make_dplyr_expression("mean({reaction_time_column}, na.rm=TRUE)", reaction_time_column = "RT") ) )
-#' 
-#' @param character  the_expression  A string containing an expression, with placeholders wrapped in curly braces
-#' @param ...        ...             More args, where names are to-be-replaced placeholders in the expression
-#'                                   (not including curly braces), and values are the names of vars to be inserted
-#' 
-#' @return formula A formula that will be evaluated in the parent environment
-
-make_dplyr_expression = function(the_expression, ...) {
-  the_arguments = list(...)
-  the_expression_new = the_expression
-  for (i in seq_along(the_arguments)) {
-    this_pattern = paste0("{", names(the_arguments)[i], "}")
-    this_replacement = the_arguments[[i]]
-    the_expression_new = gsub(pattern = this_pattern, replacement = this_replacement, x = the_expression_new, fixed = TRUE)
-  }
-  the_expression_new = paste("~", the_expression_new)
-  return( as.formula(the_expression_new, env = parent.frame()) )
-}
-
 
 # center_predictors()
 #
