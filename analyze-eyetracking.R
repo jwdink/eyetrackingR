@@ -452,11 +452,12 @@ window_shape <- function(data,
   aoi_col = as.name(aoi)
 
   # Make Summary
-  out = .make_proportion_looking_summary(data=data, groups = c(data_options$participant_column,
-                                                                  data_options$trial_column,
-                                                                  condition_columns), 
-                                                    aoi_col)
-               
+  out = .make_proportion_looking_summary(data=data, 
+                                         groups = c(data_options$participant_column,
+                                                    data_options$trial_column,
+                                                    condition_columns), 
+                                         aoi_col)
+  
   class(out) = c('window_shape', class(out))
   return(out)
   
@@ -738,7 +739,7 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
   combined_bootstrapped_data <- data.frame()
   
   # re-factor Participant name column, so that levels() is accurate
-  data[, data_options$participant_column] <- factor(data[[data_options$participant_column]])
+  data[[data_options$participant_column]] <- factor(data[[data_options$participant_column]])
   
   # between-subjects:
   if (within_subj == FALSE) {
