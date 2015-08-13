@@ -452,7 +452,10 @@ window_shape <- function(data,
   aoi_col = as.name(aoi)
 
   # Make Summary
-  out = .make_proportion_looking_summary(data=data, groups = list(data_options$participant_column, data_options$trial_column), aoi_col)
+  out = .make_proportion_looking_summary(data=data, groups = c(data_options$participant_column,
+                                                                  data_options$trial_column,
+                                                                  condition_columns), 
+                                                    aoi_col)
                
   class(out) = c('window_shape', class(out))
   return(out)
@@ -501,7 +504,7 @@ time_shape <- function (data,
   
   # Make Summary
   df_summarized = .make_proportion_looking_summary(data=data, 
-                                                   groups = list(data_options$participant_column, data_options$trial_column, condition_columns, "TimeBin"), 
+                                                   groups = c(data_options$participant_column, data_options$trial_column, condition_columns, "TimeBin"), 
                                                    aoi_col)
   df_summarized[["Time"]] = df_summarized[["TimeBin"]] * time_bin_size
   
@@ -514,7 +517,7 @@ time_shape <- function (data,
     sort(as.vector(unique(time_bin_column))),
     orthogonal_polynomials[, c(1:max_degree)]
   )
-  colnames(time_codes) <- c('TimeBin',paste0("OT", 1:max_degree))
+  colnames(time_codes) <- c('TimeBin',paste0("ot", 1:max_degree))
   
   out <- left_join(df_summarized, time_codes, by='TimeBin')
   
@@ -532,14 +535,14 @@ time_shape <- function (data,
 #' @param dataframe data            The original (verified) data
 #' @param list data_options
 #' @param numeric onset_time        When should we check for their "starting" AOI? 
-#' @param numeric fixation_wind_len       Smoothes the data by determining the fixated AOI using a moving average over time bins that are this long
+#' @param numeric fixation_window_length       Smoothes the data by determining the fixated AOI using a moving average over time bins that are this long
 #'                                             (e.g., "100" means that the fixated AOI is determined over a 100ms rolling window)
 #' @param character target_aoi      Which AOI is the target that should be switched *to*
 #' @param character distractor_aoi  Which AOI is the distractor that should be switched *from* (default = !target_aoi)
 #' 
 #' @return dataframe 
 
-onset_shape = function(data, data_options, onset_time, fixation_wind_len, target_aoi, distractor_aoi = NULL) {
+onset_shape = function(data, data_options, onset_time, fixation_window_length, target_aoi, distractor_aoi = NULL) {
   require("dplyr", quietly=TRUE)
   require("lazyeval", quietly = TRUE)
   require("zoo", quietly=TRUE)
@@ -547,7 +550,7 @@ onset_shape = function(data, data_options, onset_time, fixation_wind_len, target
   ## Helper Function:
   na_replace_rollmean = function(col) {
     col = ifelse(is.na(col), 0, col)
-    rollmean(col, k = fixation_wind_len_rows, partial=TRUE, fill= NA, align="left")
+    rollmean(col, k = fixation_window_length_rows, partial=TRUE, fill= NA, align="left")
   }
   
   ## Prelims:
@@ -563,7 +566,7 @@ onset_shape = function(data, data_options, onset_time, fixation_wind_len, target
                                .dots = list(TimePerRow = interp(~mean(diff(TIME_COL)), TIME_COL = time_col)
                                             ))
   time_per_row = round(mean(df_time_per_row[["TimePerRow"]]))
-  fixation_wind_len_rows = fixation_wind_len / time_per_row
+  fixation_window_length_rows = fixation_window_length / time_per_row
   
   ## Determine First AOI, Assign Switch Value for each timepoint
   
@@ -588,7 +591,7 @@ onset_shape = function(data, data_options, onset_time, fixation_wind_len, target
   # If closest timepoint was too far away from onset window, record FirstAOI as unknown
   # Create a column specifying whether they have switched away from FirstAOI
   out = mutate(df_first_aoi,
-         FirstAOI  = ifelse(abs(.ClosestTime-onset_time) > fixation_wind_len, NA, FirstAOI),
+         FirstAOI  = ifelse(abs(.ClosestTime-onset_time) > fixation_window_length, NA, FirstAOI),
          WhichAOI  = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
          SwitchAOI = FirstAOI != WhichAOI)
   out = select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
@@ -598,7 +601,7 @@ onset_shape = function(data, data_options, onset_time, fixation_wind_len, target
   attr(out, 'onset_contingent') = list(distractor_aoi = distractor_aoi, 
                                        target_aoi = target_aoi, 
                                        onset_time = onset_time,
-                                       fixation_wind_len = fixation_wind_len)
+                                       fixation_window_length = fixation_window_length)
   
   return(out)
 }
@@ -735,7 +738,7 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
   combined_bootstrapped_data <- data.frame()
   
   # re-factor Participant name column, so that levels() is accurate
-  data[, data_options$participant_column] <- factor(data[,  data_options$participant_column])
+  data[, data_options$participant_column] <- factor(data[[data_options$participant_column]])
   
   # between-subjects:
   if (within_subj == FALSE) {
@@ -1264,9 +1267,9 @@ plot.onset_shape = function(data, data_options, condition_columns=NULL, smoothin
   onset_attr = attr(data, "onset_contingent")
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   
-  # set smoothing_window_size based on fixation_wind_len in attr's
+  # set smoothing_window_size based on fixation_window_length in attr's
   if (is.null(smoothing_window_size)) {
-    smoothing_window_size <- onset_attr$fixation_wind_len
+    smoothing_window_size <- onset_attr$fixation_window_length
   }
   
   # clean out unknown first AOIs:

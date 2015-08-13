@@ -84,18 +84,18 @@ data <- remove_trackloss(data, data_options, delete_rows=TRUE)
 response_window <- subset_by_window(data, data_options, window_start = 15500, window_end = 21000)
 
 # create "Target" condition column based on trial names
-response_window$Target <- ifelse(grepl('(Spoon|Cow|Bottle)', response_window$Trial), 'Inanimate', 'Animate')
+response_window$Target <- ifelse(grepl('(Spoon|Bottle)', response_window$Trial), 'Inanimate', 'Animate')
 response_window$Target <- factor(response_window$Target)
 ```
 
-## Describe overall results, and exclude by number of trials contributed
+## Describe and visualize over results
 
 ```{r}
 data_summary <- describe_data(response_window, data_options, dv='Animate', factors=c('ParticipantName','Target'))
 
 # aggregate across trials within subjects in time analysis
 response_time <- time_shape(response_window, data_options, time_bin_size = 100, 
-                                 condition_columns = "Target",
+                                 condition_columns = c("Target"),
                                  aoi = c("Animate")
                             )
 
@@ -103,47 +103,62 @@ response_time <- time_shape(response_window, data_options, time_bin_size = 100,
 plot(response_time, data_options, condition_column = "Target")
 
 # aggregate by subject across the response window
-response_window_agg <- window_shape(response_window, data_options, aoi='Animate', c('Target','Age','MCDI_Total'))
+response_window_agg <- window_shape(response_window, data_options, aoi='Animate', condition_columns=c('Target','Age','MCDI_Total'))
 
-plot(response_window_agg, data_options, x_axis_column="Age")
+# take a quick peek at mean proportion by Target condition
+# note this automatically aggregates across trials by subjects
+plot(response_window_agg, data_options, x_axis_column="Target")
 
 subject_means <- response_window_agg %>%
                           group_by(ParticipantName,Target,Age,MCDI_Total) %>%
                           summarise(MeanAnimate = mean(Prop,na.rm=T), N=length(Prop), ArcSin = asin(sqrt(MeanAnimate))) %>%
                           ungroup()
 
+# visualize our aggregated data with a boxplot (data should match previous plot)
 ggplot(subject_means, aes(x=Target, y=MeanAnimate)) +
                                   geom_boxplot() +
                                   geom_point(position=position_jitter(.1))
 
 # show condition means
 condition_means <- subject_means %>%
-  group_by(Target) %>%
-  summarise(Mean=mean(MeanAnimate), SD=sd(MeanAnimate), N=length(MeanAnimate))
+                    group_by(Target) %>%
+                    summarise(Mean=mean(MeanAnimate), SD=sd(MeanAnimate), N=length(MeanAnimate))
 
 condition_means
+```
 
+## Simple t-test
+
+```{r}
 # simple t-test between conditions
 t.test(ArcSin ~ Target, data=subject_means, paired=T)
+```
 
+## Mixed-effects models on window-shaped data
+
+```{r}
 # mixed-effects linear model on subject*trial data
 response_window_agg$TargetC <- ifelse(response_window_agg$Target == 'Animate', .5, -.5)
 response_window_agg$TargetC <- scale(response_window_agg$TargetC, center=T, scale=F)
 
-model <- lmer(elog ~ TargetC + (1 + TargetC | Trial) + (1 + TargetC | ParticipantName), data = response_window_agg, REML = F)
+model <- lmer(Elog ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), data = response_window_agg, REML = F)
 summary(model)
 drop1(model,~.,test="Chi")
+```
 
+## Growth curve analysis
+
+```{r}
 # growth curve analysis on time series
 response_time$TargetC <- ifelse(response_time$Target == 'Animate', .5, -.5)
 response_time$TargetC <- scale(response_time$TargetC, center=T, scale=F)
 
-model <- lmer(elog ~ TargetC*(ot1 + ot2 + ot3 + ot4 + ot5) + (1 + TargetC | Trial) + (1 | ParticipantName), data = response_time, REML = F)
+model <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4 + ot5) + (1 | Trial) + (1 | ParticipantName), data = response_time, REML = F)
 summary(model)
 drop1(model,~.,test="Chi")
 
-# plot GCA model
-ggplot(response_time, aes(x=Time, y=elog, color=Target)) +
+# visualize GCA model
+ggplot(response_time, aes(x=Time, y=Elog, color=Target)) +
   stat_summary(fun.y=mean, geom="point") +
   stat_summary(aes(y=predict(model,response_time,re.form=NA)), fun.y=mean, geom="line", linetype='solid', size=2)
 ```
@@ -169,6 +184,7 @@ onset_switches$FirstAOIC <- scale(onset_switches$FirstAOIC, center=T, scale=F)
 
 model <- lmer(FirstSwitch ~ FirstAOIC + (1 + FirstAOIC | Trial) + (1 + FirstAOIC | ParticipantName), data=onset_switches, REML=F)
 summary(model)
+drop1(model,~.,test="Chi")
 ```
 
 ## Bootstrapped splines analysis.
@@ -182,6 +198,7 @@ plot(bootstrapped_familiar, data_options)
 
 familiar_bootstrapped_intervals <- analyze_bootstraps(bootstrapped_familiar, data_options)
 
+# same as above, because, for within-subjects data, it always plots the difference score estimates
 plot(familiar_bootstrapped_intervals, data_options)
 
 familiar_bootstrapped_divergences <- analyze_bootstrapped_divergences(familiar_bootstrapped_intervals, data_options)
