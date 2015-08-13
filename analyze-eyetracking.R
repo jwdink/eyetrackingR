@@ -8,7 +8,6 @@
 #         jacobwdink@gmail.com
 #         github.com/jwdink
 
-
 # Loading/Cleaning/Describing ------------------------------------------------------------------------
 #' 
 #' set_data_options
