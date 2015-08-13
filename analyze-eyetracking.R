@@ -1226,13 +1226,12 @@ plot.bin_analysis <- function(data) {
 # plot.onset_shape()
 #
 # divide trials into which AOI they started on; plot proportion looking away from that AOI.
-# this is NOT to be confused with the plot method for an onset_contingent dataframe.
 #
 # @param dataframe.onset_shape data The output of the 'onset_shape' function
 #...
 # @return dataframe 
 
-plot.onset_shape = function(data, data_options, condition_columns=NULL) {
+plot.onset_shape = function(data, data_options, condition_columns=NULL, smoothing_window_size = NULL) {
   require(ggplot2, quietly=TRUE)
   
   ## Prelims:
@@ -1242,27 +1241,38 @@ plot.onset_shape = function(data, data_options, condition_columns=NULL) {
   onset_attr = attr(data, "onset_contingent")
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   
-  # Brock: set smoothing_window_size based on fixation_wind_len in attr's
-  # TODO: any problem with this?
-  smoothing_window_size <- onset_attr$fixation_wind_len
+  # set smoothing_window_size based on fixation_wind_len in attr's
+  if (is.null(smoothing_window_size)) {
+    smoothing_window_size <- onset_attr$fixation_wind_len
+  }
   
-  ## Prepare for Graphing:
-  out = data %>%
-    filter(!is.na(FirstAOI)) %>%
-    # aggregate by participant, first
-    group_by_(.dots = c(data_options$participant_column, data_options$time_column, "FirstAOI", onset_attr$distractor_aoi, onset_attr$target_aoi)) %>%
-    summarise(SwitchAOI = mean(SwitchAOI, na.rm=TRUE)) %>%
-    ungroup() %>%
-    # now calculate mean proportion of switches over time
-    mutate_(.dots = list(.Time = make_dplyr_argument("floor(", data_options$time_column, "/smoothing_window_size)*smoothing_window_size" )))  %>%
-    group_by_(.dots = c(".Time", condition_columns, "FirstAOI")) %>%
-    summarise(SwitchAOI = mean(SwitchAOI, na.rm=TRUE)) %>%
-    mutate(Max= max(SwitchAOI),
-           Min= min(SwitchAOI),
-           Top= SwitchAOI[FirstAOI==onset_attr$distractor_aoi] )
+  # clean out unknown first AOIs:
+  df_clean = filter(data, !is.na(FirstAOI))
+  for (condition_col in condition_columns) {
+    df_clean = filter_(df_clean, 
+                       .dots = list(interp(~!is.na(CONDITION_COL), CONDITION_COL = as.name(condition_col))
+                       ))
+  }
   
-  out$Max = with(out, ifelse(Max==Top, Max, NA))
-  out$Min = with(out, ifelse(Max==Top, Min, NA))
+  # summarise by time bin:
+  df_clean[[".Time"]] = floor(df_clean[[data_options$time_column]] / smoothing_window_size) * smoothing_window_size
+  df_grouped = group_by_(df_clean, 
+                         .dots = c(condition_columns, data_options$participant_column, ".Time", "FirstAOI", onset_attr$distractor_aoi, onset_attr$target_aoi)) 
+  df_smoothed = summarise(df_grouped, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
+  
+  # collapse into lines for graphing:
+  df_summarized = group_by_(df_smoothed, .dots = c(".Time", "FirstAOI", condition_columns) )
+  df_summarized = summarise(df_summarized, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
+  
+  # compute grayed area:
+  df_graph = group_by_(df_summarized, .dots = c(".Time", condition_columns) )
+  df_graph = mutate(df_graph,
+                    Max= max(SwitchAOI),
+                    Min= min(SwitchAOI),
+                    Top= ifelse(length(which(FirstAOI==onset_attr$distractor_aoi)), SwitchAOI[FirstAOI==onset_attr$distractor_aoi], 0) 
+                    )
+  df_graph$Max = with(df_graph, ifelse(Max==Top, Max, NA))
+  df_graph$Min = with(df_graph, ifelse(Max==Top, Min, NA))
   
   ## Graph:
   if (is.null(condition_columns)) {
@@ -1270,12 +1280,12 @@ plot.onset_shape = function(data, data_options, condition_columns=NULL) {
   } else {
     color_factor = condition_columns[1]
   }
-  g = ggplot(out, aes_string(x = ".Time", y = "SwitchAOI", 
-                             group = "FirstAOI", 
-                             color = color_factor)) +
+  g = ggplot(df_graph, aes_string(x = ".Time", y = "SwitchAOI", 
+                                  group = "FirstAOI", 
+                                  color = color_factor)) +
     geom_line(size=1.5, aes(linetype=FirstAOI)) +
     geom_ribbon(aes(ymin= Min, ymax= Max), fill= "gray", alpha= .2, colour= NA) +
-    coord_cartesian(xlim=c(onset_attr$onset_time, max(out$.Time) )) +
+    coord_cartesian(xlim=c(onset_attr$onset_time, max(df_graph$.Time) )) +
     ylab("Proportion Switch Looking") + 
     xlab("Time") 
   
