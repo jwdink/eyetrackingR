@@ -1046,6 +1046,7 @@ plot.switch_shape = function(data, data_options, condition_columns=NULL) {
                              color = color_factor)) +
     geom_boxplot() +
     geom_point(position = position_jitter(.1)) +
+    coord_flip() +
     ylab("Mean Switch Time") + 
     xlab("Onset AOI") 
   
