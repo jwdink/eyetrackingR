@@ -724,6 +724,146 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
   return(out)
 }
 
+# bootstrapped_spline_shape(data, data_options, condition_column, within_subj, samples, resolution, alpha)
+#
+# Bootstrap splines from a time_shape() shape. Return bootstrapped splines.
+#
+# @param dataframe data Your clean dataset
+# @param list data_options Standard list of options for manipulating dataset
+# @param string factor What factor to split by? Maximum two conditions!
+# @param boolean within_subj Are the two conditions within or between subjects?
+# @param int samples How many (re)samples to take?
+# @param float resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
+# @param float alpha p-value when the groups are sufficiently "diverged"
+#
+# @return list(samples, divergence)
+bootstrapped_spline_shape <- function (data, data_options, condition_column = NA, within_subj = F, samples = 1000, resolution = 10, alpha = .05) {
+  require(dplyr, quietly=T)
+  require(reshape2, quietly=T)
+  
+  # validate arguments
+  if (is.na(condition_column) || (length(levels(factor(data[, condition_column]))) != 2)) {
+    stop('bootstrapped_splines requires a condition_column with 2 levels.')
+  }
+  
+  # define sampler for splines...
+  spline_sampler <- function (dataframe, data_options, resolution) {
+    # show a . everyone 10th sample to indicate progress
+    if (rbinom(1,1,.1) == 1) {
+      cat('.')
+    }
+    
+    run_original <- dataframe
+    
+    # get subjects
+    run_subjects <- levels(run_original[, data_options$participant_column])
+    
+    # get timepoints
+    run_times <- unique(run_original$Time)
+    run_times <- run_times[order(run_times)]
+    
+    # randomly sample N subjects (with replacement from data)
+    run_sampled <- sample(run_subjects, length(run_subjects), replace = T)
+    
+    # create a dataset of ParticipantName,Time,Prop for each sampled subject (including duplicates)
+    run_rows <- length(run_sampled) * length(run_times)
+    run_data <- data.frame(matrix(nrow=run_rows,ncol=2))
+    
+    # use data.table's setnames for speed increase
+    colnames(run_data) <- c(data_options$participant_column,'Time')
+    
+    run_data[, data_options$participant_column] <- rep(run_sampled, each=length(run_times))
+    run_data[, data_options$participant_column] <- factor(run_data[, data_options$participant_column])
+    
+    run_data$Time <- rep(run_times, times=length(run_subjects))
+    
+    run_data <- inner_join(run_data, run_original[, c(data_options$participant_column,'Time','Prop')], by = c(data_options$participant_column,'Time'))
+    
+    # spline! 
+    # with generalized cross-validation setting smoothing parameter
+    run_spline <- with(run_data, smooth.spline(Time, Prop, cv=FALSE))
+    
+    # get interpolated spline predictions for total time at *resolution*
+    run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
+    run_predictions <- predict(run_spline, run_predicted_times)
+    
+    run_predictions$y
+  }
+  
+  # this dataframe will hold our final dataset
+  combined_bootstrapped_data <- data.frame()
+  
+  # re-factor Participant name column, so that levels() is accurate
+  data[, data_options$participant_column] <- factor(data[,  data_options$participant_column])
+  
+  # between-subjects:
+  if (within_subj == FALSE) {
+    for (level in levels(factor(data[, condition_column]))) {
+      subsetted_data <- data[which(data[, condition_column] == level), ]
+      
+      cat(paste0('Sampling ', level))
+      bootstrapped_data <- replicate(samples, spline_sampler(subsetted_data, data_options, resolution))
+      bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
+      
+      # label each sample by number
+      sample_rows <- paste('Sample', c(1:samples), sep="")
+      colnames(bootstrapped_data) <- sample_rows
+      
+      bootstrapped_data <- data.frame(
+        condition_column = level,
+        Time = seq(min(subsetted_data$Time), max(subsetted_data$Time), by=resolution),
+        bootstrapped_data
+      )
+      colnames(bootstrapped_data)[1] <- condition_column
+      
+      # using dplyr's rbind_list or speed increase
+      combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+    }
+  }
+  else {
+    # within-subjects:
+    
+    # for within-subjects, we need to calculate the difference between
+    # level 1 and 2 of the factor for each subject before sampling splines
+    data <- dcast(data, as.formula(paste(paste(data_options$participant_column,'Time',sep=" + "),condition_column,sep=' ~ ')), value.var='Prop', fun.aggregate = mean, drop = TRUE)
+    
+    # re-calculate Prop as the DIFFERENCE between the two labels
+    data$Prop <- data[, 3] - data[, 4]
+    
+    # remove all samples where Prop == NA
+    data <- data[!is.na(data$Prop), ]
+    
+    data[, data_options$participant_column] <- factor(data[, data_options$participant_column])
+    
+    cat('Sampling within-subjects')
+    bootstrapped_data <- replicate(samples, spline_sampler(data, data_options, resolution))
+    bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
+    
+    sample_rows <- paste('Sample', c(1:samples), sep="")
+    colnames(bootstrapped_data) <- sample_rows
+    
+    bootstrapped_data <- data.frame(
+      Time = seq(min(data$Time), max(data$Time), by=resolution),
+      bootstrapped_data
+    )
+    
+    # use dplyr's rbind_list for speed increase
+    combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+  }
+  
+  # Assign class information:
+  class(combined_bootstrapped_data) = c('bootstrapped_spline_shape', class(combined_bootstrapped_data))
+  attr(combined_bootstrapped_data, 'bootstrapped_splines') = list(
+    within_subj = within_subj,
+    condition_column = condition_column,
+    samples = samples,
+    alpha = alpha,
+    resolution = resolution
+  )
+  
+  return(combined_bootstrapped_data)
+}
+
 # Analyzing ------------------------------------------------------------------------------------------
 
 #' analyze_time_bins()
@@ -852,6 +992,106 @@ analyze_time_bins <- function(data,
 
   class(out) = c('bin_analysis', class(out))
   out
+}
+
+#' analyze_bootstrapped_splines()
+#' 
+#' Estimates a confidence interval over the difference between means (within- or between-subjects)
+#' from a bootstrapped_spline_shape object. Confidence intervals are derived from the alpha
+#' used to shape the dataset (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
+#' 
+#' @param dataframe.bootstrapped_spline_shape data The output of the 'bootstrapped_spline_shape' function
+#' ...
+#' @return dataframe 
+#' 
+analyze_bootstrapped_splines <- function(data, data_options) {
+  # make sure there is the proper kind of data frame, and check its attributes
+  bootstrap_attr = attr(data, "bootstrapped_splines")
+  if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
+  
+  # adjust CI based on alpha
+  low_prob <- .5 - ((1-bootstrap_attr$alpha)/2)
+  high_prob <- .5 + ((1-bootstrap_attr$alpha)/2)
+  
+  # if it's within subjects, getting the Mean and CI involves only taking the mean and 1.96*SD at each timepoint
+  if (bootstrap_attr$within_subj == TRUE) {
+    # define range of sample rows
+    sample_rows <- c(2:(2+bootstrap_attr$samples-1))
+    
+    bootstrapped_data <- data.frame(
+      Time = data[, 'Time'],
+      MeanDiff = apply(data[, sample_rows], 1, mean),
+      SE = apply(data[, sample_rows], 1, sd),
+      CI_low = round(apply(data[, sample_rows], 1, function (x) { quantile(x,probs=low_prob) }),5),
+      CI_high = round(apply(data[, sample_rows], 1, function (x) { quantile(x,probs=high_prob) }),5)
+    )
+    
+    bootstrapped_data <- bootstrapped_data %>%
+      mutate(Significant = ifelse((abs(CI_high) - abs(CI_low)) == (CI_high - CI_low), TRUE, FALSE))
+  }
+  else {
+    # randomly resample 1 mean from each condition and subtract them to get a
+    # distribution of the difference between means
+    bootstrapped_diffs <- data.frame(matrix(nrow=length(unique(data[, 'Time'])), ncol=bootstrap_attr$samples + 1))
+    colnames(bootstrapped_diffs) <- c('Time', paste0('Diff',1:samples))
+    
+    compare_random_means <- function(mean_dist_1, mean_dist_2) {
+      # take any 2 random means and subject them from one another
+      random1 <- sample(mean_dist_1, 1)
+      random2 <- sample(mean_dist_2, 1)
+      
+      return (random1 - random2)
+    }
+    
+    # lay the 2 conditions side-by-side in a matrix
+    horizontal_matrix <- cbind(data[1:(nrow(data)/2), c('Time',paste0('Sample',1:bootstrap_attr$samples))], data[((nrow(data)/2)+1):nrow(data), paste0('Sample',1:bootstrap_attr$samples)])
+    
+    # sample diffs between random means to generate a distribution of differences
+    sampled_mean_diffs <- apply(horizontal_matrix, 1, function(x) { replicate(1000, compare_random_means(x[2:(length(x) / 2)], x[((length(x) / 2)+1):length(x)])) })
+    sampled_mean_diffs <- t(sampled_mean_diffs)
+    
+    # calculate means and CIs
+    bootstrapped_data <- data.frame(
+      Time = unique(data[, 'Time']),
+      MeanDiff = as.vector(apply(sampled_mean_diffs, 1, mean)),
+      SE = as.vector(apply(sampled_mean_diffs, 1, sd)),
+      CI_low = as.vector(round(apply(sampled_mean_diffs, 1, function (x) { quantile(x,probs=low_prob) }),5)),
+      CI_high = as.vector(round(apply(sampled_mean_diffs, 1, function (x) { quantile(x,probs=high_prob) }),5))
+    )
+    
+    
+    bootstrapped_data <- bootstrapped_data %>%
+      mutate(Significant = ifelse((abs(CI_high) - abs(CI_low)) == (CI_high - CI_low), TRUE, FALSE))
+  }
+  
+  attr(bootstrapped_data, 'bootstrapped_splines') = bootstrap_attr
+  
+  return(bootstrapped_data)
+}
+
+#' analyze_bootstrapped_spline_divergences()
+#' 
+#' Returns the windows in which the splines diverged in the bootstrapped analysis.
+#' 
+#' @param dataframe data Returned from analye_bootstrapped_splines()
+#' ...
+#' @return dataframe 
+#' 
+analyze_bootstrapped_spline_divergences <- function(data, data_options) {
+  # make sure there is the proper kind of data frame, and check its attributes
+  bootstrap_attr = attr(data, "bootstrapped_splines")
+  if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
+  
+  # find divergences as runs of Significant == TRUE
+  divergences <- rle(data$Significant)
+  
+  # convert to time ranges
+  divergences$lengths <- divergences$lengths * bootstrap_attr$resolution
+  divergences$timestamps <- cumsum(divergences$lengths)
+  
+  divergences <- paste0('divergence: ', divergences$timestamps[which(divergences$values == TRUE)-1], ' - ', divergences$timestamps[which(divergences$values == TRUE)])
+  
+  divergences
 }
 
 # Visualizing ------------------------------------------------------------------------------------------
@@ -1180,10 +1420,10 @@ center_predictors = function(data, predictors) {
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
 
-mutate_.time_shape = mutate_.window_shape = mutate_.bin_analysis = mutate_.onset_shape = function(data, ...) {
+mutate_.time_shape = mutate_.window_shape = mutate_.bin_analysis = mutuate_.bootstrapped_spline_shape = mutate_.onset_shape = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bin_analysis')
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_spline_shape', 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "onset_contingent") # also attributes
@@ -1197,10 +1437,10 @@ mutate_.time_shape = mutate_.window_shape = mutate_.bin_analysis = mutate_.onset
   return(out)
 }
 
-filter_.time_shape = filter_.window_shape = filter_.bin_analysis =  filter_.onset_shape = function(data, ...) {
+filter_.time_shape = filter_.window_shape = filter_.bin_analysis = filter_.bootstrapped_spline_shape = filter_.onset_shape = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bin_analysis')
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_spline_shape', 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "onset_contingent") # also attributes
@@ -1214,10 +1454,10 @@ filter_.time_shape = filter_.window_shape = filter_.bin_analysis =  filter_.onse
   return(out)
 }
 
-left_join.time_shape = left_join.window_shape = left_join.bin_analysis = left_join.onset_shape = function(x, y, by = NULL, copy = FALSE, ...) {
+left_join.time_shape = left_join.window_shape = left_join.bin_analysis = left_join.bootstrapped_spline_shape = left_join.onset_shape = function(x, y, by = NULL, copy = FALSE, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bin_analysis')
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_spline_shape', 'bin_analysis')
   temp_remove = class(x)[ class(x) %in% potential_classes]
   class(x) = class(x)[!class(x) %in% potential_classes]
   temp_attr = attr(x, "onset_contingent") # also attributes

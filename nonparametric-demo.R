@@ -25,8 +25,12 @@ bootstrapper <- function(test1_sampled,test2_sampled) {
 
 straps <- replicate(1000, bootstrapper(test1_sampled,test2_sampled))
 
-ci_low <- mean(straps) - 1.96*sd(straps)
-ci_high <- mean(straps) + 1.96*sd(straps)
+# this is actually parametric...
+# ci_low <- mean(straps) - 1.96*sd(straps)
+# ci_high <- mean(straps) + 1.96*sd(straps)
+
+ci_low <- quantile(straps, probs=.025)
+ci_high <- quantile(straps, probs=.975)
 
 # cool: we can retrieve the bootstrapped CI of the *original* data despite
 # actually resampling from a bootstrapped distribution of sample means
