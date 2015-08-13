@@ -1060,7 +1060,7 @@ analyze_bootstrapped_splines <- function(data, data_options) {
 #' 
 #' Returns the windows in which the splines diverged in the bootstrapped analysis.
 #' 
-#' @param dataframe data Returned from analye_bootstrapped_splines()
+#' @param dataframe data Returned from analyze_bootstrapped_splines()
 #' ...
 #' @return dataframe 
 #' 
