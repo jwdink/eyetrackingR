@@ -1100,7 +1100,6 @@ make_dplyr_expression = function(the_expression, the_arguments) {
 }
 
 
->>>>>>> Stashed changes
 # center_predictors()
 #
 # Center predictors in preparation for statistical analyses
