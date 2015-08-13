@@ -501,7 +501,7 @@ time_shape <- function (data,
   
   # Make Summary
   df_summarized = .make_proportion_looking_summary(data=data, 
-                                                   groups = list(data_options$participant_column, data_options$trial_column, "TimeBin"), 
+                                                   groups = list(data_options$participant_column, data_options$trial_column, condition_columns, "TimeBin"), 
                                                    aoi_col)
   df_summarized[["Time"]] = df_summarized[["TimeBin"]] * time_bin_size
   
