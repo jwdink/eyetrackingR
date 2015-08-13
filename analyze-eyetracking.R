@@ -303,7 +303,7 @@ convert_non_aoi_to_trackloss = function(data, data_options) {
   }
   
   # Set these rows as trackloss:
-  data[[data_options$trackloss_column]] = ifelse(.AOISum == 0, TRUE, .data_no_na[[data_options$trackloss_column]])
+  data[[data_options$trackloss_column]] = ifelse(data_no_na[[".AOISum"]] == 0, TRUE, data_no_na[[data_options$trackloss_column]])
   
   return(data)
 }

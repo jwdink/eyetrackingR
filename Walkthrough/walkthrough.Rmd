@@ -1,0 +1,429 @@
+---
+  title: "eyetrackingR Walkthrough"
+output:
+  html_document:
+  toc: true
+theme: united
+---
+  
+  Analysis Timestamp:
+```{r}
+date()
+```
+
+## Dependencies
+
+```{r results='hide'}
+library(ggplot2, quietly=T)
+library(reshape2, quietly=T)
+library(lme4, quietly=T)
+library(psych, quietly=T)
+```
+
+## Raw data processing...
+
+```{r results='hide'}
+source('./process_tobii_data_bf.R')
+auto_process_tobii('ancat-aoi.txt','ancat-phasetiming.txt')
+concat_csv('master.csv')
+
+# fix subject names
+master <- read.csv('master.csv')
+master$ParticipantName <- gsub('[^a-zA-Z0-9]','',master$ParticipantName)
+write.csv(master,'master.csv')
+
+prepare_master(subjectfile = './subjects.csv', trialfile = FALSE)
+
+# create clean file
+file.copy('master-prepared.csv','master-clean.csv',overwrite = T)
+
+# exclude exclusions
+master_clean <- read.csv('master-clean.csv')
+master_clean <- master_clean[which(master_clean$Excluded == 0), ]
+
+# get rid of additional Condition.x and use the Condition.y column from
+# the subjects file
+master_clean <- master_clean[ , -which(names(master_clean) %in% c("Condition.x"))]
+names(master_clean)[names(master_clean)=="Condition.y"] <- "Condition"
+
+# add KnownAnimal column
+master_clean$KnownAnimal <- 0
+master_clean[which(master_clean$Trial == 'UnfamiliarArmadillo' & master_clean$Armadillo == 1), 'KnownAnimal'] <- 1
+master_clean[which(master_clean$Trial == 'UnfamiliarFlamingo' & master_clean$Flamingo == 1), 'KnownAnimal'] <- 1
+master_clean[which(master_clean$Trial == 'UnfamiliarLizard' & master_clean$Lizard == 1), 'KnownAnimal'] <- 1
+master_clean[which(master_clean$Trial == 'UnfamiliarHedgehog' & master_clean$Hedgehog == 1), 'KnownAnimal'] <- 1
+master_clean[which(master_clean$Trial == 'UnfamiliarLemur' & master_clean$Lemur == 1), 'KnownAnimal'] <- 1
+master_clean[which(master_clean$Trial == 'UnfamiliarRhino' & master_clean$Rhinoceros == 1), 'KnownAnimal'] <- 1
+
+# re-name factor levels.
+#levels(master_clean$Condition) <- c('Informative','Neutral')
+
+# re-factor to get rid of any bad condition names which no longer exist in the dataset
+master_clean$Condition <- factor(as.character(trim(master_clean$Condition)))
+
+#write.csv(master_clean,'master-clean.csv',row.names = FALSE)
+```
+
+## Load and set data options for **eyetrackingR** library.
+
+```{r results='hide'}
+source('analyze-eyetracking.R')
+
+# set data options
+data_options = set_data_options( 
+  item_columns = "Trial",
+  trial_column = "Trial",
+  time_column = "TimeFromPhaseOnset",
+  trackloss_column = "TrackLoss",
+  aoi_columns = c('Animate','Inanimate'),
+  participant_column = "ParticipantName"
+)
+```
+
+## Get rid of oldest age group
+
+```{r}
+master_clean <- filter(master_clean, Age < 28)
+```
+
+## Verify state of each relevant column.
+
+```{r}
+master_clean <- verify_dataset(master_clean, data_options)
+```
+
+## Deal with trackloss.
+
+```{r}
+# convert non-AOI looks to trackloss
+master_clean <- convert_non_aoi_to_trackloss(master_clean, data_options)
+
+# analyze amount of trackloss by subjects and trials
+trackloss <- trackloss_analysis(master_clean, data_options, window_start = 15500, window_end = 21000)
+
+master_clean <- clean_by_trackloss(master_clean,
+                                   data_options, 
+                                   #participant_z_thresh = Inf, 
+                                   #participant_prop_thresh = 1,
+                                   #trial_z_thresh = 2, 
+                                   trial_prop_thresh = .5,
+                                   window_start = 15500,
+                                   window_end = 21000)
+
+# remove all trackloss from remaining trials
+master_clean <- remove_trackloss(master_clean, data_options)
+```
+
+## Zoom in on test window and label trials
+
+```{r}
+# subset test window
+test_window <- subset_by_window(master_clean, data_options, window_start = 15500, window_end = 21000)
+
+# label Unfamiliar and Familiar trials
+test_window$TrialType <- ifelse(grepl('^Familiar', test_window$Trial), 'Familiar', 'Unfamiliar')
+test_window$TrialType <- factor(test_window$TrialType)
+```
+
+## Describe overall results, and exclude by number of trials contributed
+
+```{r}
+data_summary <- describe_data(test_window, data_options, dv='Animate', c('ParticipantName','Condition','TrialType'))
+
+# exclude participants who contributed <= 2 trials of each type
+# (note: if making exclusions here, should re-run analysis so trackloss exclusions are done *after* this)
+low_trials <- unique(data_summary[which(data_summary$NumTrials <= 2), 'ParticipantName'])
+
+master_clean <- master_clean[!(master_clean$ParticipantName %in% low_trials$ParticipantName), ]
+test_window <- test_window[!(test_window$ParticipantName %in% low_trials$ParticipantName), ]
+```
+
+# Familiar Trials
+
+## Primary analyses
+
+```{r}
+# subset familiar trials
+test_window_familiar <- filter(test_window, TrialType == 'Familiar')
+
+# assign target by trial name
+test_window_familiar$Target <- ifelse(test_window_familiar$Trial %in% c('FamiliarBottle','FamiliarCar','FamiliarSpoon'), 'Inanimate', 'Animate')
+test_window_familiar$Target <- factor(test_window_familiar$Target)
+
+# aggregate across trials within subjects in time analysis
+test_time_familiar <- time_shape(test_window_familiar, data_options, time_bin_size = 100, 
+                                 condition_columns = "Target",
+                                 aoi = c("Animate")
+)
+
+# visualize time results
+plot(test_time_familiar, data_options, condition_column = "Target")
+
+# aggregate by subject
+test_window_familiar_agg <- window_shape(test_window_familiar, data_options, aoi='Animate', c('Target','Age','MCDI_Total'))
+
+plot(test_window_familiar_agg, data_options, x_axis_column="Age")
+
+subject_means_familiar <- test_window_familiar_agg %>%
+  group_by(ParticipantName,Target,Age,MCDI_Total) %>%
+  summarise(MeanAnimate = mean(Prop,na.rm=T), N=length(Prop), ArcSin = asin(sqrt(MeanAnimate))) %>%
+  ungroup()
+
+ggplot(subject_means_familiar, aes(x=Target, y=MeanAnimate)) + geom_boxplot() + geom_point(position=position_jitter(.1))
+
+# show condition means
+condition_means_familiar <- subject_means_familiar %>%
+  group_by(Target) %>%
+  summarise(Mean=mean(MeanAnimate), SD=sd(MeanAnimate), N=length(MeanAnimate))
+
+condition_means_familiar
+
+# simple t-test between conditions
+t.test(ArcSin ~ Target, data=subject_means_familiar, paired=T)
+
+# mixed-effects linear model on subject*trial data
+test_window_familiar_agg$TargetC <- ifelse(test_window_familiar_agg$Target == 'Animate', .5, -.5)
+test_window_familiar_agg$TargetC <- scale(test_window_familiar_agg$TargetC, center=T, scale=F)
+
+model <- lmer(elog ~ TargetC + (1 + TargetC | Trial) + (1 + TargetC | ParticipantName), data = test_window_familiar_agg, REML = F)
+summary(model)
+drop1(model,~.,test="Chi")
+
+# growth curve analysis on time series
+test_time_familiar$TargetC <- ifelse(test_time_familiar$Target == 'Animate', .5, -.5)
+test_time_familiar$TargetC <- scale(test_time_familiar$TargetC, center=T, scale=F)
+
+model <- lmer(elog ~ TargetC*(ot1 + ot2 + ot3 + ot4 + ot5) + (1 + TargetC | Trial) + (1 | ParticipantName), data = test_time_familiar, REML = F)
+summary(model)
+drop1(model,~.,test="Chi")
+
+# plot GCA model
+ggplot(test_time_familiar, aes(x=Time, y=elog, color=Target)) +
+  stat_summary(fun.y=mean, geom="point") +
+  stat_summary(aes(y=predict(model,test_time_familiar,re.form=NA)), fun.y=mean, geom="line", linetype='solid', size=2)
+```
+
+## Onset-contingent analysis
+
+```{r}
+# recode AOIs to target & distractor
+test_window_familiar$TrialTarget <- ifelse(test_window_familiar$Target == 'Animate', test_window_familiar$Animate, test_window_familiar$Inanimate)
+test_window_familiar$TrialDistractor <- ifelse(test_window_familiar$Target == 'Animate', test_window_familiar$Inanimate, test_window_familiar$Animate)
+
+onset_familiar <- onset_shape(test_window_familiar, data_options, onset_time = 15500, fixation_window_length = 100, target_aoi='TrialTarget')
+
+plot(onset_familiar, data_options)
+
+# compare switch times
+familiar_switches <- switch_shape(onset_familiar, data_options)
+
+plot(familiar_switches, data_options)
+
+familiar_switches$FirstAOIC <- ifelse(familiar_switches$FirstAOI == 'TrialTarget', .5, -.5)
+familiar_switches$FirstAOIC <- scale(familiar_switches$FirstAOIC, center=T, scale=F)
+
+model <- lmer(FirstSwitch ~ FirstAOIC + (1 + FirstAOIC | Trial) + (1 + FirstAOIC | ParticipantName), data=familiar_switches, REML=F)
+summary(model)
+```
+
+## Bootstrapped splines analysis.
+
+Do a proper within-subjects analysis for the familiar trials.
+
+```{r}
+bootstrapped_familiar <- bootstrapped_shape(test_time_familiar, data_options, condition_column = 'Target', within_subj = TRUE, samples = 1000, resolution = 100, alpha = .05, smoother = 'smooth.spline')
+
+plot(bootstrapped_familiar, data_options)
+
+familiar_bootstrapped_intervals <- analyze_bootstraps(bootstrapped_familiar, data_options)
+
+plot(familiar_bootstrapped_intervals, data_options)
+
+familiar_bootstrapped_divergences <- analyze_bootstrapped_divergences(familiar_bootstrapped_intervals, data_options)
+familiar_bootstrapped_divergences
+```
+
+# Unfamiliar Trials
+
+## Primary analyses
+
+```{r}
+# subset unfamiliar trials 
+test_window_unfamiliar <- filter(test_window, TrialType == 'Unfamiliar')
+
+# aggregate across trials within subjects in time analysis
+test_time_unfamiliar <- time_shape(test_window_unfamiliar, data_options, time_bin_size = 100, 
+                                   condition_columns = "Condition",
+                                   aoi = c("Animate")
+)
+
+# visualize time results
+plot(test_time_unfamiliar, data_options, condition_column = "Condition")
+
+# aggregate by subject
+test_window_unfamiliar_agg <- window_shape(test_window_unfamiliar, data_options, aoi='Animate', c('Condition','Age','MCDI_Total'))
+
+subject_means_unfamiliar <- test_window_unfamiliar_agg %>%
+  group_by(ParticipantName,Condition,Age,MCDI_Total) %>%
+  summarise(MeanAnimate = mean(Prop,na.rm=T), N=length(Prop), ArcSin = asin(sqrt(MeanAnimate))) %>%
+  ungroup()
+
+ggplot(subject_means_unfamiliar, aes(x=Condition, y=MeanAnimate)) + geom_boxplot() + geom_point(position=position_jitter(.1))
+
+# show condition means
+condition_means_unfamiliar <- subject_means_unfamiliar %>%
+  group_by(Condition) %>%
+  summarise(Mean=mean(MeanAnimate), SD=sd(MeanAnimate), N=length(MeanAnimate))
+
+condition_means_unfamiliar
+
+# simple t-test between conditions
+t.test(ArcSin ~ Condition, data=subject_means_unfamiliar, var.equal=T)
+
+# mixed-effects linear model on subject*trial data
+test_window_unfamiliar_agg$ConditionC <- ifelse(test_window_unfamiliar_agg$Condition == 'Adjectives', .5, -.5)
+test_window_unfamiliar_agg$ConditionC <- scale(test_window_unfamiliar_agg$ConditionC, center=T, scale=F)
+
+model <- lmer(elog ~ ConditionC + (1 + Condition | Trial) + (1 | ParticipantName), data = test_window_unfamiliar_agg, REML = F)
+summary(model)
+drop1(model,~.,test="Chi")
+
+# growth curve analysis on time series
+test_time_unfamiliar$ConditionC <- ifelse(test_time_unfamiliar$Condition == 'Adjectives', .5, -.5)
+test_time_unfamiliar$ConditionC <- scale(test_time_unfamiliar$ConditionC, center=T, scale=F)
+
+model <- lmer(elog ~ ConditionC*(ot1 + ot2 + ot3 + ot4 + ot5) + (1 + ConditionC | Trial) + (1 | ParticipantName), data = test_time_unfamiliar, REML = F)
+summary(model)
+drop1(model,~.,test="Chi")
+
+# plot GCA model
+ggplot(test_time_unfamiliar, aes(x=Time, y=elog, color=Condition)) +
+  stat_summary(fun.y=mean, geom="point") +
+  stat_summary(aes(y=predict(model,test_time_unfamiliar,re.form=NA)), fun.y=mean, geom="line", linetype='solid', size=2)
+```
+
+## Zoomed-in wondow
+
+```{r}
+# zoom in on active period from previous study (Ferguson, Graf, & Waxman, 2014) and compare conditions
+# from 3.15s post-word onset to 4.05s
+zoomed_window_unfamiliar <- subset_by_window(test_window_unfamiliar, data_options, window_start = 18650, window_end = 19550)
+
+# aggregate by subject
+test_zoomed_window_unfamiliar_agg <- window_shape(zoomed_window_unfamiliar, data_options, aoi='Animate', c('Condition','Age','MCDI_Total'))
+
+subject_means_zoomed_unfamiliar <- test_zoomed_window_unfamiliar_agg %>%
+  group_by(ParticipantName,Condition,Age,MCDI_Total) %>%
+  summarise(MeanAnimate = mean(Prop,na.rm=T), N=length(Prop), ArcSin = asin(sqrt(MeanAnimate))) %>%
+  ungroup()
+
+ggplot(subject_means_zoomed_unfamiliar, aes(x=Condition, y=MeanAnimate)) + geom_boxplot() + geom_point(position=position_jitter(.1))
+
+# show condition means
+condition_means_zoomed_unfamiliar <- subject_means_zoomed_unfamiliar %>%
+  group_by(Condition) %>%
+  summarise(Mean=mean(MeanAnimate), SD=sd(MeanAnimate), N=length(MeanAnimate))
+
+condition_means_zoomed_unfamiliar
+
+# simple t-test between conditions
+t.test(ArcSin ~ Condition, data=subject_means_zoomed_unfamiliar, var.equal=T)
+
+# mixed-effects linear model on subject*trial data
+test_zoomed_window_unfamiliar_agg$ConditionC <- ifelse(test_zoomed_window_unfamiliar_agg$Condition == 'Adjectives', .5, -.5)
+test_zoomed_window_unfamiliar_agg$ConditionC <- scale(test_zoomed_window_unfamiliar_agg$ConditionC, center=T, scale=F)
+
+model <- lmer(elog ~ ConditionC + (1 + Condition | Trial) + (1 | ParticipantName), data = test_zoomed_window_unfamiliar_agg, REML = F)
+summary(model)
+drop1(model,~.,test="Chi")
+```
+
+## Onset-contingent analysis
+
+```{r}
+# recode AOIs to target & distractor
+onset_unfamiliar <- onset_shape(test_window_unfamiliar, data_options, onset_time = 15500, fixation_window_length = 100, target_aoi='Animate')
+
+plot(onset_unfamiliar, data_options)
+
+# compare switch times
+unfamiliar_switches <- switch_shape(onset_unfamiliar, data_options)
+
+plot(unfamiliar_switches, data_options)
+
+unfamiliar_switches$FirstAOIC <- ifelse(unfamiliar_switches$FirstAOI == 'Animate', .5, -.5)
+unfamiliar_switches$FirstAOIC <- scale(unfamiliar_switches$FirstAOIC, center=T, scale=F)
+
+model <- lmer(FirstSwitch ~ FirstAOIC + (1 + FirstAOIC | Trial) + (1 + FirstAOIC | ParticipantName), data=unfamiliar_switches, REML=F)
+summary(model)
+```
+
+## Bootstrapped splines analysis.
+
+Do a between-subjects analysis for the unfamiliar trials.
+
+```{r}
+bootstrapped_unfamiliar <- bootstrapped_shape(test_time_unfamiliar, data_options, condition_column = 'Condition', within_subj = FALSE, samples = 1000, resolution = 100, alpha = .05, smoother="smooth.spline")
+
+plot(bootstrapped_unfamiliar, data_options)
+
+unfamiliar_bootstrapped_intervals <- analyze_bootstraps(bootstrapped_unfamiliar, data_options)
+
+plot(unfamiliar_bootstrapped_intervals, data_options)
+
+unfamiliar_bootstrapped_divergences <- analyze_bootstrapped_divergences(unfamiliar_bootstrapped_intervals, data_options)
+unfamiliar_bootstrapped_divergences
+```
+
+## Individual differences
+
+### MCDI Scores
+
+```{r}
+ggplot(subject_means_unfamiliar, aes(x=MCDI_Total, y=MeanAnimate, color=Condition)) +
+  geom_point() +
+  stat_smooth(method="lm")
+
+with(subject_means_unfamiliar,
+     cor.test(MeanAnimate,MCDI_Total))
+```
+
+### Age
+
+```{r}
+ggplot(subject_means_unfamiliar, aes(x=Age, y=MeanAnimate, color=Condition)) +
+  geom_point() +
+  stat_smooth(method="lm")
+
+with(subject_means_unfamiliar,
+     cor.test(MeanAnimate,Age))
+```
+
+### Performance on Familiar Trial
+
+```{r}
+# get random effects (centered at 0) for individuals
+model <- lmer(elog ~ TargetC + (1 + TargetC | Trial) + (1 + TargetC | ParticipantName), data = test_window_familiar_agg, REML = F)
+
+familiar_accuracy <- data.frame(
+  ParticipantName = rownames(ranef(model)$ParticipantName),
+  FamiliarAccuracy = ranef(model)$ParticipantName[, 'TargetC']
+)
+
+subject_means_unfamiliar <- merge(subject_means_unfamiliar, familiar_accuracy, by='ParticipantName')
+
+ggplot(subject_means_unfamiliar, aes(x=FamiliarAccuracy, y=MeanAnimate, color=Condition)) +
+  geom_point() +
+  stat_smooth(method="lm")
+
+with(subject_means_unfamiliar,
+     cor.test(MeanAnimate,FamiliarAccuracy))
+```
+
+### Combine all predictors in a single model...
+
+```{r}
+subject_means_unfamiliar$ConditionC <- ifelse(subject_means_unfamiliar$Condition == 'Adjectives', .5, -.5)
+subject_means_unfamiliar$ConditionC <- scale(subject_means_unfamiliar$ConditionC, center=T, scale=F)
+model <- lm(MeanAnimate ~ ConditionC*(FamiliarAccuracy + Age + MCDI_Total), data=subject_means_unfamiliar)
+```
