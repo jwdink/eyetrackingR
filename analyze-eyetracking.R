@@ -730,7 +730,9 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
 #' 
 #' Runs a test on each time-bin of a time-analysis. Defaults to a t-test, but supports wilcox, lm, and lmer as well.
 #' 
-#' @param dataframe.time_shape data The output of the 'time_shape' function
+#' @param dataframe.time_shape data   The output of the 'time_shape' function
+#' @param list data_options
+#' @param character condition_column  The variable whose test statistic you are interested in
 #' ...
 #' @return dataframe 
 
@@ -821,8 +823,8 @@ analyze_time_bins <- function(data,
   if (is.null(threshold)) {
     if (test == "lmer") {
       cat("\nUsing the normal approximation for critical value on parameter in lmer.")
-      crit_pos =  1.96
-      crit_neg = -1.96
+      crit_pos =  qnorm(p=1-alpha/2)
+      crit_neg = -qnorm(p=1-alpha/2)
     } else if (test=="t.test") {
       dfs = sapply(tidied_models, function(x) ifelse('parameter' %in% names(x), x[,'statistic'], NA))
       crit_pos = qt(1-alpha/2, df = dfs)
@@ -989,7 +991,7 @@ plot.bin_analysis <- function(data) {
     geom_line(mapping = aes(x = TimeBin, y= Statistic)) +
     geom_line(mapping = aes(x = TimeBin, y= CritStatisticPos), linetype="dashed") +
     geom_line(mapping = aes(x = TimeBin, y= CritStatisticNeg), linetype="dashed") +
-    ylab("T-Statistic") +
+    ylab("Statistic") +
     xlab("TimeBin") +
     facet_wrap( ~ AOI)
 }
