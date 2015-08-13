@@ -353,14 +353,14 @@ keep_trackloss = function(data, data_options) {
 #' 
 #' @param dataframe data
 #' @param list data_options
-#' @param logical delete_rows (default: FALSE) Should rows with trackloss be deleted?
+#' @param logical delete_rows (default: TRUE) Should rows with trackloss be deleted?
 #' 
 #' @return dataframe 
-remove_trackloss = function(data, data_options, delete_rows = FALSE) {
+remove_trackloss = function(data, data_options, delete_rows = TRUE) {
   
   data = ungroup(data)
   
-  if (delete_rows) {
+  if (delete_rows == TRUE) {
     
     # We want to only remove rows that are positively identified as trackloss, so we replace any trackloss=NA with trackloss=FALSE
     data[[".TracklossBoolean"]] = ifelse(is.na(data[[data_options$trackloss_column]]), FALSE, data[[data_options$trackloss_column]])
@@ -370,6 +370,9 @@ remove_trackloss = function(data, data_options, delete_rows = FALSE) {
     
   } else {
     # Set Looking-at-AOI to NA for any samples where there is Trackloss:
+    
+    # TODO: fix bug that removes all AOI looks when delete_rows == FALSE
+    
     out = data
     for (aoi in data_options$aoi_columns) {
       out[[aoi]] = ifelse(data[[data_options$trackloss_column]]==1, NA, data[[aoi]] )
