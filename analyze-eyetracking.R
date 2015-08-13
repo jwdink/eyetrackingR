@@ -582,6 +582,57 @@ time_shape <- function (data,
   
 }
 
+# cluster_analysis = function(data, data_options, condition_column, method, alpha, ...) {
+#   UseMethod("cluster_analysis")
+# }
+# 
+# #' cluster_analysis.data.frame()
+# #' 
+# #' @param dataframe data The output of the 'time_shape' function
+# #' @param list data_options            
+# #' ...
+# #' @return dataframe 
+# 
+# cluster_analysis.data.frame = function(data, data_options, condition_column, method, alpha = .10) {
+#   #[write me]
+# }
+# 
+# cluster_analysis_helper = function(data, data_options, formula, stat_func, ...) {
+#   
+# }
+# 
+# #' cluster_analysis.time_shape()
+# #' 
+# #' Takes data that has been summarized into time-bins, and finds adjacent time bins that
+# #' pass some threshold of significance, and assigns these adjacent groups into clusters
+# #' for further examination.
+# #' 
+# #' @param dataframe.time_shape data The output of the 'time_shape' function
+# #' @param list data_options            
+# #' ...
+# #' @return dataframe 
+# 
+# cluster_analysis.time_shape = function(data, data_options, condition_column, paired=FALSE, alpha = .10) {
+#   
+#   ## Helper:
+#   label_clusters = function(vec) {
+#     vec[is.na(vec)] = 0
+#     out = c(cumsum(diff(vec)==1))
+#     out[!vec] = NA
+#     out
+#   }
+#   
+#   ## Test Bins:
+#   time_bin_summary = analyze_time_bins(data, data_options, condition_column, paired=paired, alpha = alpha)
+#   
+#   ## Label Adjacent Clusters:
+#   time_bin_summary$Sig = time_bin_summary$Statistic > time_bin_summary$CritStatistic
+#   time_bin_summary %>%
+#     group_by(AOI) %>%
+#     mutate(Cluster = label_clusters(Sig))
+#   
+#   cat("")
+# }
 
 #' onset_shape()
 #' 
@@ -673,7 +724,6 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
   return(out)
 }
 
-
 # Analyzing ------------------------------------------------------------------------------------------
 
 #' analyze_time_bins()
@@ -700,31 +750,23 @@ analyze_time_bins <- function(data,
   # Must be a time_shape:
   if (!'time_shape' %in% class(data)) stop('This function can only be run on the output of the "time_shape" function.')
   
-  # For Multiple aois:
-  aois = unique(data[['AOI']])
-  if ( length(aois) > 1 ) {
-    list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
-      message("Analyzing ", this_aoi, "...")
-      this_df = filter(data, AOI == this_aoi)
-      class(this_df) = class(data)
-      analyze_time_bins(data = this_df, data_options, condition_column, threshold, alpha, test, return_model)
-    })
-    out = bind_rows(list_of_dfs)
-    class(out) = c('bin_analysis', class(out))
-    return( out )
-  }
-  
-  if (test != "lmer") {
-    cat("\nCollapsing data by-subject...")
-    
-    
-  }
-  
 #   # Only support one-way anova:
 #   if (length(condition_column) !=1 ) stop('This function only supports a single condition.')
 #   if (n_distinct(na.omit(data[[condition_column]])) != 2 ) stop('This function only supports two groups within a condition')
 # 
-
+#   # For Multiple aois:
+#   aois = unique(data[['AOI']])
+#   if ( length(aois) > 1 ) {
+#     list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
+#       message("Analyzing ", this_aoi, "...")
+#       this_df = filter(data, AOI == this_aoi)
+#       class(this_df) = class(data)
+#       analyze_time_bins(data = this_df, data_options, condition_column, paired, return_model, dv_type, alpha)
+#     })
+#     out = bind_rows(list_of_dfs)
+#     class(out) = c('bin_analysis', class(out))
+#     return( out )
+#   }
 #   
 #   # Prelims:
 #   data = ungroup(data) # shouldn't be necessary, but just in case
@@ -1018,16 +1060,14 @@ plot.switch_shape = function(data, data_options, condition_columns=NULL) {
 
 # Helpers -----------------------------------------------------------------------------------------------
 
-#' make_dplyr_argument()
-#' 
-#' Takes strings, and concatenates them into a formula, which will be properly passed as an
-#' NSE argument into a dplyr verb
-#' 
-#' [DEPRECATED-- WILL BE REPLACED]
-#' 
-#' @param dots ... An indefinite amount of strings
-#' 
-#' @return formula A formula that will be evaluated in the parent environment
+# make_dplyr_argument()
+#
+# Takes strings, and concatenates them into a formula, which will be properly passed as an
+# NSE argument into a dplyr verb
+#
+# @param dots ... An indefinite amount of strings
+#
+# @return formula A formula that will be evaluated in the parent environment
 
 
 make_dplyr_argument = function(...) {
@@ -1035,23 +1075,6 @@ make_dplyr_argument = function(...) {
   arg_string = paste0("~", paste0(parts, collapse = " ") )
   return( as.formula(arg_string, env = parent.frame()) )
 }
-
-#' make_dplyr_arg()
-#' 
-#' Create an argument for a dplyr verb. Instead of writing out the bare formula, it is contained in a string, 
-#' with fill-in-the-blank style method for filling in programmatically defined argument names.
-#' 
-#' @param dots ... An indefinite amount of strings
-#' 
-#' @return formula A formula that will be evaluated in the parent environment
-
-
-make_dplyr_arg = function(...) {
-#   parts = list(...)
-#   arg_string = paste0("~", paste0(parts, collapse = " ") )
-#   return( as.formula(arg_string, env = parent.frame()) )
-}
-
 
 # center_predictors()
 #
