@@ -614,24 +614,22 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
   # Must be an onset_shape:
   if (!'onset_shape' %in% class(data)) stop('This function can only be run on the output of the "onset_shape" function.')
   
+  time_col = as.name(data_options$time_column)
   
   df_cleaned = filter(data, !is.na(FirstAOI))
-  df_grouped = group_by_(.dots = c(dopts$participant_column, dopts$trial_column, dopts$item_columns, "FirstAOI", condition_columns))
-  df_summarized = summarise(df_grouped,
-                            .dots = list(FirstSwitch = interp(~TIME_COL[first(which(SwitchAOI), order_by= TIME_COL)])))
+  df_grouped = group_by_(data, 
+                         .dots = c(data_options$participant_column, 
+                                   data_options$trial_column, 
+                                   data_options$item_columns, 
+                                   "FirstAOI", 
+                                   condition_columns))
+  df_summarized = summarise_(df_grouped,
+                            .dots = list(FirstSwitch = interp(~TIME_COL[first(which(SwitchAOI), order_by= TIME_COL)], TIME_COL = time_col)
+                                         ))
   
-  dopts = data_options
+  class(df_summarized) = c('switch_shape', class(df_summarized))
   
-  out <- data %>%
-    filter(!is.na(FirstAOI)) %>%
-    group_by_(.dots = as.list(c(dopts$participant_column, dopts$trial_column, dopts$item_columns, "FirstAOI", condition_columns))  ) %>%
-    summarise_(.dots = list(
-      FirstSwitch = make_dplyr_argument(dopts$time_column,"[first(which(SwitchAOI), order_by=", dopts$time_column, ")]-first(",dopts$time_column,")")
-    ))
-  
-  class(out) = c('switch_shape', class(out))
-  
-  return(out)
+  return(df_summarized)
 }
 
 # bootstrapped_shape(data, data_options, condition_column, within_subj, samples, resolution, alpha)
