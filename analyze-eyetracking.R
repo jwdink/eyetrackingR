@@ -167,12 +167,12 @@ describe_data = function(data, data_options, dv, factors) {
   
   data %>%
     group_by_(.dots = as.list(factors)) %>%
-    summarise_(.dots = list(Mean = interp( ~mean(DV, na.rm=TRUE),     DV = dv ),
-                            SD   = interp( ~sd(DV, na.rm=TRUE),       DV = dv ),
-                            Var  = interp( ~var(DV, na.rm=TRUE),      DV = dv ),
-                            Min  = interp( ~mean(DV, na.rm=TRUE)*1.0, DV = dv ),
-                            Max  = interp( ~mean(DV, na.rm=TRUE)*1.0, DV = dv ),
-                            NumTrials = interp( ~ n_distinct(TRIAL_COL), TRIAL_COL = data_options$trial_column)
+    summarise_(.dots = list(Mean = interp( ~mean(DV_COL, na.rm=TRUE),     DV_COL = as.name(dv) ),
+                            SD   = interp( ~sd(DV_COL, na.rm=TRUE),       DV_COL = as.name(dv) ),
+                            Var  = interp( ~var(DV_COL, na.rm=TRUE),      DV_COL = as.name(dv) ),
+                            Min  = interp( ~mean(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(dv) ),
+                            Max  = interp( ~mean(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(dv) ),
+                            NumTrials = interp( ~n_distinct(TRIAL_COL), TRIAL_COL = as.name(data_options$trial_column))
     ))
   
 }
@@ -357,6 +357,7 @@ keep_trackloss = function(data, data_options) {
 #' 
 #' @return dataframe 
 remove_trackloss = function(data, data_options, delete_rows = TRUE) {
+  require('dplyr', quietly=TRUE)
   
   data = ungroup(data)
   
@@ -366,7 +367,8 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
     data[[".TracklossBoolean"]] = ifelse(is.na(data[[data_options$trackloss_column]]), FALSE, data[[data_options$trackloss_column]])
 
     # Remove all rows with Trackloss:
-    out = filter(data, .TracklossBoolean == 0)
+    data = filter(data, .TracklossBoolean == 0)
+    out = data[, !(colnames(data) %in% c('.TracklossBoolean'))]
     
   } else {
     # Set Looking-at-AOI to NA for any samples where there is Trackloss:
