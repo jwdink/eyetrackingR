@@ -740,6 +740,7 @@ analyze_time_bins <- function(data,
                               threshold = NULL,
                               alpha = .05,
                               test = "t.test",
+                              formula = NULL,
                               return_model = FALSE,
                               ...)
 {
@@ -750,60 +751,105 @@ analyze_time_bins <- function(data,
   # Must be a time_shape:
   if (!'time_shape' %in% class(data)) stop('This function can only be run on the output of the "time_shape" function.')
   
-#   # Only support one-way anova:
-#   if (length(condition_column) !=1 ) stop('This function only supports a single condition.')
-#   if (n_distinct(na.omit(data[[condition_column]])) != 2 ) stop('This function only supports two groups within a condition')
-# 
-#   # For Multiple aois:
-#   aois = unique(data[['AOI']])
-#   if ( length(aois) > 1 ) {
-#     list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
-#       message("Analyzing ", this_aoi, "...")
-#       this_df = filter(data, AOI == this_aoi)
-#       class(this_df) = class(data)
-#       analyze_time_bins(data = this_df, data_options, condition_column, paired, return_model, dv_type, alpha)
-#     })
-#     out = bind_rows(list_of_dfs)
-#     class(out) = c('bin_analysis', class(out))
-#     return( out )
-#   }
-#   
-#   # Prelims:
-#   data = ungroup(data) # shouldn't be necessary, but just in case
-#   dopts = data_options
-#   
-#   # Collapse by Participant:
-#   dv_type = match.arg(dv_type, choices = c("ArcSin", "elog", "Prop"))
-#   summarise_arg = list(make_dplyr_argument("mean(",dv_type,",na.rm=TRUE)"))
-#   names(summarise_arg) = dv_type
-#   by_part = data %>% 
-#     group_by_(.dots = as.list(c(dopts$participant_column, condition_column, "AOI", "TimeBin") ) ) %>%
-#     summarise_(.dots = summarise_arg)
-#   
-#   # Do a t-test for each TimeBin:
-#   the_formula = paste(dv_type, "~", condition_column)
-#   t_models = lapply(X = unique(by_part$TimeBin), FUN = function(tb) {
-#     resil_t = failwith(NA, f = t.test, quiet=TRUE)
-#     resil_t(formula = as.formula(the_formula), data = filter(by_part, TimeBin==tb), paired=paired)
-#   })
-#   
-#   # Extract T and Critical T:
-#   model_params = lapply(t_models, FUN = function(x) tidy(x) )   
-#   t_vals = unlist(sapply(X = model_params, FUN = function(x) ifelse('statistic' %in% names(x), x['statistic'], NA)))
-#   dfs    = unlist(sapply(X = model_params, FUN = function(x) ifelse('parameter' %in% names(x), x['parameter'], NA)))
-#   crit_t = qt(p = 1 - alpha/2, df = dfs)
-# 
-#   # Summarize:
-#   out = data.frame(stringsAsFactors = FALSE,
-#                    Statistic= t_vals, 
-#                    CritStatisticPos =  crit_t, 
-#                    CritStatisticNeg = -crit_t, 
-#                    TimeBin = unique(by_part$TimeBin),
-#                    AOI = unique(by_part$AOI))
-#   if (return_model) out$Model = t_models
-#   
-#   class(out) = c('bin_analysis', class(out))
-#   out
+  # For Multiple aois:
+  aois = unique(data[['AOI']])
+  if ( length(aois) > 1 ) {
+    list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
+      message("Analyzing ", this_aoi, "...")
+      this_df = filter(data, AOI == this_aoi)
+      class(this_df) = class(data)
+      analyze_time_bins(data = this_df, data_options, condition_column, threshold, alpha, test, formula, return_model, ...)
+    })
+    out = bind_rows(list_of_dfs)
+    class(out) = c('bin_analysis', class(out))
+    return( out )
+  }
+  
+  # Collapse by participants if necessary:
+  if (test != "lmer") {
+    message("Collapsing data by participant...")
+    df_grouped = group_by_(.data = data, .dots = list(data_options$participant_column, "TimeBin", "AOI", condition_column))
+    df_by_part = summarise(.data = df_grouped, Prop = mean(Prop, na.rm=TRUE))
+    df_analyze = ungroup(df_by_part)
+  } else {
+    df_analyze = data
+  }
+
+  # auto-make a formula, unless they specified one
+  if (is.null(formula)) {
+    if (test=="lmer") stop("Must specify a formula if using lmer.")
+    formula = as.formula(paste("Prop ~", condition_column))
+  }
+  
+  # Run a model for each time-bin
+  message("Computing ", test, " for each time bin...")
+  failsafe_test = failwith(default = NA, f = get(test), quiet = FALSE)
+  models = list()
+  samp_sizes = c()
+  for (tb in unique(df_analyze$TimeBin)) {
+    temp_dat = filter(df_analyze, TimeBin==tb)
+    condition_col_is_na = is.na(temp_dat[[condition_column]])
+    samp_sizes[as.character(tb)] = length(unique( temp_dat[[data_options$participant_column]][!condition_col_is_na] ))
+    models[[as.character(tb)]] = failsafe_test(formula = formula, data = temp_dat, ... = ...)
+  }
+  
+  # Get Statistic:
+  if (test=="lmer") {
+    tidied_models = lapply(models, tidy, effects="fixed")
+  } else {
+    tidied_models = lapply(models, tidy)
+  }
+  if (test %in% c('t.test','wilcox.test')) {
+    models_statistics = sapply(tidied_models, function(x) ifelse('statistic' %in% names(x), x[,'statistic'], NA) )
+  } else {
+    models_statistics = sapply(tidied_models, function(x) {
+      which_row = grep(pattern = condition_column, x = x[['term']], fixed = TRUE) # look for partially matching param (for treatment coding)
+      if (length(which_row)==1) {
+        return(x[which_row, 'statistic'])
+      } else {
+        # too many matches? look for exact match (happens with continous predictor)
+        which_row = which(x[['term']] == condition_column)
+        if (length(which_row)==1) return(x[which_row, 'statistic'])
+        warning("Could not find the parameter '",condition_column,"' in your model. Found instead: ", paste(x[['term']], collapse=", ") )
+        return(NA)
+      }
+    } )
+  }
+  
+  
+  # Find Critical Value:
+  if (is.null(threshold)) {
+    if (test == "lmer") {
+      cat("\nUsing the normal approximation for critical value on parameter in lmer.")
+      crit_pos =  1.96
+      crit_neg = -1.96
+    } else if (test=="t.test") {
+      dfs = sapply(tidied_models, function(x) ifelse('parameter' %in% names(x), x[,'statistic'], NA))
+      crit_pos = qt(1-alpha/2, df = dfs)
+      crit_neg = -crit_pos
+    } else if (test=="wilcox.test") {
+      crit_pos = qsignrank(p = 1-alpha/2, n = samp_sizes )
+      crit_neg = -crit_pos
+    } else if (test=="lm") {
+      crit_pos = qt(1-alpha/2, df = samp_sizes-1)
+      crit_neg = -crit_pos
+    }
+  } else {
+    crit_pos = ifelse(sign(threshold)==1,  threshold, -threshold)
+    crit_neg = ifelse(sign(threshold)==1, -threshold,  threshold)
+  }
+  
+  # Return DataFrame:
+  out = data.frame(stringsAsFactors = FALSE,
+                   Statistic = models_statistics,
+                   CritStatisticPos = crit_pos,     
+                   CritStatisticNeg = crit_neg,     
+                   TimeBin = unique(df_analyze$TimeBin), # same order as for loop that built models
+                   AOI = df_analyze$AOI[1]) # all same
+  if (return_model) out$Model = models
+
+  class(out) = c('bin_analysis', class(out))
+  out
 }
 
 # Visualizing ------------------------------------------------------------------------------------------
@@ -1081,12 +1127,15 @@ make_dplyr_argument = function(...) {
 #' Create an expression for a dplyr verb. Instead of writing out the bare expression, you write it as a string
 #' with fill-in-the-blank style method for filling in programmatically-defined argument names.
 #' 
-#' @param character  the_expression  A string argument
+#' The upshot is this is a clean-syntax way of using dplyr programmatically. E.g.,
+#'
+#' > mutate_(.dots = list(MeanRT = make_dplyr_expression("mean({reaction_time_column}, na.rm=TRUE)", reaction_time_column = "RT") ) )
+#' 
+#' @param character  the_expression  A string containing an expression, with placeholders wrapped in curly braces
 #' @param ...        ...             More args, where names are to-be-replaced placeholders in the expression
-#'                                   (wrapped in curly braces), and values are the names of vars to be inserted
+#'                                   (not including curly braces), and values are the names of vars to be inserted
 #' 
 #' @return formula A formula that will be evaluated in the parent environment
-
 
 make_dplyr_expression = function(the_expression, ...) {
   the_arguments = list(...)
