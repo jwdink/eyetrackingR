@@ -139,7 +139,7 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
   
   # Subset
   df_subsetted = filter_(.data = data, 
-                         .dots = list( interp(~ TIME_COL > .WindowStart & TIME_COL < .WindowEnd, 
+                         .dots = list( interp(~ TIME_COL >= .WindowStart & TIME_COL <= .WindowEnd, 
                                               TIME_COL= time_col)
                          ))
 
@@ -394,6 +394,37 @@ remove_trackloss = function(data, data_options, delete_rows = FALSE) {
 
 # Shaping ------------------------------------------------------------------------------------------
 
+
+#' .make_proportion_looking_summary()
+#' 
+#' A helper function for window_shape and time_shape. Takes a dataframe, groups it, and returns proportion looking
+#' and relevant transformations
+#' 
+#' @param dataframe data
+#' @param list groups
+#' @param character aoi_col
+#' 
+#' @return dataframe
+.make_proportion_looking_summary = function(data, groups, aoi_col) {
+  # Group, Summarise Samples
+  df_grouped = group_by_(data, .dots = groups)
+  df_summarized = summarise_(df_grouped,
+                             .dots = list(SamplesInAOI = interp(~sum(AOI_COL, na.rm=TRUE), AOI_COL = aoi_col),
+                                          SamplesTotal = interp(~sum(!is.na(AOI_COL)), AOI_COL = aoi_col) # ignore all NAs
+                             ))
+  
+  # Calculate Proportion, Elog, etc.
+  aoi = as.character(aoi_col)
+  out = mutate(df_summarized,
+               AOI = aoi,
+               Elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ),
+               Weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
+               Prop = SamplesInAOI / SamplesTotal,
+               ArcSin = asin( sqrt( Prop ))
+  )
+  out = ungroup(out)
+}
+
 #' window_shape()
 #' 
 #' Collapse time across our entire window and return a dataframe ready for analyses (e.g., lmer)
@@ -410,9 +441,10 @@ window_shape <- function(data,
                          aoi = data_options$aoi_columns, 
                          condition_columns = NULL
 ) {
-  require('dplyr', quietly=TRUE)
+  require("dplyr", quietly=TRUE)
+  require("lazyeval", quietly = TRUE)
   
-  # For Multiple DVs:
+  # For Multiple AOIs:
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
@@ -427,22 +459,8 @@ window_shape <- function(data,
   data = ungroup(data)
   aoi_col = as.name(aoi)
 
-  # Group By Participant*Trial, Summarise Samples
-  df_grouped = group_by_(data, .dots = list(data_options$participant_column, data_options$trial_column))
-  df_summarized = summarise_(df_grouped,
-                             .dots = list(SamplesInAOI = interp(~sum(AOI_COL, na.rm=TRUE), AOI_COL = aoi_col),
-                                          SamplesTotal = interp(~sum(!is.na(AOI_COL)), AOI_COL = aoi_col) # ignore all NAs
-                             ))
-  
-  # Calculate Proportion, Elog, etc.
-  out = mutate(df_summarized,
-               AOI = aoi,
-               Elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ),
-               Weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
-               Prop = SamplesInAOI / SamplesTotal,
-               ArcSin = asin( sqrt( Prop ))
-  )
-  out = ungroup(out)
+  # Make Summary
+  out = .make_proportion_looking_summary(data=data, groups = list(data_options$participant_column, data_options$trial_column), aoi_col)
                
   class(out) = c('window_shape', class(out))
   return(out)
@@ -473,7 +491,8 @@ time_shape <- function (data,
                         summarize_by = 'crossed') {
   
   
-  require('dplyr', quietly=TRUE)
+  require("dplyr", quietly=TRUE)
+  require("lazyeval", quietly = TRUE)
   
   # For Multiple aois:
   if (length(aoi) > 1) {
@@ -878,7 +897,8 @@ analyze_time_bins <- function(data,
                               ...)
 {
   
-  require('dplyr', quietly=TRUE)
+  require("dplyr", quietly=TRUE)
+  require("lazyeval", quietly = TRUE)
   require('broom', quietly=TRUE)
   
   # Must be a time_shape:
@@ -1436,7 +1456,8 @@ plot.bootstrapped_intervals_shape = function(data, data_options) {
 # @return dataframe data with modified columns appended with "C"
 
 center_predictors = function(data, predictors) {
-  require('dplyr', quietly=TRUE)
+  require("dplyr", quietly=TRUE)
+  require("lazyeval", quietly = TRUE)
   
   mutate_argument = list()
   for (i in seq_along(predictors)) {
