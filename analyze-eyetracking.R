@@ -191,67 +191,68 @@ describe_data = function(data, data_options, dv, factors) {
 }
 
 
-# trackloss_analysis ()
-#
-# Get information on trackloss
-#
-# @param dataframe data
-# @param list data_options
-# @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
-# @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
-#
-# @return dataframe 
+#' trackloss_analysis ()
+#' 
+#' Get information on trackloss
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
+#' @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
+#' 
+#' @return dataframe 
 
 trackloss_analysis = function(data, data_options, window_start = -Inf, window_end = Inf) {
-  .zscore = function(x) (x-mean(x,na.rm=TRUE)) / sd(x,na.rm=TRUE)
   require("dplyr", quietly=TRUE)
   require("lazyeval", quietly = TRUE)
   
+  trackloss_col = as.name(data_options$trackloss_column)
+  
   # Filter by Time-Window:
   df_subsetted = subset_by_window(data, data_options, window_start, window_end)
-  #df_group_trial_participant = group_by_(df_subsetted, )
   
-   #%>%
-    # Get Trackloss-by-Trial:
-    group_by_(.dots = list(data_options$participant_column, data_options$trial_column)) %>%
-    mutate_(.dots = list(SumTracklossForTrial = make_dplyr_argument("sum(", data_options$trackloss_column, ", na.rm=TRUE)"),
-                         TotalTrialLength = make_dplyr_argument("length(", data_options$trackloss_column, ")"),
-                         TracklossForTrial = make_dplyr_argument("SumTracklossForTrial / TotalTrialLength")) ) %>%
-    ungroup() %>%
-    # Get Trackloss-by-Participant:
-    group_by_(.dots = list(data_options$participant_column)) %>%
-    mutate_(.dots = list(SumTracklossForParticipant = make_dplyr_argument("sum(", data_options$trackloss_column, ", na.rm=TRUE)"),
-                         TotalParticipantLength = make_dplyr_argument("length(", data_options$trackloss_column, ")"),
-                         TracklossForParticipant = make_dplyr_argument("SumTracklossForParticipant / TotalParticipantLength"))) %>%
-    ungroup() %>%
-    # Get Z-Scores:
-    group_by_(.dots = list(data_options$participant_column, data_options$trial_column) )%>%
-    summarise(Samples = mean(TotalTrialLength, na.rm=TRUE),
-              TracklossSamples = mean(SumTracklossForTrial, na.rm=TRUE),
-              TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
-              TracklossForParticipant = mean(TracklossForParticipant, na.rm=TRUE)) %>%
-    ungroup() %>%
-    mutate(Part_ZScore  = .zscore(TracklossForParticipant),
-           Trial_ZScore = .zscore(TracklossForTrial) )
+  # Get Trackloss-by-Trial:
+  df_grouped_trial = group_by_(df_subsetted, .dots = list(data_options$participant_column, data_options$trial_column))
+  df_trackloss_by_trial = mutate_(df_grouped_trial,
+                                  .dots = list(SumTracklossForTrial = interp(~sum(TRACKLOSS_COL, na.rm=TRUE), TRACKLOSS_COL = trackloss_col),
+                                               TotalTrialLength     = interp(~length(TRACKLOSS_COL), TRACKLOSS_COL = trackloss_col),
+                                               TracklossForTrial    = interp(~SumTracklossForTrial / TotalTrialLength)
+                                  )) 
+
+  # Get Trackloss-by-Participant:
+  df_grouped_ppt = group_by_(df_trackloss_by_trial, .dots = list(data_options$participant_column))
+  df_trackloss_by_ppt = mutate_(df_grouped_ppt,
+                                .dots = list(SumTracklossForParticipant = interp(~sum(TRACKLOSS_COL, na.rm=TRUE), TRACKLOSS_COL = trackloss_col),
+                                             TotalParticipantLength     = interp(~length(TRACKLOSS_COL), TRACKLOSS_COL = trackloss_col),
+                                             TracklossForParticipant    = interp(~SumTracklossForParticipant / TotalParticipantLength)
+                                ))
+  
+  # Get Z-Scores:
+  df_grouped = group_by_(df_trackloss_by_ppt, .dots = list(data_options$participant_column, data_options$trial_column) )
+  df_summarized = summarise(df_grouped,
+                            Samples = mean(TotalTrialLength, na.rm=TRUE),
+                            TracklossSamples = mean(SumTracklossForTrial, na.rm=TRUE),
+                            TracklossForTrial = mean(TracklossForTrial, na.rm=TRUE),
+                            TracklossForParticipant = mean(TracklossForParticipant, na.rm=TRUE)) %>%
+    ungroup()
+  
+  return(df_summarized)
 }
 
-# clean_by_trackloss ()
-#
-# Remove trials/participants with too much trackloss, with a customizable threshold
-#
-# @param dataframe data
-# @param list data_options
-# @param numeric participant_z_thresh Maximum amount of trackloss for participants, in terms of z-scores
-# @param numeric trial_z_thresh Maxmimum amount of trackloss for trials, in terms of z-scores
-# @param numeric participant_prop_thresh Maximum proportion of trackloss for participants
-# @param numeric trial_prop_thresh Maximum proportion of trackloss for trials
-# @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
-# @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
-#
-# @return dataframe 
+#' clean_by_trackloss ()
+#' 
+#' Remove trials/participants with too much trackloss, with a customizable threshold
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' @param numeric participant_prop_thresh Maximum proportion of trackloss for participants
+#' @param numeric trial_prop_thresh Maximum proportion of trackloss for trials
+#' @param numeric/character window_start Number (for timestamp) or character (for column that specifies timestamp)
+#' @param numeric/character window_end Number (for timestamp) or character (for column that specifies timestamp)
+#' 
+#' @return dataframe 
 
 clean_by_trackloss = function(data, data_options, 
-                              participant_z_thresh = Inf, trial_z_thresh = Inf, 
                               participant_prop_thresh = 1, trial_prop_thresh = 1,
                               window_start = -Inf, window_end = Inf) {
   data$.TrialID = paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
@@ -261,17 +262,6 @@ clean_by_trackloss = function(data, data_options,
   tl = trackloss_analysis(data, data_options, window_start, window_end)
   
   # Bad Trials:
-  if (trial_z_thresh < Inf) {
-    message("Will exclude trials whose trackloss-z-score is greater than : ", trial_z_thresh)
-    prop_thresh_trial = sd(tl$TracklossForTrial)*trial_z_thresh + mean(tl$TracklossForTrial)
-    message("i.e., where trackloss proportion is greater than : ", round(prop_thresh_trial*100, 2), "%")
-    exclude_trials_zs = paste(tl$Participant[tl$Trial_ZScore > trial_z_thresh], 
-                              tl$Trial[tl$Trial_ZScore > trial_z_thresh], 
-                              sep="_")
-    message(paste("\t...removed ", length(exclude_trials_zs), " trials."))
-  } else {
-    exclude_trials_zs = c()
-  }
   if (trial_prop_thresh < 1) {
     message("Will exclude trials whose trackloss proportion is greater than : ", trial_prop_thresh)
     exclude_trials_props = paste(tl$Participant[tl$TracklossForTrial > trial_prop_thresh], 
@@ -284,15 +274,6 @@ clean_by_trackloss = function(data, data_options,
   
   # Bad Participants
   part_vec = data[[data_options$participant_col]]
-  if (participant_z_thresh < Inf) {
-    message("Will exclude participants whose trackloss-z-score is greater than : ", participant_z_thresh)
-    prop_thresh_ppt = sd(tl$TracklossForParticipant)*participant_z_thresh + mean(tl$TracklossForParticipant)
-    message("i.e., whose trackloss is greater than : ", round(prop_thresh_ppt*100, 2), "%")
-    exclude_ppts_z = unique(tl$Participant[tl$Part_ZScore > participant_z_thresh])
-    message(paste("\t...removed ", length(exclude_ppts_z), " participants."))
-  } else {
-    exclude_ppts_z = c()
-  }
   if (participant_prop_thresh < 1) {
     message("Will exclude participants whose trackloss proportion is greater than : ", participant_prop_thresh)
     exclude_ppts_prop = unique(tl$Participant[tl$TracklossForParticipant > participant_prop_thresh])
@@ -301,51 +282,36 @@ clean_by_trackloss = function(data, data_options,
     exclude_ppts_prop = c()
   }
   
-  exclude_trials = c(exclude_trials_zs,
-                     exclude_trials_props,
-                     unique( data$TrialID[part_vec %in% exclude_ppts_z] ),
-                     unique( data$TrialID[part_vec %in% exclude_ppts_prop] ))
+  exclude_trials = c(exclude_trials_props,
+                     unique( data$.TrialID[part_vec %in% exclude_ppts_prop] ))
   
   # Remove:
-  data_clean = data %>%
-    filter(! .TrialID %in% exclude_trials)
-  
+  data_clean = filter(data, ! .TrialID %in% exclude_trials)
   data_clean$.TrialID = NULL
   
-  data_clean
+  return(data_clean)
   
 }
 
-# convert_non_aoi_to_trackloss ()
-#
-# Should gaze outside of any AOI be considered trackloss? This function sets trackloss to TRUE for any 
-# samples that were not inside an AOI
-#
-# @param dataframe data
-# @param list data_options
-#
-# @return dataframe 
+#' convert_non_aoi_to_trackloss ()
+#' 
+#' Should gaze outside of any AOI be considered trackloss? This function sets trackloss to TRUE for any 
+#' samples that were not inside an AOI
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' 
+#' @return dataframe 
 
 convert_non_aoi_to_trackloss = function(data, data_options) {
-  replace_na_arg = lapply(data_options$aoi_columns,
-                          FUN = function(aoi) make_dplyr_argument("ifelse(is.na(",aoi,"), 0, ", aoi,")" ))
   
-  names(replace_na_arg) = paste0(".", data_options$aoi_columns)
-  
-  out = data %>%
-    mutate_(.dots = replace_na_arg) %>%
-    mutate_(.dots = list(.Trackloss = make_dplyr_argument(data_options$trackloss_column))) %>%
-    mutate_(.dots = list(.AOISum = make_dplyr_argument(paste(paste0('.',data_options$aoi_columns), collapse = "+"))) ) %>%
-    mutate(.Trackloss = ifelse(.AOISum == 0, TRUE, .Trackloss))
-  
-  out[[data_options$trackloss_column]] <- out$.Trackloss
-  
-  for (aoi in paste0(".", data_options$aoi_columns)) {
-    out[[aoi]] = NULL
+  .narepl = function(x) ifelse(is.na(x), 0, x)
+  data_no_na = mutate_each_(data, funs(.narepl), vars = sapply(data_options$aoi_columns, as.name))
+  data_no_na[[".AOISum"]] = 0
+  for (aoi in data_options$aoi_columns) {
+    data_no_na[[".AOISum"]] = data_no_na[[".AOISum"]] + data_no_na[[aoi]]
   }
-  
-  out[[".AOISum"]] = NULL
-  out[[".Trackloss"]] = NULL
+  data[[data_options$trackloss_column]] = ifelse(.AOISum == 0, TRUE, .data_no_na[[data_options$trackloss_column]])
   
   out
 }
