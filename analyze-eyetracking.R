@@ -1,14 +1,5 @@
 # analyze-eyetracking.R
 #
-# This library helps prepare data for several different types of eyetracking analyses:
-#   * Bin analyses
-#   * Window analyses
-#   * Linear timecourse analyses
-#   * Non-linear (growth curve) timecourse analyses
-#
-# It also includes several functions for cleaning the dataset before each of these analyses.
-#
-#
 # @author Brock Ferguson
 #         brock.ferguson@gmail.com
 #         brockferguson.com
@@ -16,27 +7,24 @@
 # @author Jacob Dink
 #         jacobwdink@gmail.com
 #         github.com/jwdink
-#
-# @created July, 2012
-# @re-written April, 2015
 
 
 # Loading/Cleaning/Describing ------------------------------------------------------------------------
-
-# set_data_options
-#
-# Create a list of data options which is passed to most of these
-# methods.
-#
-# @param string participant_column Set to the subject code of the participant
-# @param string trackloss_column Set to 1 or 0 depending on whether the sample is lost to trackloss
-# @param string time_column The factor to use for judgments of time (ms)
-# @param string trial_column The unique name of the current trial
-# @param string/vector item_columns One or more columns that specify item/stimulus properties (values do not need to be unique, and this can be the same as trial)
-# @param string/vector aoi_columns Names of all AOI columns (which should be logical, 1/0)
-
-#
-# @return list of configuration options
+#' 
+#' set_data_options
+#' 
+#' Create a list of data options which is passed to most of these
+#' methods.
+#' 
+#' @param character          participant_column Column name for participant identifier
+#' @param character          trackloss_column   Column name indicating trackloss
+#' @param character          time_column        Column name indicating time
+#' @param character          trial_column       Column name indicating trial identifier
+#' @param character.vector   item_columns       Column names indicating items (can be same as trial_column)
+#' @param character.vector   aoi_columns        Names of AOIs
+#' 
+#' 
+#' @return list of configuration options
 
 set_data_options <- function(
   participant_column,
@@ -471,34 +459,31 @@ window_shape <- function(data,
 
 #' time_shape()
 #' 
-#' Creates time-bins and summarizes proportion-looking within each time-bin, by-participants,
-#' by-items, or crossed. Returns the summarized dataframe, ready for timecourse analyses.
+#' Creates time-bins and summarizes proportion-looking within each time-bin
 #' 
 #' @param dataframe data
 #' @param list data_options
-#' @param integer time_bin_size The time (ms) to fit into each bin
-#' @param string aoi Which AOI(s) do you want to analyze?
-#' @param character.vector condition_columns 
-#' @param character summarize_by Should the data by summarized by participant, by item, or crossed (both)?
+#' @param integer time_bin_size  The time to fit into each bin
+#' @param character              aoi Which AOI(s) do you want to analyze?
+#' @param character.vector       condition_columns 
 #' 
 #' @return dataframe summarized
 
 time_shape <- function (data, 
                         data_options, 
-                        time_bin_size = 250, 
+                        time_bin_size, 
                         aoi = data_options$aoi_columns, 
-                        condition_columns = NULL,
-                        summarize_by = 'crossed') {
+                        condition_columns = NULL) {
   
   
   require("dplyr", quietly=TRUE)
   require("lazyeval", quietly = TRUE)
   
-  # For Multiple aois:
+  # For Multiple AOIs:
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
-      message("Creating Summary for ", this_aoi, "...")
-      time_shape(data, data_options, time_bin_size, this_aoi, condition_columns, summarize_by)
+      message("Analyzing ", this_aoi, "...")
+      time_shape(data, data_options, time_bin_size, this_aoi, condition_columns)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('time_shape', class(out))
@@ -507,57 +492,19 @@ time_shape <- function (data,
   
   # Prelims:
   data = ungroup(data)
-  dopts = data_options
+  aoi_col = as.name(aoi)
   
-  # Check that Condition Column has a healthy number of levels (i.e., won't crash R)
-  num_unique_conditions_in_cell = lapply(X = condition_columns, 
-                                         FUN = function(condition_col) make_dplyr_argument( "length(unique(",condition_col,"))" ))
-  names(num_unique_conditions_in_cell) = condition_columns
-  df_cond_check = data %>%
-    group_by_(.dots = as.list( c(dopts$participant_column, dopts$trial_column) )) %>%
-    summarise_(.dots = num_unique_conditions_in_cell )
-  for (condition_col in condition_columns) {
-    if (any(df_cond_check[[condition_col]] > 1)) {
-      stop("Condition columns should not vary within a trial")
-    }
-  }
+  # Make Time Bin:
+  data[["TimeBin"]] = floor(data[[data_options$time_column]] / time_bin_size)
   
-  # How to Group? By Sub? Item? Both?
-  group_by_arg = switch(match.arg(summarize_by, c('crossed', 'subjects', 'participants', 'items')),
-                        crossed      = as.list( c(dopts$participant_column, dopts$item_columns, condition_columns, "TimeBin") ),
-                        subjects     = as.list( c(dopts$participant_column, condition_columns, "TimeBin") ),
-                        participants = as.list( c(dopts$participant_column, condition_columns, "TimeBin") ),
-                        items        = as.list( c(dopts$item_columns, condition_columns, "TimeBin") )
-  )
+  # Make Summary
+  df_summarized = .make_proportion_looking_summary(data=data, 
+                                                   groups = list(data_options$participant_column, data_options$trial_column, "TimeBin"), 
+                                                   aoi_col)
+  df_summarized[["Time"]] = df_summarized[["TimeBin"]] * time_bin_size
   
-  
-  # Make summarized dataframe:
-  summarized = data %>%
-    # Make Time Bins:
-    mutate_(
-      .dots = list(TimeBin = make_dplyr_argument("floor(", dopts$time_column, "/", time_bin_size, ")" ) )
-    ) %>%
-    
-    # Group by Sub/Item, Summarize Samples in AOI:
-    group_by_(.dots =  group_by_arg) %>%
-    summarise_(.dots =  list(SamplesInAOI = make_dplyr_argument( "sum(", aoi, ", na.rm=TRUE)"),
-                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", aoi, "))")
-    )) %>%
-    
-    # Add Time -- a time value that perfectly corresponds to TimeBin
-    mutate_(.dots = list(Time = make_dplyr_argument('TimeBin * ', time_bin_size))) %>%
-    
-    # Compute Proportion, Empirical Logit, etc.:
-    mutate(AOI = aoi,
-           Elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ),
-           Weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
-           Prop = SamplesInAOI / SamplesTotal,
-           ArcSin = asin( sqrt( Prop ) )
-    ) %>%
-    ungroup()
-  
-  # add orthogonal polynomials for Growth Curve Analyses
-  time_bin_column <- summarized$TimeBin
+  # Add orthogonal polynomials for Growth Curve Analyses
+  time_bin_column <- df_summarized$TimeBin
   max_degree = min( length(unique(time_bin_column))-1 , 7 )
   if (max_degree < 7) warning("Fewer time bins than polynomial degrees-- consider decreasing size of time bin.")
   orthogonal_polynomials <- poly(sort(as.vector(unique(time_bin_column))), max_degree)
@@ -565,13 +512,13 @@ time_shape <- function (data,
     sort(as.vector(unique(time_bin_column))),
     orthogonal_polynomials[, c(1:max_degree)]
   )
-  colnames(time_codes) <- c('TimeBin',paste0("ot", 1:max_degree))
+  colnames(time_codes) <- c('TimeBin',paste0("OT", 1:max_degree))
   
-  summarized <- merge(summarized, time_codes, by='TimeBin')
+  out <- left_join(df_summarized, time_codes, by='TimeBin')
   
-  class(summarized) = c('time_shape', class(summarized))
+  class(out) = c('time_shape', class(out))
   
-  return(summarized)
+  return(out)
   
 }
 
