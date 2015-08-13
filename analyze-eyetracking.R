@@ -532,9 +532,10 @@ time_shape <- function (data,
 #'                                             (e.g., "100" means that the fixated AOI is determined over a 100ms rolling window)
 #' @param character target_aoi      Which AOI is the target that should be switched *to*
 #' @param character distractor_aoi  Which AOI is the distractor that should be switched *from* (default = !target_aoi)
+#' 
 #' @return dataframe 
 
-onset_shape = function(data, data_options, onset_time, fixation_wind_len, target_aoi, distractor_aoi = NULL, condition_columns = NULL) {
+onset_shape = function(data, data_options, onset_time, fixation_wind_len, target_aoi, distractor_aoi = NULL) {
   require("dplyr", quietly=TRUE)
   require("lazyeval", quietly = TRUE)
   require("zoo", quietly=TRUE)
@@ -553,7 +554,7 @@ onset_shape = function(data, data_options, onset_time, fixation_wind_len, target
   time_col = as.name(data_options$time_column)
   
   ## Translate TimeWindow units from time to number of rows (for rolling mean):
-  df_time_per_row = group_by_(data, .dots = c(data_options$participant_column, data_options$trial_column, condition_columns) )
+  df_time_per_row = group_by_(data, .dots = c(data_options$participant_column, data_options$trial_column) )
   df_time_per_row = summarise_(df_time_per_row,
                                .dots = list(TimePerRow = interp(~mean(diff(TIME_COL)), TIME_COL = time_col)
                                             ))
@@ -563,13 +564,15 @@ onset_shape = function(data, data_options, onset_time, fixation_wind_len, target
   ## Determine First AOI, Assign Switch Value for each timepoint
   
   # Group by Ppt*Trial:
-  df_grouped = group_by( .dots = list(data_options$participant_column, data_options$trial_column) )
+  df_grouped = group_by_(data, .dots = list(data_options$participant_column, data_options$trial_column) )
+  
   # Create a rolling-average of 'inside-aoi' logical for target and distractor, to give a smoother estimate of fixations
   df_smoothed = mutate_(df_grouped,
                         .dots = list(.Target    = interp(~na_replace_rollmean(TARGET_AOI), TARGET_AOI = as.name(target_aoi)),
                                      .Distractor= interp(~na_replace_rollmean(DISTRACTOR_AOI), DISTRACTOR_AOI = as.name(distractor_aoi)),
                                      .Time      = interp(~TIME_COL, TIME_COL = time_col)
                                      ))
+  
   # For any trials where no data for onset timepoint is available, find the closest timepoint. 
   # Calculate FirstAOI
   df_first_aoi = mutate(df_smoothed,
@@ -610,6 +613,12 @@ onset_shape = function(data, data_options, onset_time, fixation_wind_len, target
 switch_shape = function(data, data_options, condition_columns=NULL) {
   # Must be an onset_shape:
   if (!'onset_shape' %in% class(data)) stop('This function can only be run on the output of the "onset_shape" function.')
+  
+  
+  df_cleaned = filter(data, !is.na(FirstAOI))
+  df_grouped = group_by_(.dots = c(dopts$participant_column, dopts$trial_column, dopts$item_columns, "FirstAOI", condition_columns))
+  df_summarized = summarise(df_grouped,
+                            .dots = list(FirstSwitch = interp(~TIME_COL[first(which(SwitchAOI), order_by= TIME_COL)])))
   
   dopts = data_options
   
@@ -1231,7 +1240,7 @@ plot.onset_shape = function(data, data_options, condition_columns=NULL) {
     stop("Maximum two condition factors")
   }
   onset_attr = attr(data, "onset_contingent")
-  if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- fix later
+  if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   
   # Brock: set smoothing_window_size based on fixation_wind_len in attr's
   # TODO: any problem with this?
