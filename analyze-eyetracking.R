@@ -116,7 +116,7 @@ verify_dataset <- function(data, data_options) {
 # @return dataframe 
 
 subset_by_window = function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
-  require(dplyr)
+  require(dplyr, quietly=T)
   
   dopts = data_options
   
@@ -171,7 +171,7 @@ subset_by_window = function(data, data_options, window_start = -Inf, window_end 
 # @return dataframe 
 
 describe_data = function(data, data_options, dv, factors) {
-  require(dplyr)
+  require(dplyr, quietly=T)
   
   data %>%
     group_by_(.dots = as.list(factors)) %>%
@@ -199,7 +199,7 @@ describe_data = function(data, data_options, dv, factors) {
 
 trackloss_analysis = function(data, data_options, window_start = -Inf, window_end = Inf) {
   .zscore = function(x) (x-mean(x,na.rm=TRUE)) / sd(x,na.rm=TRUE)
-  require('dplyr')
+  require('dplyr', quietly=T)
   
   # Filter by Time-Window:
   subset_by_window(data, data_options, window_start, window_end) %>%
@@ -431,7 +431,7 @@ window_shape <- function(data,
                             condition_columns = NULL,
                             summarize_by = 'crossed'
 ) {
-  require('dplyr')
+  require('dplyr', quietly=T)
   
   # Prelims:
   data = ungroup(data)
@@ -499,7 +499,7 @@ time_shape <- function (data,
                            summarize_by = 'crossed') {
   
   
-  require('dplyr')
+  require('dplyr', quietly=T)
   
   # For Multiple aois:
   if (length(aoi) > 1) {
@@ -648,7 +648,7 @@ time_shape <- function (data,
 #' @return dataframe 
 
 onset_shape = function(data, data_options, onset_time, fixation_window_length = NULL, target_aoi, distractor_aoi = NULL) {
-  require(zoo)
+  require(zoo, quietly=T)
   
   ## Helper Function:
   na_replace_rollmean = function(col) {
@@ -724,6 +724,92 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
   return(out)
 }
 
+# bootstrapped_spline_shape(data, data_options, condition_column, within_subj, samples, resolution, alpha)
+#
+# Bootstrap splines from a time_shape() shape. Return bootstrapped splines.
+#
+# @param dataframe data Your clean dataset
+# @param list data_options Standard list of options for manipulating dataset
+# @param string factor What factor to split by? Maximum two conditions!
+# @param boolean within_subj Are the two conditions within or between subjects?
+# @param int samples How many (re)samples to take?
+# @param float resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
+# @param float alpha p-value when the groups are sufficiently "diverged"
+#
+# @return list(samples, divergence)
+bootstrapped_splines <- function (data, data_options, condition_column = '', within_subj = F, samples = 1000, resolution = 10, alpha = .05) {
+  require(dplyr, quietly=T)
+  require(reshape2, quietly=T)
+  
+  # convert resolution to seconds
+  resolution = resolution / 1000;
+  
+  # validate arguments
+  if (condition_column == '' || length(levels(data[[condition_column]])) != 2) {
+    stop('bootstrapped_splines requires a condition_column with 2 levels.')
+  }
+  
+  # define sampler for splines...
+  spline_sampler <- function (dataframe, data_options, resolution) {
+    if (rbinom(1,1,.1) == 1) {
+      cat('.')
+    }
+    
+    run_original <- dataframe
+    
+    # get subjects
+    run_subjects <- levels(run_original[, data_options$participant_factor])
+    
+    # get timepoints
+    run_times <- unique(run_original$t1)
+    run_times <- run_times[order(run_times)]
+    
+    # randomly sample N subjects (with replacement from data)
+    run_sampled <- sample(run_subjects, length(run_subjects), replace = T)
+    
+    # create a dataset of ParticipantName,t1,BinMean for each sampled subject (including duplicates)
+    run_rows <- length(run_sampled) * length(run_times)
+    run_data <- data.frame(matrix(nrow=run_rows,ncol=2))
+    
+    # use data.table's setnames for speed increase
+    #colnames(run_data) <- c(data_options$participant_factor,'t1')
+    setnames(run_data,c(data_options$participant_factor,'t1'))
+    
+    run_data[, data_options$participant_factor] <- rep(run_sampled, each=length(run_times))
+    run_data[, data_options$participant_factor] <- factor(run_data[, data_options$participant_factor])
+    
+    run_data$t1 <- rep(run_times, times=length(run_subjects))
+    
+    # replaced merge with inner_join() for speed increase
+    #run_data <- merge(run_data, run_original[, c(data_options$participant_factor,'t1','BinMean')], by = c(data_options$participant_factor,'t1'))
+    run_data <- inner_join(run_data, run_original[, c(data_options$participant_factor,'t1','BinMean')], by = c(data_options$participant_factor,'t1'))
+    
+    # spline! 
+    # with generalized cross-validation setting smoothing parameter
+    run_spline <- with(run_data, smooth.spline(t1, BinMean, cv=FALSE))
+    
+    # get interpolated spline predictions for total time at .01 (hundredth of a second scale)
+    run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
+    run_predictions <- predict(run_spline, run_predicted_times)
+    
+    run_predictions$y
+  }
+  
+  # this dataframe will hold our final dataset
+  combined_bootstrapped_data <- data.frame()
+  
+  # re-factor Participant name column, so that levels() is accurate
+  data[, data_options$participant_factor] <- factor(data[,  data_options$participant_factor])
+  
+  # reduce time_shape to only required data
+  prepared_data <- data %>%
+                   group_by_(.dots = c(data_options$participant_column, condition_column, Time)) %>%
+                   summarise(MeanProp = mean(Prop)) %>%
+                   ungroup()
+  
+  
+  }
+
 
 # Analyzing ------------------------------------------------------------------------------------------
 
@@ -745,8 +831,8 @@ analyze_time_bins <- function(data,
                               ...)
 {
   
-  require('dplyr')
-  require('broom')
+  require('dplyr', quietly=T)
+  require('broom', quietly=T)
   
   # Must be a time_shape:
   if (!'time_shape' %in% class(data)) stop('This function can only be run on the output of the "time_shape" function.')
@@ -886,7 +972,7 @@ plot.window_shape <- function(data, data_options, x_axis_column, group_column = 
 #
 # @return list A ggplot list object  
 plot.time_shape <- function(data, data_options, condition_column=NULL, dv='Prop') {
-  require('ggplot2')
+  require('ggplot2', quietly=T)
   
   ## Prelims:
   data = ungroup(data)
@@ -938,7 +1024,7 @@ plot.time_shape <- function(data, data_options, condition_column=NULL, dv='Prop'
 #
 # @return list A ggplot list object  
 plot.bin_analysis <- function(data) {
-  require('ggplot2')
+  require('ggplot2', quietly=T)
 
   ggplot(data = data) +
     geom_line(mapping = aes(x = TimeBin, y= Statistic)) +
@@ -960,7 +1046,7 @@ plot.bin_analysis <- function(data) {
 # @return dataframe 
 
 plot.onset_shape = function(data, data_options, condition_columns=NULL) {
-  require(ggplot2)
+  require(ggplot2, quietly=T)
   
   ## Prelims:
   if (length(condition_columns) > 2) {
@@ -1022,7 +1108,7 @@ plot.onset_shape = function(data, data_options, condition_columns=NULL) {
 # @return dataframe 
 
 plot.switch_shape = function(data, data_options, condition_columns=NULL) {
-  require(ggplot2)
+  require(ggplot2, quietly=T)
   
   ## Prelims:
   if (length(condition_columns) > 2) {
@@ -1087,7 +1173,7 @@ make_dplyr_argument = function(...) {
 # @return dataframe data with modified columns appended with "C"
 
 center_predictors = function(data, predictors) {
-  require('dplyr')
+  require('dplyr', quietly=T)
   
   mutate_argument = list()
   for (i in seq_along(predictors)) {
