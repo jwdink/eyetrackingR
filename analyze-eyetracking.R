@@ -305,83 +305,88 @@ clean_by_trackloss = function(data, data_options,
 
 convert_non_aoi_to_trackloss = function(data, data_options) {
   
+  # Create version of AOIs with no NAs:
   .narepl = function(x) ifelse(is.na(x), 0, x)
   data_no_na = mutate_each_(data, funs(.narepl), vars = sapply(data_options$aoi_columns, as.name))
+  
+  # Find all rows which have no AOIs in them:
   data_no_na[[".AOISum"]] = 0
   for (aoi in data_options$aoi_columns) {
     data_no_na[[".AOISum"]] = data_no_na[[".AOISum"]] + data_no_na[[aoi]]
   }
+  
+  # Set these rows as trackloss:
   data[[data_options$trackloss_column]] = ifelse(.AOISum == 0, TRUE, .data_no_na[[data_options$trackloss_column]])
   
-  out
+  return(data)
 }
 
-# keep_trackloss ()
-#
-# Converts data so that, in all subsequent proportion-looking calculations, 
-# proportion_looking_at_aoi = time_looking_at_aoi / time_possible.
-# Trackloss is not considered missing data, but instead is counted as time
-# *not* spent looking at each AOI.
-#
-# @param dataframe data
-# @param list data_options
-#
-# @return dataframe 
+#' keep_trackloss ()
+#' 
+#' Converts data so that, in all subsequent proportion-looking calculations, 
+#' proportion_looking_at_aoi = time_looking_at_aoi / time_possible.
+#' Trackloss is not considered missing data, but instead is counted as time
+#' *not* spent looking at each AOI.
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' 
+#' @return dataframe 
+
 keep_trackloss = function(data, data_options) {
   
-  # Set Looking-at-AOI to FALSE for any samples where there is Trackloss:
-  replace_trackloss_arg = 
-    lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(",data_options$trackloss_column,"==1, 0, ", aoi,")" ))
-  names(replace_trackloss_arg) = data_options$aoi_columns
-  out= data %>%
-    mutate_(.dots= replace_trackloss_arg)
+  data = ungroup(data)
   
+  # Create version of AOIs which = FALSE for any trackloss samples:
+  for (aoi in data_options$aoi_columns) {
+    data[[aoi]] = ifelse(data[[data_options$trackloss_column]]==1, FALSE, data[[aoi]] )
+  }
+
   # If there is still missing data for AOIs, warn that it's going to be ignored:
   for (aoi in data_options$aoi_columns) {
-    if (any(is.na(data[[aoi]]))) {
+    if (any(is.na(data_with_trackloss[[aoi]]))) {
       warning("NAs found for non-trackloss samples, in '", aoi, 
               "'' column. These samples will be interpreted as being outside of the ", aoi, " AOI.")
     }
   }
   
   # Replace any Lingering Missing AOI Data:
-  replace_na_arg = 
-    lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(is.na(",aoi,"), 0, ", aoi,")" ))
-  names(replace_na_arg) = data_options$aoi_columns
-  out= out %>%
-    mutate_(.dots= replace_na_arg)
-  
-  out
+  for (aoi in data_options$aoi_columns) {
+    data[[aoi]] = ifelse(is.na(data[[aoi]]), FALSE, data[[aoi]] )
+  }
+  return(data)
 }
 
-# remove_trackloss ()
-#
-# Converts data so that, in all subsequent proportion-looking calculations, 
-# proportion_looking_at_aoi = time_looking_at_aoi / time_looking
-# Trackloss *is* considered missing data, and time spent not looking at a given AOI
-# must have been spent looking at another AOI
-#
-# @param dataframe data
-# @param list data_options
-# @param logical delete_rows (default: TRUE) Should rows with trackloss be deleted, throwing out all of the other useful information those rows might hold?
-#
-# @return dataframe 
-remove_trackloss = function(data, data_options, delete_rows = TRUE) {
+#' remove_trackloss ()
+#' 
+#' Converts data so that, in all subsequent proportion-looking calculations, 
+#' proportion_looking_at_aoi = time_looking_at_aoi / time_looking
+#' Trackloss *is* considered missing data, and time spent not looking at a given AOI
+#' must have been spent looking at another AOI
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' @param logical delete_rows (default: FALSE) Should rows with trackloss be deleted?
+#' 
+#' @return dataframe 
+remove_trackloss = function(data, data_options, delete_rows = FALSE) {
+  
+  data = ungroup(data)
+  
   if (delete_rows) {
+    
+    # We want to only remove rows that are positively identified as trackloss, so we replace any trackloss=NA with trackloss=FALSE
+    data[[".TracklossBoolean"]] = ifelse(is.na(data[[data_options$trackloss_column]]), FALSE, data[[data_options$trackloss_column]])
+
     # Remove all rows with Trackloss:
-    out = data %>%
-      mutate_(.dots = list(
-        TracklossBoolean = make_dplyr_argument('ifelse(is.na(', data_options$trackloss_column, '), 0, ', data_options$trackloss_column, ')')
-      )) %>%
-      filter(TracklossBoolean == 0)
+    out = filter(data, .TracklossBoolean == 0)
     
   } else {
     # Set Looking-at-AOI to NA for any samples where there is Trackloss:
-    filter_trackloss_arg = 
-      lapply(data_options$aoi_columns, FUN = function(aoi) make_dplyr_argument("ifelse(!is.na(",data_options$trackloss_column,"), NA, ", aoi,")" ))
-    names(filter_trackloss_arg) = data_options$aoi_columns
-    out = data %>%
-      mutate_(.dots= filter_trackloss_arg)
+    out = data
+    for (aoi in data_options$aoi_columns) {
+      out[[aoi]] = ifelse(data[[data_options$trackloss_column]]==1, NA, data[[aoi]] )
+    }
   }
   
   out
@@ -389,64 +394,58 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
 
 # Shaping ------------------------------------------------------------------------------------------
 
-# window_shape()
-#
-# Collapse time across our entire window and return a dataframe ready for LMERing
-#
-# @param dataframe data
-# @param list data_options
-# @param string aoi
-# @param character.vector condition_columns
-# @param numeric.vector window
-#
-# @return dataframe
+#' window_shape()
+#' 
+#' Collapse time across our entire window and return a dataframe ready for analyses (e.g., lmer)
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' @param string aoi                            Which AOIs are of interest? Defaults to all in 'data_options'
+#' @param character.vector condition_columns    Which columns indicate conditions, and therefore should be 
+#'                                              preserved in grouping operations?
+#' 
+#' @return dataframe
 window_shape <- function(data, 
                          data_options, 
-                         aoi, 
-                         condition_columns = NULL,
-                         summarize_by = 'crossed'
+                         aoi = data_options$aoi_columns, 
+                         condition_columns = NULL
 ) {
   require('dplyr', quietly=TRUE)
   
-  # Prelims:
-  data = ungroup(data)
-  dopts = data_options
-  
   # For Multiple DVs:
   if (length(aoi) > 1) {
-    list_of_dfs = lapply(X = aoi, FUN = function(this_dv) {
-      message("Analyzing ", this_dv, "...")
-      window_shape(data, data_options, aoi = this_dv, condition_columns)
+    list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
+      message("Analyzing ", this_aoi, "...")
+      window_shape(data, data_options, aoi = this_aoi, condition_columns)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('window_shape', class(out))
     return( out )
   }
   
-  # How to Group? By Sub? Item? Both?
-  group_by_arg = switch(match.arg(summarize_by, c('crossed', 'subjects', 'participants', 'items')),
-                        crossed      = as.list( c(dopts$participant_column, dopts$item_columns, condition_columns) ),
-                        subjects     = as.list( c(dopts$participant_column, condition_columns) ),
-                        participants = as.list( c(dopts$participant_column, condition_columns) ),
-                        items        = as.list( c(dopts$item_columns, condition_columns) )
+  # Prelims:
+  data = ungroup(data)
+  aoi_col = as.name(aoi)
+
+  # Group By Participant*Trial, Summarise Samples
+  df_grouped = group_by_(data, .dots = list(data_options$participant_column, data_options$trial_column))
+  df_summarized = summarise_(df_grouped,
+                             .dots = list(SamplesInAOI = interp(~sum(AOI_COL, na.rm=TRUE), AOI_COL = aoi_col),
+                                          SamplesTotal = interp(~sum(!is.na(AOI_COL)), AOI_COL = aoi_col) # ignore all NAs
+                             ))
+  
+  # Calculate Proportion, Elog, etc.
+  out = mutate(df_summarized,
+               AOI = aoi,
+               Elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ),
+               Weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
+               Prop = SamplesInAOI / SamplesTotal,
+               ArcSin = asin( sqrt( Prop ))
   )
-  
-  # Summarise:
-  summarized = data %>% 
-    group_by_(.dots = group_by_arg ) %>%
-    summarise_( .dots = list(SamplesInAOI = make_dplyr_argument( "sum(", aoi, ", na.rm= TRUE)" ),
-                             SamplesTotal = make_dplyr_argument( "sum(!is.na(", aoi, "))" ) # ignore all NAs 
-    ) ) %>%
-    mutate(AOI = aoi,
-           elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ) ,
-           weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
-           Prop = SamplesInAOI / SamplesTotal,
-           ArcSin = asin( sqrt( Prop ) )
-    ) %>%
-    ungroup()
-  
-  class(summarized) = c('window_shape', class(summarized))
-  return(summarized)
+  out = ungroup(out)
+               
+  class(out) = c('window_shape', class(out))
+  return(out)
   
 }
 
@@ -531,8 +530,8 @@ time_shape <- function (data,
     
     # Compute Proportion, Empirical Logit, etc.:
     mutate(AOI = aoi,
-           elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ),
-           weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
+           Elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ),
+           Weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
            Prop = SamplesInAOI / SamplesTotal,
            ArcSin = asin( sqrt( Prop ) )
     ) %>%
