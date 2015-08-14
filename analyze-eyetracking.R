@@ -746,7 +746,7 @@ bootstrapped_shape.time_shape <- function (data, data_options, condition_column,
       run_subjects_rows = lapply(run_subjects, function(sub) subsetted_data$RowNum[ subsetted_data[[data_options$participant_column]] == sub ])
 
       # bootstrap
-      message('Bootstrapping ', level, "...")
+      message('Resampling ', level, "...")
       bootstrapped_data <- pbreplicate(samples, sampler(subsetted_data, run_subjects_rows, data_options, resolution, smoother))
       bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
       
@@ -789,7 +789,7 @@ bootstrapped_shape.time_shape <- function (data, data_options, condition_column,
     run_subjects_rows = lapply(run_subjects, function(sub) df_diff$RowNum[ df_diff[[data_options$participant_column]] == sub ])
 
     # bootstrap
-    message('Bootstrapping ...')
+    message('Resampling ...')
     bootstrapped_data <- pbreplicate(samples, sampler(df_diff, run_subjects_rows, data_options, resolution, smoother))
     bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
 
