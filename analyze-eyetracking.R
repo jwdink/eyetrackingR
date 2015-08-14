@@ -423,15 +423,20 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
 #' 
 #' @param dataframe data
 #' @param list data_options
-#' @param string aoi                            Which AOIs are of interest? Defaults to all in 'data_options'
+#' @param character aoi                         Which AOIs are of interest? Defaults to all in 'data_options'
 #' @param character.vector condition_columns    Which columns indicate conditions, and therefore should be 
 #'                                              preserved in grouping operations?
+#' @param character summarize_by                Should the data be summarized along, e.g., participants, items, etc.
+#'                                              If so, give column names here. If left blank, will leave trials distinct.
+#'                                              The former is needed for more traditional analyses (t.tests, ANOVAs), while
+#'                                              the latter is preferable for mixed-effects models (lmer)
 #' 
 #' @return dataframe
 window_shape <- function(data, 
                          data_options, 
                          aoi = data_options$aoi_columns, 
-                         condition_columns = NULL
+                         condition_columns = NULL,
+                         summarize_by = NULL
 ) {
   require("dplyr", quietly=TRUE)
   require("lazyeval", quietly = TRUE)
@@ -440,9 +445,12 @@ window_shape <- function(data,
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
-      window_shape(data, data_options, aoi = this_aoi, condition_columns)
+      window_shape(data, data_options, aoi = this_aoi, condition_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
+    attrs = attr(out,"eyetrackingR")
+    new_attrs = list(summarized_by = summarize_by)
+    attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
     class(out) = c('window_shape', class(out))
     return( out )
   }
@@ -452,13 +460,20 @@ window_shape <- function(data,
   aoi_col = as.name(aoi)
 
   # Make Summary
-  out = .make_proportion_looking_summary(data=data, 
-                                         groups = c(data_options$participant_column,
-                                                    data_options$trial_column,
-                                                    condition_columns), 
-                                         aoi_col)
+  if (is.null(summarize_by)) {
+    groups = c(data_options$participant_column, 
+               data_options$item_columns,
+               data_options$trial_column, 
+               condition_columns)
+  } else {
+    groups = c(summarize_by, condition_columns)
+  }
+  out = .make_proportion_looking_summary(data=data, groups = groups, aoi_col)
   
   class(out) = c('window_shape', class(out))
+  attrs = attr(out,"eyetrackingR")
+  new_attrs = list(summarized_by = summarize_by)
+  attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
   return(out)
   
 }
@@ -469,9 +484,14 @@ window_shape <- function(data,
 #' 
 #' @param dataframe data
 #' @param list data_options
-#' @param integer time_bin_size  The time to fit into each bin
-#' @param character              aoi Which AOI(s) do you want to analyze?
-#' @param character.vector       condition_columns 
+#' @param numeric time_bin_size
+#' @param character aoi                         Which AOIs are of interest? Defaults to all in 'data_options'
+#' @param character.vector condition_columns    Which columns indicate conditions, and therefore should be 
+#'                                              preserved in grouping operations?
+#' @param character summarize_by                Should the data be summarized along, e.g., participants, items, etc.?
+#'                                              If so, give column name(s) here. If left blank, will leave trials distinct.
+#'                                              The former is needed for more traditional analyses (t.tests, ANOVAs), while
+#'                                              the latter is preferable for mixed-effects models (lmer)
 #' 
 #' @return dataframe summarized
 
@@ -479,7 +499,8 @@ time_shape <- function (data,
                         data_options, 
                         time_bin_size, 
                         aoi = data_options$aoi_columns, 
-                        condition_columns = NULL) {
+                        condition_columns = NULL,
+                        summarize_by = NULL) {
   
   
   require("dplyr", quietly=TRUE)
@@ -489,9 +510,12 @@ time_shape <- function (data,
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
-      time_shape(data, data_options, time_bin_size, this_aoi, condition_columns)
+      time_shape(data, data_options, time_bin_size, this_aoi, condition_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
+    attrs = attr(out,"eyetrackingR")
+    new_attrs = list(summarized_by = summarize_by)
+    attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
     class(out) = c('time_shape', class(out))
     return( out )
   }
@@ -504,9 +528,15 @@ time_shape <- function (data,
   data[["TimeBin"]] = floor(data[[data_options$time_column]] / time_bin_size)
   
   # Make Summary
-  df_summarized = .make_proportion_looking_summary(data=data, 
-                                                   groups = c(data_options$participant_column, data_options$trial_column, condition_columns, "TimeBin"), 
-                                                   aoi_col)
+  if (is.null(summarize_by)) {
+    groups = c(data_options$participant_column, 
+               data_options$item_columns,
+               data_options$trial_column, 
+               condition_columns, "TimeBin")
+  } else {
+    groups = c(summarize_by, condition_columns, "TimeBin")
+  }
+  df_summarized = .make_proportion_looking_summary(data=data, groups = groups, aoi_col)
   df_summarized[["Time"]] = df_summarized[["TimeBin"]] * time_bin_size
   
   # Add orthogonal polynomials for Growth Curve Analyses
@@ -523,7 +553,9 @@ time_shape <- function (data,
   out <- left_join(df_summarized, time_codes, by='TimeBin')
   
   class(out) = c('time_shape', class(out))
-  
+  attrs = attr(out,"eyetrackingR")
+  new_attrs = list(summarized_by = summarize_by)
+  attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
   return(out)
   
 }
@@ -927,13 +959,12 @@ analyze_time_bins <- function(data,
   
   # Collapse by participants if necessary:
   if (test != "lmer") {
-    message("Collapsing data by participant...")
-    df_grouped = group_by_(.data = data, .dots = list(data_options$participant_column, "TimeBin", "AOI", condition_column))
-    df_by_part = summarise(.data = df_grouped, Prop = mean(Prop, na.rm=TRUE))
-    df_analyze = ungroup(df_by_part)
-  } else {
-    df_analyze = data
-  }
+    attrs = attr(data, "eyetrackingR")
+    summarized_by = attrs$summarized_by
+    if (is.null(summarized_by)) stop(test, " requires summarized data. ",
+                                     "When using the 'time_shape' function, please select an argument for 'summarize_by'.")
+  } 
+  df_analyze = data
   
   # auto-make a formula, unless they specified one
   if (is.null(formula)) {
@@ -944,14 +975,17 @@ analyze_time_bins <- function(data,
   # Run a model for each time-bin
   message("Computing ", test, " for each time bin...")
   failsafe_test = failwith(default = NA, f = get(test), quiet = FALSE)
-  models = list()
-  samp_sizes = c()
-  for (tb in unique(df_analyze$TimeBin)) {
+  models= pblapply(unique(df_analyze$TimeBin), function(tb) {
+    # make model:
     temp_dat = filter(df_analyze, TimeBin==tb)
-    condition_col_is_na = is.na(temp_dat[[condition_column]])
-    samp_sizes[as.character(tb)] = length(unique( temp_dat[[data_options$participant_column]][!condition_col_is_na] ))
-    models[[as.character(tb)]] = failsafe_test(formula = formula, data = temp_dat, ... = ...)
-  }
+    model = failsafe_test(formula = formula, data = temp_dat, ... = ...) 
+    # get N:
+    if (test=="wilcox.test" | test=="lm") {
+      condition_col_is_na = is.na(temp_dat[[condition_column]])
+      model$sample_size = length(unique( temp_dat[[data_options$participant_column]][!condition_col_is_na] ))
+    }
+    model
+  })
   
   # Get Statistic:
   if (test=="lmer") {
@@ -988,10 +1022,12 @@ analyze_time_bins <- function(data,
       crit_pos = qt(1-alpha/2, df = dfs)
       crit_neg = -crit_pos
     } else if (test=="wilcox.test") {
-      crit_pos = qsignrank(p = 1-alpha/2, n = samp_sizes )
+      sample_sizes = sapply(models, function(x) x$sample_size)
+      crit_pos = qsignrank(p = 1-alpha/2, n = sample_sizes )
       crit_neg = -crit_pos
     } else if (test=="lm") {
-      crit_pos = qt(1-alpha/2, df = samp_sizes-1)
+      sample_sizes = sapply(models, function(x) x$sample_size)
+      crit_pos = qt(1-alpha/2, df = sample_sizes-1)
       crit_neg = -crit_pos
     }
   } else {
@@ -1004,8 +1040,8 @@ analyze_time_bins <- function(data,
                    Statistic = models_statistics,
                    CritStatisticPos = crit_pos,     
                    CritStatisticNeg = crit_neg,     
-                   TimeBin = unique(df_analyze$TimeBin), # same order as for loop that built models
-                   AOI = df_analyze$AOI[1]) # all same
+                   TimeBin = unique(df_analyze$TimeBin)) # same order as for loop that built models
+  out$AOI = df_analyze$AOI[1]
   if (return_model) out$Model = models
   
   class(out) = c('bin_analysis', class(out))
@@ -1110,7 +1146,7 @@ analyze_bootstrapped_divergences <- function(data, data_options) {
   divergences <- rle(c(FALSE,data$Significant))
   
   if (sum(divergences$values) == 0) {
-    NULL
+    return(NULL)
   }
   else {
     # convert to time ranges
@@ -1119,7 +1155,7 @@ analyze_bootstrapped_divergences <- function(data, data_options) {
     
     divergences <- paste0('divergence: ', divergences$timestamps[which(divergences$values == TRUE)-1], ' - ', divergences$timestamps[which(divergences$values == TRUE)])
     
-    divergences
+    return(divergences)
   }
 }
 
@@ -1498,13 +1534,13 @@ mutate_.time_shape = mutate_.window_shape = mutate_.bin_analysis = mutuate_.boot
   potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_shape', 'bootstrapped_intervals_shape', 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
-  temp_attr = attr(data, "onset_contingent") # also attributes
+  temp_attr = attr(data, "eyetrackingR") # also attributes
   
   out = mutate_(data, ...)
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out) )
-  if ("onset_shape" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
+  attr(out, "eyetrackingR") = temp_attr
   
   return(out)
 }
@@ -1515,13 +1551,13 @@ filter_.time_shape = filter_.window_shape = filter_.bin_analysis = filter_.boots
   potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_shape', 'bootstrapped_intervals_shape', 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
-  temp_attr = attr(data, "onset_contingent") # also attributes
+  temp_attr = attr(data, "eyetrackingR") # also attributes
   
   out = filter_(data, ...)
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out) )
-  if ("onset_shape" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
+  attr(out, "eyetrackingR") = temp_attr
   
   return(out)
 }
@@ -1532,13 +1568,13 @@ left_join.time_shape = left_join.window_shape = left_join.bin_analysis = left_jo
   potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_shape', 'bootstrapped_intervals_shape', 'bin_analysis')
   temp_remove = class(x)[ class(x) %in% potential_classes]
   class(x) = class(x)[!class(x) %in% potential_classes]
-  temp_attr = attr(x, "onset_contingent") # also attributes
+  temp_attr = attr(x, "eyetrackingR") # also attributes
   
   out = left_join(x=x, y=y, by = by, copy = copy, ...)
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out) )
-  if ("onset_shape" %in% temp_remove) attr(out, "onset_contingent") = temp_attr
+  attr(out, "eyetrackingR") = temp_attr
   
   return(out)
 }
