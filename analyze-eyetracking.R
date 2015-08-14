@@ -658,10 +658,6 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
   require("dplyr", quietly=TRUE)
 
   # validate arguments
-  if (!condition_column %in% colnames(data)) {
-    stop("bootstrapped_shape failed to find data in condition_column")
-  }
-  
   if ( length(levels(as.factor(data[[condition_column]]))) != 2 ) {
     stop('bootstrapped_shape requires a condition_column with exactly 2 levels.')
   }
@@ -770,24 +766,15 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
   else {
     # within-subjects:
     
-    # Group by participant, timebin; remove any ppt*timebin that doesn't have observations for both levels of the condition_column
+    # Group by participant, timebin; Calculate the difference in proportion between level1 and level2
     level1 = levels(data[[condition_column]])[1]
     level2 = levels(data[[condition_column]])[2]
     df_grouped = group_by_(data, .dots = c(data_options$participant_column, "Time") ) 
-    df_grouped = mutate_(df_grouped, 
-            .dots = list(NL1 = interp(~length(which(CONDITION_COL == level1)), CONDITION_COL = as.name(condition_column)),
-                         NL2 = interp(~length(which(CONDITION_COL == level2)), CONDITION_COL = as.name(condition_column))
-                         ))
-    df_grouped = filter(df_grouped, NL1>0, NL2>0)
-    df_grouped$NL1 = NULL
-    df_grouped$NL2 = NULL
-    
-    # Calculate the difference in proportion between level1 and level2
     df_diff = summarise_(df_grouped, 
-                         .dots = list(Prop = interp(~mean(Prop[CONDITION_COL == level1]) - mean(Prop[CONDITION_COL == level2]),
-                                                    CONDITION_COL = as.name(condition_column))
+                         .dots = list(Prop1 = interp(~mean(Prop[CONDITION_COL == level1]), CONDITION_COL = as.name(condition_column)),
+                                      Prop2 = interp(~mean(Prop[CONDITION_COL == level2]), CONDITION_COL = as.name(condition_column)),
+                                      Prop  = interp(~Prop1 - Prop2)
                          ))
-
     
     # remove all samples where Prop == NA; relevel ppt factor
     df_diff <- df_diff[!is.na(df_diff$Prop), ]

@@ -192,7 +192,7 @@ drop1(model,~.,test="Chi")
 Do a proper within-subjects analysis for the familiar trials.
 
 ```{r}
-bootstrapped_familiar <- bootstrapped_shape(response_time, data_options, condition_column = 'Target', within_subj = TRUE, samples = 1000, resolution = 100, alpha = .05, smoother = 'smooth.spline') # TO DO: fix warning with dplyr join
+bootstrapped_familiar <- bootstrapped_shape(response_time, data_options, condition_column = 'Target', within_subj = TRUE, samples = 1000, resolution = 100, alpha = .05, smoother = 'smooth.spline') 
 
 plot(bootstrapped_familiar, data_options)
 
