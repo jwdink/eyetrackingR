@@ -1068,14 +1068,14 @@ analyze_bootstraps <- function(data, data_options) {
     # sample diffs between random means to generate a distribution of differences
     sampled_mean_diffs <- apply(horizontal_matrix, 1, function(x) { get_mean_diffs(1000, x[2:(length(x) / 2)], x[((length(x) / 2)+1):length(x)]) })
     sampled_mean_diffs <- t(sampled_mean_diffs)
-    
+
     # calculate means and CIs
     bootstrapped_data <- data.frame(
-      Time = unique(data[, 'Time']),
-      MeanDiff = as.vector(apply(sampled_mean_diffs, 1, mean)),
-      SE = as.vector(apply(sampled_mean_diffs, 1, sd)),
-      CI_low = as.vector(round(apply(sampled_mean_diffs, 1, function (x) { quantile(x,probs=low_prob) }),5)),
-      CI_high = as.vector(round(apply(sampled_mean_diffs, 1, function (x) { quantile(x,probs=high_prob) }),5))
+      Time = horizontal_matrix$Time,
+      MeanDiff = as.vector(apply(sampled_mean_diffs, 1, mean, na.rm=TRUE)),
+      SE = as.vector(apply(sampled_mean_diffs, 1, sd, na.rm=TRUE)),
+      CI_low = as.vector(round(apply(sampled_mean_diffs, 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5)),
+      CI_high = as.vector(round(apply(sampled_mean_diffs, 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5))
     )
     
     bootstrapped_data <- bootstrapped_data %>%
