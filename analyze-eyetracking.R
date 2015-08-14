@@ -654,17 +654,16 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
 # @param string smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing 
 # 
 # @return list(samples, divergence)
-bootstrapped_shape <- function (data, data_options, condition_column, within_subj = F, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
-  require(dplyr, quietly=T)
-  require(reshape2, quietly=T)
-  
+bootstrapped_shape <- function (data, data_options, condition_column, within_subj = FALSE, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
+  require("dplyr", quietly=TRUE)
+
   # validate arguments
   if (!condition_column %in% colnames(data)) {
     stop("bootstrapped_shape failed to find data in condition_column")
   }
   
   if ( length(levels(as.factor(data[[condition_column]]))) != 2 ) {
-    stop('bootstrapped_shape requires a condition_column with 2 levels.')
+    stop('bootstrapped_shape requires a condition_column with exactly 2 levels.')
   }
   
   if (!(smoother %in% c('smooth.spline','loess','none'))) {
@@ -679,9 +678,10 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
     }
     
     run_original <- dataframe
+    run_original[[data_options$participant_column]] <- as.character(run_original[[data_options$participant_column]])
     
     # get subjects
-    run_subjects <- levels(run_original[, data_options$participant_column])
+    run_subjects <- unique(run_original[[data_options$participant_column]])
     
     # get timepoints
     run_times <- unique(run_original$Time)
@@ -696,12 +696,14 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
     
     colnames(run_data) <- c(data_options$participant_column,'Time')
     
-    run_data[, data_options$participant_column] <- rep(run_sampled, each=length(run_times))
-    run_data[, data_options$participant_column] <- factor(run_data[, data_options$participant_column])
+    run_data[[data_options$participant_column]] <- rep(run_sampled, each=length(run_times))
+    run_data[[data_options$participant_column]] <- as.character(run_data[[data_options$participant_column]])
     
     run_data$Time <- rep(run_times, times=length(run_subjects))
     
-    run_data <- inner_join(run_data, run_original[, c(data_options$participant_column,'Time','Prop')], by = c(data_options$participant_column,'Time'))
+    run_data <- inner_join(x= run_data,  # TO DO: why is this an inner join? i think it should be left join?
+                           y= run_original[, c(data_options$participant_column,'Time','Prop')], 
+                           by = c(data_options$participant_column,'Time'))
     
     if (smoother == "none") {
       # use straight linear approximation on the values
@@ -746,7 +748,7 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
     for (level in levels(factor(data[, condition_column]))) {
       subsetted_data <- data[which(data[, condition_column] == level), ]
       
-      cat(paste0('Sampling ', level))
+      cat('Sampling ', level, "...")
       bootstrapped_data <- replicate(samples, sampler(subsetted_data, data_options, resolution, smoother))
       bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
       
@@ -761,28 +763,39 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
       )
       colnames(bootstrapped_data)[1] <- condition_column
       
-      # using dplyr's rbind_list or speed increase
-      combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+      # 
+      combined_bootstrapped_data <- bind_rows(combined_bootstrapped_data,bootstrapped_data)
     }
   }
   else {
     # within-subjects:
     
-    # for within-subjects, we need to calculate the difference between
-    # level 1 and 2 of the factor for each subject before sampling splines
-    data <- dcast(data, as.formula(paste(paste(data_options$participant_column,'Time',sep=" + "),condition_column,sep=' ~ ')), value.var='Prop', fun.aggregate = mean, drop = TRUE)
+    # Group by participant, timebin; remove any ppt*timebin that doesn't have observations for both levels of the condition_column
+    level1 = levels(data[[condition_column]])[1]
+    level2 = levels(data[[condition_column]])[2]
+    df_grouped = group_by_(data, .dots = c(data_options$participant_column, "Time") ) 
+    df_grouped = mutate_(df_grouped, 
+            .dots = list(NL1 = interp(~length(which(CONDITION_COL == level1)), CONDITION_COL = as.name(condition_column)),
+                         NL2 = interp(~length(which(CONDITION_COL == level2)), CONDITION_COL = as.name(condition_column))
+                         ))
+    df_grouped = filter(df_grouped, NL1>0, NL2>0)
+    df_grouped$NL1 = NULL
+    df_grouped$NL2 = NULL
     
-    # re-calculate Prop as the DIFFERENCE between the two labels
-    data$Prop <- data[, 3] - data[, 4]
+    # Calculate the difference in proportion between level1 and level2
+    df_diff = summarise_(df_grouped, 
+                         .dots = list(Prop = interp(~mean(Prop[CONDITION_COL == level1]) - mean(Prop[CONDITION_COL == level2]),
+                                                    CONDITION_COL = as.name(condition_column))
+                         ))
+
     
-    # remove all samples where Prop == NA
-    data <- data[!is.na(data$Prop), ]
-    
-    data[, data_options$participant_column] <- factor(data[, data_options$participant_column])
+    # remove all samples where Prop == NA; relevel ppt factor
+    df_diff <- df_diff[!is.na(df_diff$Prop), ]
+    df_diff[[data_options$participant_column]] = factor(df_diff[[data_options$participant_column]])
     
     cat('Sampling within-subjects')
-    bootstrapped_data <- replicate(samples, sampler(data, data_options, resolution, smoother))
-    bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
+    bootstrapped_data <- replicate(samples, sampler(df_diff, data_options, resolution, smoother))
+    bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
     
     sample_rows <- paste('Sample', c(1:samples), sep="")
     colnames(bootstrapped_data) <- sample_rows
@@ -791,9 +804,8 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
       Time = seq(min(data$Time), max(data$Time), by=resolution),
       bootstrapped_data
     )
-    
-    # use dplyr's rbind_list for speed increase
-    combined_bootstrapped_data <- rbind(combined_bootstrapped_data,bootstrapped_data)
+
+    combined_bootstrapped_data <- bootstrapped_data
   }
   
   # Assign class information:
