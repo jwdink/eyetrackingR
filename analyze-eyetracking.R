@@ -1107,7 +1107,7 @@ analyze_bootstrapped_divergences <- function(data, data_options) {
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # find divergences as runs of Significant == TRUE
-  divergences <- rle(data$Significant)
+  divergences <- rle(c(FALSE,data$Significant))
   
   if (sum(divergences$values) == 0) {
     NULL
@@ -1115,7 +1115,7 @@ analyze_bootstrapped_divergences <- function(data, data_options) {
   else {
     # convert to time ranges
     divergences$lengths <- (divergences$lengths * bootstrap_attr$resolution)
-    divergences$timestamps <- cumsum(divergences$lengths) + bootstrap_attr$min_time
+    divergences$timestamps <- cumsum(divergences$lengths) + bootstrap_attr$min_time-bootstrap_attr$resolution
     
     divergences <- paste0('divergence: ', divergences$timestamps[which(divergences$values == TRUE)-1], ' - ', divergences$timestamps[which(divergences$values == TRUE)])
     
@@ -1413,8 +1413,8 @@ plot.bootstrapped_shape = function(data, data_options) {
     low_prob <- .5 - ((1-bootstrap_attr$alpha)/2)
     high_prob <- .5 + ((1-bootstrap_attr$alpha)/2)
     
-    data$CI_high <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=high_prob) }),5)
-    data$CI_low <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=low_prob) }),5)
+    data$CI_high <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5)
+    data$CI_low <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5)
     
     g <- ggplot(data, aes_string(x='Time', y='Mean', color=bootstrap_attr$condition_column)) +
       geom_line() +
