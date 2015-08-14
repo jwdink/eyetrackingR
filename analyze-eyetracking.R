@@ -640,6 +640,10 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
   return(df_summarized)
 }
 
+bootstrapped_shape = function(data, ...) {
+  UseMethod("bootstrapped_shape")
+}
+
 # bootstrapped_shape(data, data_options, condition_column, within_subj, samples, resolution, alpha)
 #
 # Bootstrap splines from a time_shape() shape. Return bootstrapped splines.
@@ -654,8 +658,12 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
 # @param string smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing 
 # 
 # @return list(samples, divergence)
-bootstrapped_shape <- function (data, data_options, condition_column, within_subj = FALSE, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
+bootstrapped_shape.time_shape <- function (data, data_options, condition_column, aoi = NULL, within_subj = FALSE, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
   require("dplyr", quietly=TRUE)
+  if (!require("pbapply")) {
+    pbreplicate = function(n, expr, simplify) replicate(n, expr, simplify)
+    message("Install package 'pbapply' for a progress bar in this function.")
+  }
 
   # validate arguments
   if ( length(levels(as.factor(data[[condition_column]]))) != 2 ) {
@@ -666,40 +674,26 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
     stop('bootstrapped_shape requires that "smoother" be set to "none", "smooth.spline", or "loess")')
   }
   
+  # Pre-prep data
+  if (is.null(aoi)) {
+    if (length(unique(data$AOI)) > 1) stop("Please specify which AOI you wish to bootstrap.")
+  } else {
+    data = filter(data, AOI == aoi)
+  }
+  data = data[ !is.na(data[[condition_column]]), ]
+
   # define sampler/bootstrapper:
-  sampler <- function (dataframe, data_options, resolution, smoother) {
-    # show a . everyone 10th sample to indicate progress
-    if (rbinom(1,1,.1) == 1) {
-      cat('.')
-    }
-    
-    run_original <- dataframe
-    run_original[[data_options$participant_column]] <- as.character(run_original[[data_options$participant_column]])
-    
-    # get subjects
-    run_subjects <- unique(run_original[[data_options$participant_column]])
+  sampler <- function (run_original, run_subjects_rows, data_options, resolution, smoother) {
+
+    # Take a list where each element corresponds to the rows of the subject. 
+    # Sample w/o replacement N elements, and concatenate their contents
+    # This gives you a vector specifying which rows to extract, in order to extract the data corresponding to the sampled subjects
+    sampled_subject_rows = unlist(sample(run_subjects_rows, length(run_subjects_rows), replace = TRUE))
+    run_data = run_original[sampled_subject_rows,]
     
     # get timepoints
     run_times <- unique(run_original$Time)
     run_times <- run_times[order(run_times)]
-    
-    # randomly sample N subjects (with replacement from data)
-    run_sampled <- sample(run_subjects, length(run_subjects), replace = T)
-    
-    # create a dataset of ParticipantName,Time,Prop for each sampled subject (including duplicates)
-    run_rows <- length(run_sampled) * length(run_times)
-    run_data <- data.frame(matrix(nrow=run_rows,ncol=2))
-    
-    colnames(run_data) <- c(data_options$participant_column,'Time')
-    
-    run_data[[data_options$participant_column]] <- rep(run_sampled, each=length(run_times))
-    run_data[[data_options$participant_column]] <- as.character(run_data[[data_options$participant_column]])
-    
-    run_data$Time <- rep(run_times, times=length(run_subjects))
-    
-    run_data <- inner_join(x= run_data,  # TO DO: why is this an inner join? i think it should be left join?
-                           y= run_original[, c(data_options$participant_column,'Time','Prop')], 
-                           by = c(data_options$participant_column,'Time'))
     
     if (smoother == "none") {
       # use straight linear approximation on the values
@@ -707,6 +701,7 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
       
       run_predictions <- with(run_data,
                               approx(run_data$Time, run_data$Prop, xout=run_predicted_times))
+      return(run_predictions$y)
     }
     else if (smoother == 'smooth.spline') {
       # spline! 
@@ -739,20 +734,27 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
   # re-factor Participant name column, so that levels() is accurate
   data[[data_options$participant_column]] <- factor(data[[data_options$participant_column]])
   
-  # between-subjects:
   if (within_subj == FALSE) {
-    for (level in levels(factor(data[, condition_column]))) {
-      subsetted_data <- data[which(data[, condition_column] == level), ]
+    # between-subjects:
+    for (level in unique(data[[condition_column]]) ) {
+      # subset for condition level
+      subsetted_data <- data[which(data[, condition_column] == level),]
+      subsetted_data$RowNum = 1:nrow(subsetted_data)
       
-      cat('Sampling ', level, "...")
-      bootstrapped_data <- replicate(samples, sampler(subsetted_data, data_options, resolution, smoother))
-      bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=F))
+      # get subjects
+      run_subjects <- unique(subsetted_data[[data_options$participant_column]])
+      run_subjects_rows = lapply(run_subjects, function(sub) subsetted_data$RowNum[ subsetted_data[[data_options$participant_column]] == sub ])
+
+      # bootstrap
+      message('Bootstrapping ', level, "...")
+      bootstrapped_data <- pbreplicate(samples, sampler(subsetted_data, run_subjects_rows, data_options, resolution, smoother))
+      bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
       
       # label each sample by number
       sample_rows <- paste('Sample', c(1:samples), sep="")
       colnames(bootstrapped_data) <- sample_rows
       
-      bootstrapped_data <- data.frame(
+      bootstrapped_data <- data.frame(stringsAsFactors = FALSE,
         condition_column = level,
         Time = seq(min(subsetted_data$Time), max(subsetted_data$Time), by=resolution),
         bootstrapped_data
@@ -776,14 +778,21 @@ bootstrapped_shape <- function (data, data_options, condition_column, within_sub
                                       Prop  = interp(~Prop1 - Prop2)
                          ))
     
-    # remove all samples where Prop == NA; relevel ppt factor
+    # remove all samples where Prop == NA;
     df_diff <- df_diff[!is.na(df_diff$Prop), ]
-    df_diff[[data_options$participant_column]] = factor(df_diff[[data_options$participant_column]])
+
+    df_diff$RowNum = 1:nrow(df_diff)
     
-    cat('Sampling within-subjects')
-    bootstrapped_data <- replicate(samples, sampler(df_diff, data_options, resolution, smoother))
+    # get subjects
+    message("Preparing dataframe...")
+    run_subjects <- unique(df_diff[[data_options$participant_column]])
+    run_subjects_rows = lapply(run_subjects, function(sub) df_diff$RowNum[ df_diff[[data_options$participant_column]] == sub ])
+
+    # bootstrap
+    message('Bootstrapping ...')
+    bootstrapped_data <- pbreplicate(samples, sampler(df_diff, run_subjects_rows, data_options, resolution, smoother))
     bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
-    
+
     sample_rows <- paste('Sample', c(1:samples), sep="")
     colnames(bootstrapped_data) <- sample_rows
     
@@ -1027,19 +1036,19 @@ analyze_bootstraps <- function(data, data_options) {
   
   # if it's within subjects, getting the Mean and CI involves only taking the mean and 1.96*SD at each timepoint
   if (bootstrap_attr$within_subj == TRUE) {
-    # define range of sample rows
-    sample_rows <- c(2:(2+bootstrap_attr$samples-1))
     
+    samples = data[, -1]
+
     bootstrapped_data <- data.frame(
-      Time = data[, 'Time'],
-      MeanDiff = apply(data[, sample_rows], 1, mean),
-      SE = apply(data[, sample_rows], 1, sd),
-      CI_low = round(apply(data[, sample_rows], 1, function (x) { quantile(x,probs=low_prob) }),5),
-      CI_high = round(apply(data[, sample_rows], 1, function (x) { quantile(x,probs=high_prob) }),5)
+      Time = data[['Time']],
+      MeanDiff = apply(samples, 1, mean),
+      SE = apply(samples, 1, sd),
+      CI_low = round(apply(samples, 1, function (x) { quantile(x,probs=low_prob) }),5),
+      CI_high = round(apply(samples, 1, function (x) { quantile(x,probs=high_prob) }),5)
     )
     
-    bootstrapped_data <- bootstrapped_data %>%
-      mutate(Significant = ifelse((abs(CI_high) - abs(CI_low)) == (CI_high - CI_low), TRUE, FALSE))
+    bootstrapped_data <- mutate(bootstrapped_data,
+                                Significant = ifelse((abs(CI_high) - abs(CI_low)) == (CI_high - CI_low), TRUE, FALSE))
   }
   else {
     # randomly resample 1 mean from each condition and subtract them to get a
@@ -1078,6 +1087,8 @@ analyze_bootstraps <- function(data, data_options) {
 }
 
 #' analyze_bootstrapped_divergences()
+#' 
+#' TO DO: is this function really necessary?
 #' 
 #' Returns the windows in which the splines diverged in the bootstrapped analysis.
 #' 

@@ -17,6 +17,8 @@ date()
 library(ggplot2, quietly=T)
 library(reshape2, quietly=T)
 library(lme4, quietly=T)
+library(plyr, quietly=T)
+library(dplyr, quietly=T)
 ```
 
 ## Load dataset
