@@ -1048,9 +1048,11 @@ analyze_bootstraps <- function(data, data_options) {
     )
     
     bootstrapped_data <- mutate(bootstrapped_data,
-                                Significant = ifelse((abs(CI_high) - abs(CI_low)) == (CI_high - CI_low), TRUE, FALSE))
+                                Significant = ifelse((CI_high > 0 & CI_low > 0) | (CI_high < 0 & CI_low < 0), TRUE, FALSE))
   }
   else {
+    samples <- bootstrap_attr$samples
+    
     # randomly resample 1 mean from each condition and subtract them to get a
     # distribution of the difference between means
     bootstrapped_diffs <- data.frame(matrix(nrow=length(unique(data[, 'Time'])), ncol=bootstrap_attr$samples + 1))
@@ -1077,7 +1079,7 @@ analyze_bootstraps <- function(data, data_options) {
     )
     
     bootstrapped_data <- bootstrapped_data %>%
-      mutate(Significant = ifelse((abs(CI_high) - abs(CI_low)) == (CI_high - CI_low), TRUE, FALSE))
+      mutate(Significant = ifelse((CI_high > 0 & CI_low > 0) | (CI_high < 0 & CI_low < 0), TRUE, FALSE))
   }
   
   class(bootstrapped_data) = c('bootstrapped_intervals_shape', class(bootstrapped_data))
