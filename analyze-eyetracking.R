@@ -631,11 +631,11 @@ onset_shape = function(data, data_options, onset_time, fixation_window_length, t
 
   # Assign class information:
   class(out) = c('onset_shape', class(out))
-  attr(out, 'onset_contingent') = list(distractor_aoi = distractor_aoi, 
+  attr(out, 'eyetrackingR') = list(onset_contingent = list(distractor_aoi = distractor_aoi, 
                                        target_aoi = target_aoi, 
                                        onset_time = onset_time,
-                                       fixation_window_length = fixation_window_length)
-  
+                                       fixation_window_length = fixation_window_length))
+
   return(out)
 }
 
@@ -680,7 +680,7 @@ bootstrapped_shape = function(data, ...) {
 #
 # Bootstrap splines from a time_shape() shape. Return bootstrapped splines.
 #
-# @param dataframe data Your clean dataset
+# @param dataframe data a Time shape dataset
 # @param list data_options Standard list of options for manipulating dataset
 # @param string factor What factor to split by? Maximum two conditions!
 # @param boolean within_subj Are the two conditions within or between subjects?
@@ -838,14 +838,14 @@ bootstrapped_shape.time_shape <- function (data, data_options, condition_column,
   
   # Assign class information:
   class(combined_bootstrapped_data) = c('bootstrapped_shape', class(combined_bootstrapped_data))
-  attr(combined_bootstrapped_data, 'bootstrapped') = list(
-    within_subj = within_subj,
-    condition_column = condition_column,
-    samples = samples,
-    alpha = alpha,
-    resolution = resolution,
-    min_time = min(combined_bootstrapped_data[, 'Time'])
-  )
+  attr(combined_bootstrapped_data, 'eyetrackingR') = list(
+    bootstrapped = list(within_subj = within_subj,
+                        condition_column = condition_column,
+                        samples = samples,
+                        alpha = alpha,
+                        resolution = resolution,
+                        min_time = min(combined_bootstrapped_data[['Time']])
+    ))
   
   return(combined_bootstrapped_data)
 }
@@ -962,7 +962,8 @@ analyze_time_bins <- function(data,
     attrs = attr(data, "eyetrackingR")
     summarized_by = attrs$summarized_by
     if (is.null(summarized_by)) stop(test, " requires summarized data. ",
-                                     "When using the 'time_shape' function, please select an argument for 'summarize_by'.")
+                                     "When using the 'time_shape' function, please select an argument for 'summarize_by'",
+                                     " (e.g., the participant column).")
   } 
   df_analyze = data
   
@@ -1063,7 +1064,8 @@ analyze_bootstraps <- function(data, data_options) {
   if (!'bootstrapped_shape' %in% class(data)) stop('This function can only be run on the output of the "bootstrapped_shape" function.')
   
   # make sure there is the proper kind of data frame, and check its attributes
-  bootstrap_attr = attr(data, "bootstrapped")
+  attrs = attr(data, "eyetrackingR")
+  bootstrap_attr = attrs$bootstrapped
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # adjust CI based on alpha
@@ -1119,7 +1121,7 @@ analyze_bootstraps <- function(data, data_options) {
   }
   
   class(bootstrapped_data) = c('bootstrapped_intervals_shape', class(bootstrapped_data))
-  attr(bootstrapped_data, 'bootstrapped') = bootstrap_attr
+  attr(bootstrapped_data, 'eyetrackingR') = list(bootstrapped = bootstrap_attr)
   
   return(bootstrapped_data)
 }
@@ -1139,7 +1141,8 @@ analyze_bootstrapped_divergences <- function(data, data_options) {
   if (!'bootstrapped_intervals_shape' %in% class(data)) stop('This function can only be run on the output of the "analyze_bootstrapped_intervals" function.')
   
   # make sure there is the proper kind of data frame, and check its attributes
-  bootstrap_attr = attr(data, "bootstrapped")
+  attrs = attr(data, "eyetrackingR")
+  bootstrap_attr = attrs$bootstrapped
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # find divergences as runs of Significant == TRUE
@@ -1313,7 +1316,8 @@ plot.onset_shape = function(data, data_options, condition_columns=NULL, smoothin
   if (length(condition_columns) > 2) {
     stop("Maximum two condition factors")
   }
-  onset_attr = attr(data, "onset_contingent")
+  attrs = attr(data, "eyetrackingR")
+  onset_attr = attrs$onset_contingent
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   
   # set smoothing_window_size based on fixation_window_length in attr's
@@ -1431,7 +1435,8 @@ plot.bootstrapped_shape = function(data, data_options) {
   if (!'bootstrapped_shape' %in% class(data)) stop('This function can only be run on the output of the "bootstrapped_shape" function.')
   
   # make sure there is the proper kind of data frame, and check its attributes
-  bootstrap_attr = attr(data, "bootstrapped")
+  attrs = attr(data, "eyetrackingR")
+  bootstrap_attr = attrs$boostrapped
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # if within-subjects, plot difference score
@@ -1478,7 +1483,8 @@ plot.bootstrapped_intervals_shape = function(data, data_options) {
   if (!'bootstrapped_intervals_shape' %in% class(data)) stop('This function can only be run on the output of the "analyze_bootstraps_intervals" function.')
   
   # make sure there is the proper kind of data frame, and check its attributes
-  bootstrap_attr = attr(data, "bootstrapped")
+  attrs = attr(data, "eyetrackingR")
+  bootstrap_attr = attrs$bootstrapped
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # we have a MeanDiff and CI for both within- and between-subjects...
