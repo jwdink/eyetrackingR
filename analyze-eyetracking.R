@@ -925,7 +925,7 @@ analyze_time_clusters.time_shape = function(data,
     })
     
     null_distribution = rep(NA, samples)
-    for (i in 1:samples) {
+    for (iter in 1:samples) {
       cat(".")
       df_resampled = df_biggclust
       
@@ -949,7 +949,8 @@ analyze_time_clusters.time_shape = function(data,
                                                      return_model = FALSE,
                                                      quiet = TRUE,
                                                      ...)
-      null_distribution[i] = sum(time_bin_summary_resampled$Statistic, na.rm=TRUE)
+      
+      null_distribution[iter] = sum(time_bin_summary_resampled$Statistic, na.rm=TRUE)
       
     }
     
@@ -959,8 +960,13 @@ analyze_time_clusters.time_shape = function(data,
     # between subjects
     # to do (easier?)
   }
+  cat("\n")
   
-  return(null_distribution)
+  out = list(null_distribution = null_distribution,
+             data = df_timeclust,
+             cluster_sum_stats = sum_stat)
+  
+  return(out)
   
 }
 

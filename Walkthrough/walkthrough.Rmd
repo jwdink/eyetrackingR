@@ -216,10 +216,17 @@ response_time_by_subj <- time_shape(response_window, data_options, time_bin_size
                                  aoi = c("Animate"), 
                                  summarize_by = "ParticipantName"
                             )
-seq_bin = analyze_time_bins(response_time_by_subj, data_options, condition_column = "Target", paired = TRUE)
+seq_bin = analyze_time_bins(response_time_by_subj, data_options, condition_column = "Target", paired = TRUE, threshold = 3.25)
 plot(seq_bin) 
 
-analyze_time_clusters(response_time_by_subj, data_options, condition_column = "Target", within_subj = TRUE, paired= TRUE, samples=25)
+bar = analyze_time_clusters(response_time_by_subj, data_options, condition_column = "Target", 
+                            within_subj = TRUE, paired= TRUE, threshold = 3.35, samples=50)
+
+
+hist(bar$null_distribution, breaks = 25)
+abline(v = bar$cluster_sum_stats)
+
+sapply(bar$cluster_sum_stats, FUN = function(x) mean(x<bar$null_distribution))
 
 ```
 
