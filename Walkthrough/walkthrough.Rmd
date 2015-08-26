@@ -219,6 +219,11 @@ response_time_by_subj <- time_shape(response_window, data_options, time_bin_size
 seq_bin = analyze_time_bins(response_time_by_subj, data_options, condition_column = "Target", paired = TRUE)
 plot(seq_bin) 
 
-
+analyze_time_clusters(response_time_by_subj, data_options, condition_column = "Target", within_subj = TRUE, paired= TRUE, samples=25)
 
 ```
+
+
+
+
+

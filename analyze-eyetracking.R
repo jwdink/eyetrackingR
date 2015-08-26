@@ -838,26 +838,37 @@ analyze_time_clusters = function(data, data_options, condition_column, method, a
 analyze_time_clusters.time_shape = function(data, 
                                        data_options,
                                        condition_column,
-                                       aoi,
-                                       threshold = NULL,
-                                       alpha = .05,
+                                       aoi = NULL,
                                        test = "t.test",
                                        within_subj = FALSE,
+                                       threshold = NULL,
+                                       alpha = .05,
                                        formula = NULL,
+                                       samples = 1000,
                                        ...) {
   
   
   ## Helper:
   .label_clusters = function(vec) {
+    vec = c(0,vec)
     vec[is.na(vec)] = 0
     out = c(cumsum(diff(vec)==1))
     out[!vec] = NA
-    out
+    out[-1]
   }
   
   # Filter Data:
-  data = data[data$AOI==aoi,]
-  
+  if (is.null(aoi)) {
+    if (length(unique(data$AOI)) == 1) {
+      aoi = unique(data$AOI)
+      data = filter(data, AOI == aoi)
+    } else {
+      stop("Please specify the AOI column.")
+    }
+  } else {
+    data = filter(data, AOI == aoi)
+  }
+
   # Arg check:
   if (test %in% c("t.test", "wilcox.test")) {
     paired = list(...)[['paired']]
@@ -873,32 +884,84 @@ analyze_time_clusters.time_shape = function(data,
   } 
   
   # Compute Time Bins:
-  time_bin_summary = analyze_time_bins(data, data_options, condition_column, threshold, alpha, test, formula, FALSE, ...)
+  time_bin_summary = analyze_time_bins(data, data_options, 
+                                       condition_column = condition_column,
+                                       test = test,
+                                       threshold = threshold,
+                                       alpha = alpha,
+                                       formula = formula, 
+                                       return_model = FALSE,
+                                       ...)
   
   # Label Adjacent Clusters:
   # TO DO: do so separately for neg and for pos
   time_bin_summary$Significant = 
     time_bin_summary$Statistic >= time_bin_summary$CritStatisticPos | time_bin_summary$Statistic <= time_bin_summary$CritStatisticNeg
-  df_grouped = group_by(time_bin_summary, AOI)
-  df_labelled = mutate(df_grouped, Cluster = .label_clusters(Significant))
+  time_bin_summary$Cluster = .label_clusters(time_bin_summary$Significant)
   
   # Compute Sum Statistic for each Cluster
   sum_stat = c()
-  for (clust in na.omit(unique(df_labelled$Cluster))) {
-    sum_stat[clust] = sum(df_labelled$Statistic[which(df_labelled$Cluster==clust)])
+  for (clust in na.omit(unique(time_bin_summary$Cluster))) {
+    sum_stat[clust] = sum(time_bin_summary$Statistic[which(time_bin_summary$Cluster==clust)])
   }
   
   # Find the cluster with the biggest sum statistic, get the original data for that cluster
   biggest_cluster = which.max(sum_stat)
-  df_timeclust = left_join(data, df_labelled[,c('TimeBin','AOI','Cluster')], by=c('TimeBin','AOI'))
-  df_biggclust = df_timeclust[which(df_timeclust$Cluster==biggest_cluster),]
+  df_timeclust = left_join(data, time_bin_summary[,c('TimeBin','AOI','Cluster')], by=c('TimeBin','AOI'))
+  df_biggclust = filter(df_timeclust, Cluster == biggest_cluster)# df_timeclust[which(df_timeclust$Cluster==biggest_cluster),]
   
-  # Shuffle this data and get sum statistic each time, creating null distribution
-    # for 1000 times
-    # shuffle data
-    # run analyze_time_bins on it
-    # get sum of Statistic column
-
+  # Resample this data and get sum statistic each time, creating null distribution
+  if (within_subj) {
+    
+    # unique conditions, rows:
+    participants = unique(df_biggclust[[data_options$participant_column]])
+    conditions = unique(df_biggclust[[condition_column]])
+    
+    # get a list of list of rows. outer list corresponds to participants, inner to conditions
+    foo = lapply(X = participants, FUN = function(ppt) {
+      lapply(X = conditions, FUN = function(cond) {
+        which(df_biggclust[[data_options$participant_column]] == ppt & df_biggclust[[condition_column]] == cond)
+      })
+    })
+    
+    null_distribution = rep(NA, samples)
+    for (i in 1:samples) {
+      cat(".")
+      df_resampled = df_biggclust
+      
+      # for each participant, randomly select (w/replacement) rows to be assigned to each condition
+      for (list_of_rows in foo) {
+        resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = TRUE)
+        for (i in seq_along(resampled)) {
+          rows = resampled[[i]]
+          df_resampled[rows,condition_column] = conditions[i]
+        }
+      }
+      
+      # this gives a dataframe where the "condition" label has been resampled within each participant 
+      # run analyze time bins on it to get sum statistic for cluster
+      time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
+                                                     condition_column = condition_column,
+                                                     test = test,
+                                                     threshold = threshold,
+                                                     alpha = alpha,
+                                                     formula = formula, 
+                                                     return_model = FALSE,
+                                                     quiet = TRUE,
+                                                     ...)
+      null_distribution[i] = sum(time_bin_summary_resampled$Statistic, na.rm=TRUE)
+      
+    }
+    
+    
+    
+  } else {
+    # between subjects
+    # to do (easier?)
+  }
+  
+  return(null_distribution)
+  
 }
 
 #' analyze_time_bins()
@@ -922,11 +985,12 @@ analyze_time_bins = function(data, ...) {
 analyze_time_bins.time_shape <- function(data, 
                               data_options, 
                               condition_column,
+                              test = "t.test",
                               threshold = NULL,
                               alpha = .05,
-                              test = "t.test",
                               formula = NULL,
                               return_model = FALSE,
+                              quiet = FALSE,
                               ...)
 {
   
@@ -941,10 +1005,10 @@ analyze_time_bins.time_shape <- function(data,
   aois = unique(data[['AOI']])
   if ( length(aois) > 1 ) {
     list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
-      message("Analyzing ", this_aoi, "...")
+      if (!quiet) message("Analyzing ", this_aoi, "...")
       this_df = filter(data, AOI == this_aoi)
       class(this_df) = class(data)
-      analyze_time_bins(data = this_df, data_options, condition_column, threshold, alpha, test, formula, return_model, ...)
+      analyze_time_bins(data = this_df, data_options, condition_column, test, threshold, alpha, formula, return_model, quiet, ...)
     })
     out = bind_rows(list_of_dfs)
     class(out) = c('bin_analysis', class(out))
@@ -969,8 +1033,9 @@ analyze_time_bins.time_shape <- function(data,
   
   # Run a model for each time-bin
   paired = list(...)[["paired"]]
-  message("Computing ", test, " for each time bin...")
+  if (!quiet) message("Computing ", test, " for each time bin...")
   failsafe_test = failwith(default = NA, f = get(test), quiet = FALSE)
+  if (quiet) pblapply = lapply
   models= pblapply(unique(df_analyze$TimeBin), function(tb) {
     # make model:
     temp_dat = filter(df_analyze, TimeBin==tb)
@@ -1025,7 +1090,7 @@ analyze_time_bins.time_shape <- function(data,
   # Find Critical Value:
   if (is.null(threshold)) {
     if (test == "lmer") {
-      cat("\nUsing the normal approximation for critical value on parameter in lmer.")
+      if (!quiet) message("Using the normal approximation for critical value on parameter in lmer.")
       crit_pos =  qnorm(p=1-alpha/2)
       crit_neg = -qnorm(p=1-alpha/2)
     } else if (test=="t.test") {
