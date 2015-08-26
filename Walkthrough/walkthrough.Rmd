@@ -206,3 +206,19 @@ plot(familiar_bootstrapped_intervals, data_options) # TO DO: this should tell yo
 familiar_bootstrapped_divergences <- analyze_bootstrapped_divergences(familiar_bootstrapped_intervals, data_options)
 familiar_bootstrapped_divergences
 ```
+
+
+## Cluster Analysis
+
+```{r}
+response_time_by_subj <- time_shape(response_window, data_options, time_bin_size = 100, 
+                                 condition_columns = c("Target"),
+                                 aoi = c("Animate"), 
+                                 summarize_by = "ParticipantName"
+                            )
+seq_bin = analyze_time_bins(response_time_by_subj, data_options, condition_column = "Target", paired = TRUE)
+plot(seq_bin) 
+
+
+
+```

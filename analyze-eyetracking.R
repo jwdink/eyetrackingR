@@ -386,37 +386,6 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
 
 # Shaping ------------------------------------------------------------------------------------------
 
-
-#' .make_proportion_looking_summary()
-#' 
-#' A helper function for window_shape and time_shape. Takes a dataframe, groups it, and returns proportion looking
-#' and relevant transformations
-#' 
-#' @param dataframe data
-#' @param list groups
-#' @param character aoi_col
-#' 
-#' @return dataframe
-.make_proportion_looking_summary = function(data, groups, aoi_col) {
-  # Group, Summarise Samples
-  df_grouped = group_by_(data, .dots = groups)
-  df_summarized = summarise_(df_grouped,
-                             .dots = list(SamplesInAOI = interp(~sum(AOI_COL, na.rm=TRUE), AOI_COL = aoi_col),
-                                          SamplesTotal = interp(~sum(!is.na(AOI_COL)), AOI_COL = aoi_col) # ignore all NAs
-                             ))
-  
-  # Calculate Proportion, Elog, etc.
-  aoi = as.character(aoi_col)
-  out = mutate(df_summarized,
-               AOI = aoi,
-               Elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ),
-               Weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
-               Prop = SamplesInAOI / SamplesTotal,
-               ArcSin = asin( sqrt( Prop ))
-  )
-  out = ungroup(out)
-}
-
 #' window_shape()
 #' 
 #' Collapse time across our entire window and return a dataframe ready for analyses (e.g., lmer)
@@ -632,10 +601,10 @@ onset_shape = function(data, data_options, onset_time, fixation_window_length, t
   # Assign class information:
   class(out) = c('onset_shape', class(out))
   attr(out, 'eyetrackingR') = list(onset_contingent = list(distractor_aoi = distractor_aoi, 
-                                       target_aoi = target_aoi, 
-                                       onset_time = onset_time,
-                                       fixation_window_length = fixation_window_length))
-
+                                                           target_aoi = target_aoi, 
+                                                           onset_time = onset_time,
+                                                           fixation_window_length = fixation_window_length))
+  
   return(out)
 }
 
@@ -649,11 +618,11 @@ onset_shape = function(data, data_options, onset_time, fixation_window_length, t
 #' 
 #' @return dataframe 
 #' 
+switch_shape = function(data, ...) {
+  UseMethod("switch_shape")
+}
+switch_shape.onset_shape = function(data, data_options, condition_columns=NULL) {
 
-switch_shape = function(data, data_options, condition_columns=NULL) {
-  # Must be an onset_shape:
-  if (!'onset_shape' %in% class(data)) stop('This function can only be run on the output of the "onset_shape" function.')
-  
   time_col = as.name(data_options$time_column)
   
   df_cleaned = filter(data, !is.na(FirstAOI))
@@ -672,9 +641,6 @@ switch_shape = function(data, data_options, condition_columns=NULL) {
   return(df_summarized)
 }
 
-bootstrapped_shape = function(data, ...) {
-  UseMethod("bootstrapped_shape")
-}
 
 # bootstrapped_shape(data, data_options, condition_column, within_subj, samples, resolution, alpha)
 #
@@ -682,14 +648,18 @@ bootstrapped_shape = function(data, ...) {
 #
 # @param dataframe data a Time shape dataset
 # @param list data_options Standard list of options for manipulating dataset
-# @param string factor What factor to split by? Maximum two conditions!
+# @param character factor What factor to split by? Maximum two conditions!
 # @param boolean within_subj Are the two conditions within or between subjects?
 # @param int samples How many (re)samples to take?
-# @param float resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
-# @param float alpha p-value when the groups are sufficiently "diverged"
-# @param string smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing 
+# @param numeric resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
+# @param numeric alpha p-value when the groups are sufficiently "diverged"
+# @param character smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing 
 # 
-# @return list(samples, divergence)
+# @return dataframe
+bootstrapped_shape = function(data, ...) {
+  UseMethod("bootstrapped_shape")
+}
+
 bootstrapped_shape.time_shape <- function (data, data_options, condition_column, aoi = NULL, within_subj = FALSE, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
   require("dplyr", quietly=TRUE)
   if (!require("pbapply")) {
@@ -852,11 +822,7 @@ bootstrapped_shape.time_shape <- function (data, data_options, condition_column,
 
 # Analyzing ------------------------------------------------------------------------------------------
 
-analyze_clusters = function(data, data_options, condition_column, method, alpha, ...) {
-  UseMethod("analyze_clusters")
-}
-
-#' analyze_clusters.time_shape()
+#' analyze_time_clusters.time_shape()
 #' 
 #' Takes data that has been summarized into time-bins, and finds adjacent time bins that
 #' pass some threshold of significance, and assigns these adjacent groups into clusters
@@ -866,53 +832,73 @@ analyze_clusters = function(data, data_options, condition_column, method, alpha,
 #' @param list data_options            
 #' ...
 #' @return dataframe 
-
-analyze_clusters.time_shape = function(data, 
+analyze_time_clusters = function(data, data_options, condition_column, method, alpha, ...) {
+  UseMethod("analyze_time_clusters")
+}
+analyze_time_clusters.time_shape = function(data, 
                                        data_options,
                                        condition_column,
+                                       aoi,
                                        threshold = NULL,
                                        alpha = .05,
                                        test = "t.test",
-                                       formula = NULL) {
+                                       within_subj = FALSE,
+                                       formula = NULL,
+                                       ...) {
+  
   
   ## Helper:
-  label_clusters = function(vec) {
+  .label_clusters = function(vec) {
     vec[is.na(vec)] = 0
     out = c(cumsum(diff(vec)==1))
     out[!vec] = NA
     out
   }
   
-  time_bin_summary = analyze_time_bins(data, data_options)
-  analyze_clusters(time_bin_summary, data_options)
+  # Filter Data:
+  data = data[data$AOI==aoi,]
   
-}
+  # Arg check:
+  if (test %in% c("t.test", "wilcox.test")) {
+    paired = list(...)[['paired']]
+    if (within_subj==TRUE) {
+      # if within_subj is true, we need to confirm they overrode default
+      if (!identical(paired, TRUE)) stop("For ", test, ", if 'within_subj' is TRUE, then 'paired' must also be TRUE.")
+    } else {
+      # if within_subj is false, we just need to confirm they didn't set paired = TRUE
+      if (identical(paired, TRUE)) stop("For ", test, ", if 'within_subj' is FALSE, then 'paired' must also be FALSE.")
+    }
+  } else if (test == "lm") {
+    if (within_subj == TRUE) stop("For lm, 'within_subj' must be FALSE.")
+  } 
+  
+  # Compute Time Bins:
+  time_bin_summary = analyze_time_bins(data, data_options, condition_column, threshold, alpha, test, formula, FALSE, ...)
+  
+  # Label Adjacent Clusters:
+  # TO DO: do so separately for neg and for pos
+  time_bin_summary$Significant = 
+    time_bin_summary$Statistic >= time_bin_summary$CritStatisticPos | time_bin_summary$Statistic <= time_bin_summary$CritStatisticNeg
+  df_grouped = group_by(time_bin_summary, AOI)
+  df_labelled = mutate(df_grouped, Cluster = .label_clusters(Significant))
+  
+  # Compute Sum Statistic for each Cluster
+  sum_stat = c()
+  for (clust in na.omit(unique(df_labelled$Cluster))) {
+    sum_stat[clust] = sum(df_labelled$Statistic[which(df_labelled$Cluster==clust)])
+  }
+  
+  # Find the cluster with the biggest sum statistic, get the original data for that cluster
+  biggest_cluster = which.max(sum_stat)
+  df_timeclust = left_join(data, df_labelled[,c('TimeBin','AOI','Cluster')], by=c('TimeBin','AOI'))
+  df_biggclust = df_timeclust[which(df_timeclust$Cluster==biggest_cluster),]
+  
+  # Shuffle this data and get sum statistic each time, creating null distribution
+    # for 1000 times
+    # shuffle data
+    # run analyze_time_bins on it
+    # get sum of Statistic column
 
-#' analyze_clusters.bin_analysis()
-#' 
-#' Takes data that has been summarized into time-bins, and finds adjacent time bins that
-#' pass some threshold of significance, and assigns these adjacent groups into clusters
-#' for further examination.
-#' 
-#' @param dataframe.time_shape data The output of the 'time_shape' function
-#' @param list data_options            
-#' ...
-#' @return dataframe 
-
-analyze_clusters.bin_analysis = function(data, 
-                                         data_options,
-                                         condition_column,
-                                         threshold = NULL,
-                                         alpha = .05,
-                                         test = "t.test",
-                                         formula = NULL) {
-  #   ## Label Adjacent Clusters:
-  #   data$Sig = data$Statistic > data$CritStatistic
-  #   data %>%
-  #     group_by(AOI) %>%
-  #     mutate(Cluster = label_clusters(Sig))
-  #   
-  #   cat("")
 }
 
 #' analyze_time_bins()
@@ -922,10 +908,18 @@ analyze_clusters.bin_analysis = function(data,
 #' @param dataframe.time_shape data   The output of the 'time_shape' function
 #' @param list data_options
 #' @param character condition_column  The variable whose test statistic you are interested in
+#' @param numeric threshold           Value of statistic used in determining significance
+#' @param numeric alpha               Alpha value for determining significance, ignored if threshold is given
+#' @param character test              What type of test should be performed in each time bin? Supports t.test, wilcox, lm, or lmer.
+#' @param character formula           What formula should be used for the test? Optional (for all but lmer), if unset will use Prop ~ condition_column
+#' @param logical return_model        In the returned dataframe, should a model be given for each time bin, or just the summary of that model?
+#' @param ... ...                     Any other arguments to be passed to the selected 'test' function (e.g., paired, var.equal, etc.)
 #' ...
 #' @return dataframe 
-
-analyze_time_bins <- function(data, 
+analyze_time_bins = function(data, ...) {
+  UseMethod("analyze_time_bins")
+}
+analyze_time_bins.time_shape <- function(data, 
                               data_options, 
                               condition_column,
                               threshold = NULL,
@@ -940,10 +934,10 @@ analyze_time_bins <- function(data,
   require("lazyeval", quietly = TRUE)
   require('broom', quietly=TRUE)
   
-  # Must be a time_shape:
-  if (!'time_shape' %in% class(data)) stop('This function can only be run on the output of the "time_shape" function.')
-  
+  if (!test %in% c("t.test","wilcox.test","lm","lmer")) stop('Test must be "t.test","wilcox.test","lm", or "lmer".')
+
   # For Multiple aois:
+  if (!'AOI' %in% colnames(data)) stop("'AOI' column is missing from data.")
   aois = unique(data[['AOI']])
   if ( length(aois) > 1 ) {
     list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
@@ -957,7 +951,7 @@ analyze_time_bins <- function(data,
     return( out )
   }
   
-  # Collapse by participants if necessary:
+  # Check that data is collapsed by participants:
   if (test != "lmer") {
     attrs = attr(data, "eyetrackingR")
     summarized_by = attrs$summarized_by
@@ -974,11 +968,27 @@ analyze_time_bins <- function(data,
   }
   
   # Run a model for each time-bin
+  paired = list(...)[["paired"]]
   message("Computing ", test, " for each time bin...")
   failsafe_test = failwith(default = NA, f = get(test), quiet = FALSE)
   models= pblapply(unique(df_analyze$TimeBin), function(tb) {
     # make model:
     temp_dat = filter(df_analyze, TimeBin==tb)
+    
+    # Makes paired test more robust to unpaired observations within a bin:
+    if (identical(paired, TRUE)) {
+      lvl1 = levels(data[[condition_column]])[1]
+      temp_dat = try(
+        temp_dat %>%
+          group_by(ParticipantName) %>%
+          mutate_(.dots = list(PairedObs = interp(~length(which(COND_COL == lvl1)) > 0 & length(which(COND_COL != lvl1)) > 0, 
+                                                  COND_COL = as.name(condition_column))) ) %>%
+          filter(PairedObs) %>%
+          select(-PairedObs) %>%
+          ungroup()
+      )
+    }
+  
     model = failsafe_test(formula = formula, data = temp_dat, ... = ...) 
     # get N:
     if (test=="wilcox.test" | test=="lm") {
@@ -1019,7 +1029,7 @@ analyze_time_bins <- function(data,
       crit_pos =  qnorm(p=1-alpha/2)
       crit_neg = -qnorm(p=1-alpha/2)
     } else if (test=="t.test") {
-      dfs = sapply(tidied_models, function(x) ifelse('parameter' %in% names(x), x[,'statistic'], NA))
+      dfs = sapply(tidied_models, function(x) ifelse('parameter' %in% names(x), x[,'parameter'], NA))
       crit_pos = qt(1-alpha/2, df = dfs)
       crit_neg = -crit_pos
     } else if (test=="wilcox.test") {
@@ -1059,10 +1069,11 @@ analyze_time_bins <- function(data,
 #' ...
 #' @return dataframe 
 #' 
-analyze_bootstraps <- function(data, data_options) {
-  # Must be a bootstrapped_shape:
-  if (!'bootstrapped_shape' %in% class(data)) stop('This function can only be run on the output of the "bootstrapped_shape" function.')
-  
+analyze_bootstraps = function(data, data_options) {
+  UseMethod("analyze_bootstraps")
+}
+analyze_bootstraps.bootstrapped_shape <- function(data, data_options) {
+
   # make sure there is the proper kind of data frame, and check its attributes
   attrs = attr(data, "eyetrackingR")
   bootstrap_attr = attrs$bootstrapped
@@ -1136,10 +1147,11 @@ analyze_bootstraps <- function(data, data_options) {
 #' ...
 #' @return dataframe 
 #' 
-analyze_bootstrapped_divergences <- function(data, data_options) {
-  # Must be a bootstrapped_shape:
-  if (!'bootstrapped_intervals_shape' %in% class(data)) stop('This function can only be run on the output of the "analyze_bootstrapped_intervals" function.')
-  
+analyze_bootstrapped_divergences = function(data, data_options) {
+  UseMethod("analyze_bootstrapped_divergences")
+}
+analyze_bootstrapped_divergences.bootstrapped_intervals_shape <- function(data, data_options) {
+
   # make sure there is the proper kind of data frame, and check its attributes
   attrs = attr(data, "eyetrackingR")
   bootstrap_attr = attrs$bootstrapped
@@ -1175,9 +1187,8 @@ analyze_bootstrapped_divergences <- function(data, data_options) {
 # @return an error
 
 plot.data.frame <- function(data, data_options, condition_column) {
-  stop('Whoops, you have attempted to plot a dataframe, but this can only be done to dataframes that have ',
-       'been produced by one of the "analysis" functions. If the dataframe you are attempting to plot was',
-       'produced in this way, [THIS FUNCTION WILL BE A HELPER TO FIX CLASS].')
+  stop("The class of this data, which specifies what type of data it is (its shape), has been removed.",
+       "This can happen by using functions that transform the data significantly, such as dplyr's summarize and select.")
 }
 
 
@@ -1436,7 +1447,7 @@ plot.bootstrapped_shape = function(data, data_options) {
   
   # make sure there is the proper kind of data frame, and check its attributes
   attrs = attr(data, "eyetrackingR")
-  bootstrap_attr = attrs$boostrapped
+  bootstrap_attr = attrs$bootstrapped
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
   
   # if within-subjects, plot difference score
@@ -1530,6 +1541,36 @@ center_predictors = function(data, predictors) {
   
 }
 
+#' .make_proportion_looking_summary()
+#' 
+#' A helper function for window_shape and time_shape. Takes a dataframe, groups it, and returns proportion looking
+#' and relevant transformations
+#' 
+#' @param dataframe data
+#' @param list groups
+#' @param character aoi_col
+#' 
+#' @return dataframe
+.make_proportion_looking_summary = function(data, groups, aoi_col) {
+  # Group, Summarise Samples
+  df_grouped = group_by_(data, .dots = groups)
+  df_summarized = summarise_(df_grouped,
+                             .dots = list(SamplesInAOI = interp(~sum(AOI_COL, na.rm=TRUE), AOI_COL = aoi_col),
+                                          SamplesTotal = interp(~sum(!is.na(AOI_COL)), AOI_COL = aoi_col) # ignore all NAs
+                             ))
+  
+  # Calculate Proportion, Elog, etc.
+  aoi = as.character(aoi_col)
+  out = mutate(df_summarized,
+               AOI = aoi,
+               Elog = log( (SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5) ),
+               Weights = 1 / ( ( 1 / (SamplesInAOI + .5) ) / ( 1 / (SamplesTotal - SamplesInAOI +.5) ) ),
+               Prop = SamplesInAOI / SamplesTotal,
+               ArcSin = asin( sqrt( Prop ))
+  )
+  out = ungroup(out)
+}
+
 
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
@@ -1584,6 +1625,4 @@ left_join.time_shape = left_join.window_shape = left_join.bin_analysis = left_jo
   
   return(out)
 }
-
-# [ TO DO ]
 
