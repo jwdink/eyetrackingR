@@ -420,6 +420,7 @@ window_shape <- function(data,
     attrs = attr(out,"eyetrackingR")
     new_attrs = list(summarized_by = summarize_by)
     attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
+    out = as.data.frame(out)
     class(out) = c('window_shape', class(out))
     return( out )
   }
@@ -439,6 +440,7 @@ window_shape <- function(data,
   }
   out = .make_proportion_looking_summary(data=data, groups = groups, aoi_col)
   
+  out = as.data.frame(out)
   class(out) = c('window_shape', class(out))
   attrs = attr(out,"eyetrackingR")
   new_attrs = list(summarized_by = summarize_by)
@@ -485,6 +487,7 @@ time_shape <- function (data,
     attrs = attr(out,"eyetrackingR")
     new_attrs = list(summarized_by = summarize_by)
     attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
+    out = as.data.frame(out)
     class(out) = c('time_shape', class(out))
     return( out )
   }
@@ -521,6 +524,7 @@ time_shape <- function (data,
   
   out <- left_join(df_summarized, time_codes, by='TimeBin')
   
+  out = as.data.frame(out)
   class(out) = c('time_shape', class(out))
   attrs = attr(out,"eyetrackingR")
   new_attrs = list(summarized_by = summarize_by)
@@ -599,6 +603,7 @@ onset_shape = function(data, data_options, onset_time, fixation_window_length, t
   out = select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
 
   # Assign class information:
+  out = as.data.frame(out)
   class(out) = c('onset_shape', class(out))
   attr(out, 'eyetrackingR') = list(onset_contingent = list(distractor_aoi = distractor_aoi, 
                                                            target_aoi = target_aoi, 
@@ -636,6 +641,7 @@ switch_shape.onset_shape = function(data, data_options, condition_columns=NULL) 
                             .dots = list(FirstSwitch = interp(~TIME_COL[first(which(SwitchAOI), order_by= TIME_COL)], TIME_COL = time_col)
                                          ))
   
+  df_summarized = as.data.frame(df_summarized)
   class(df_summarized) = c('switch_shape', class(df_summarized))
   
   return(df_summarized)
@@ -807,6 +813,7 @@ bootstrapped_shape.time_shape <- function (data, data_options, condition_column,
   }
   
   # Assign class information:
+  combined_bootstrapped_data = as.data.frame(combined_bootstrapped_data)
   class(combined_bootstrapped_data) = c('bootstrapped_shape', class(combined_bootstrapped_data))
   attr(combined_bootstrapped_data, 'eyetrackingR') = list(
     bootstrapped = list(within_subj = within_subj,
@@ -1003,6 +1010,7 @@ analyze_time_bins.time_shape <- function(data,
   require("dplyr", quietly=TRUE)
   require("lazyeval", quietly = TRUE)
   require('broom', quietly=TRUE)
+  require("pbapply", quietly = TRUE)
   
   if (!test %in% c("t.test","wilcox.test","lm","lmer")) stop('Test must be "t.test","wilcox.test","lm", or "lmer".')
 
@@ -1017,6 +1025,7 @@ analyze_time_bins.time_shape <- function(data,
       analyze_time_bins(data = this_df, data_options, condition_column, test, threshold, alpha, formula, return_model, quiet, ...)
     })
     out = bind_rows(list_of_dfs)
+    out = as.data.frame(out)
     class(out) = c('bin_analysis', class(out))
     return( out )
   }
@@ -1126,6 +1135,7 @@ analyze_time_bins.time_shape <- function(data,
   out$AOI = df_analyze$AOI[1]
   if (return_model) out$Model = models
   
+  out = as.data.frame(out)
   class(out) = c('bin_analysis', class(out))
   out
 }
@@ -1202,6 +1212,7 @@ analyze_bootstraps.bootstrapped_shape <- function(data, data_options) {
       mutate(Significant = ifelse((CI_high > 0 & CI_low > 0) | (CI_high < 0 & CI_low < 0), TRUE, FALSE))
   }
   
+  bootstrapped_data = as.data.frame(bootstrapped_data)
   class(bootstrapped_data) = c('bootstrapped_intervals_shape', class(bootstrapped_data))
   attr(bootstrapped_data, 'eyetrackingR') = list(bootstrapped = bootstrap_attr)
   
@@ -1663,6 +1674,23 @@ mutate_.time_shape = mutate_.window_shape = mutate_.bin_analysis = mutuate_.boot
   return(out)
 }
 
+group_by_.time_shape = group_by_.window_shape = group_by_.bin_analysis = mutuate_.bootstrapped_shape = group_by_.bootstrapped_intervals_shape = group_by_.onset_shape = function(data, ...) {
+  
+  # remove class names (avoid infinite recursion):
+  potential_classes = c('time_shape', 'window_shape', 'onset_shape', 'bootstrapped_shape', 'bootstrapped_intervals_shape', 'bin_analysis')
+  temp_remove = class(data)[ class(data) %in% potential_classes]
+  class(data) = class(data)[!class(data) %in% potential_classes]
+  temp_attr = attr(data, "eyetrackingR") # also attributes
+  
+  out = group_by_(data, ...)
+  
+  # reapply class/attributes
+  class(out) = c(temp_remove, class(out) )
+  attr(out, "eyetrackingR") = temp_attr
+  
+  return(out)
+}
+
 filter_.time_shape = filter_.window_shape = filter_.bin_analysis = filter_.bootstrapped_shape = filter_.bootstrapped_intervals_shape = filter_.onset_shape = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
@@ -1696,4 +1724,5 @@ left_join.time_shape = left_join.window_shape = left_join.bin_analysis = left_jo
   
   return(out)
 }
+
 

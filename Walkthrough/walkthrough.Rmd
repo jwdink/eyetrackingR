@@ -219,9 +219,13 @@ response_time_by_subj <- time_shape(response_window, data_options, time_bin_size
 seq_bin = analyze_time_bins(response_time_by_subj, data_options, condition_column = "Target", paired = TRUE, threshold = 3.25)
 plot(seq_bin) 
 
+
+
 bar = analyze_time_clusters(response_time_by_subj, data_options, condition_column = "Target", 
                             within_subj = TRUE, paired= TRUE, threshold = 3.35, samples=50)
-
+str(bar$data)
+foo = bar$data[1:55,]
+str(foo)
 
 hist(bar$null_distribution, breaks = 25)
 abline(v = bar$cluster_sum_stats)
