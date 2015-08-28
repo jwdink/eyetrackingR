@@ -1485,10 +1485,9 @@ plot.switch_shape = function(data, data_options, condition_columns=NULL) {
   }
   
   ## Prepare for Graphing:
-  out = data %>%
-    group_by_(.dots = c(data_options$participant_column, condition_columns, "FirstAOI")) %>%
-    summarise(MeanFirstSwitch = mean(FirstSwitch)) %>%
-    ungroup()
+  data = filter(data, !is.na(FirstAOI))
+  df_grouped = group_by_(data, .dots = c(data_options$participant_column, condition_columns, "FirstAOI"))
+  df_summarised = summarise(df_grouped, MeanFirstSwitch = mean(FirstSwitch)) 
   
   ## Graph:
   if (is.null(condition_columns)) {
