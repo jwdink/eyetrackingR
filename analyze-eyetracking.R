@@ -1219,7 +1219,7 @@ analyze_bootstraps.bootstrapped_data <- function(data, data_options) {
   return(bootstrapped_data)
 }
 
-#' analyze_bootstrapped_divergences()
+#' summary.bootstrapped_intervals_data()
 #' 
 #' TO DO: is this function really necessary?
 #' 
@@ -1229,10 +1229,7 @@ analyze_bootstraps.bootstrapped_data <- function(data, data_options) {
 #' ...
 #' @return dataframe 
 #' 
-analyze_bootstrapped_divergences = function(data, data_options) {
-  UseMethod("analyze_bootstrapped_divergences")
-}
-analyze_bootstrapped_divergences.bootstrapped_intervals_data <- function(data, data_options) {
+summary.bootstrapped_intervals_data <- function(data, data_options) {
 
   # make sure there is the proper kind of data frame, and check its attributes
   attrs = attr(data, "eyetrackingR")
@@ -1250,9 +1247,12 @@ analyze_bootstrapped_divergences.bootstrapped_intervals_data <- function(data, d
     divergences$lengths <- (divergences$lengths * bootstrap_attr$resolution)
     divergences$timestamps <- cumsum(divergences$lengths) + bootstrap_attr$min_time-bootstrap_attr$resolution
     
-    divergences <- paste0('divergence: ', divergences$timestamps[which(divergences$values == TRUE)-1], ' - ', divergences$timestamps[which(divergences$values == TRUE)])
+    divergences <- paste0('divergence: ', 
+                          divergences$timestamps[which(divergences$values == TRUE)-1], 
+                          ' - ', 
+                          divergences$timestamps[which(divergences$values == TRUE)])
     
-    return(divergences)
+    message(paste(divergences, collapse="\n"))
   }
 }
 

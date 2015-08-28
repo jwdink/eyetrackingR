@@ -203,8 +203,7 @@ familiar_bootstrapped_intervals <- analyze_bootstraps(bootstrapped_familiar, dat
 # same as above, because, for within-subjects data, it always plots the difference score estimates
 plot(familiar_bootstrapped_intervals, data_options) # TO DO: this should tell you in which direction the difference was taken
 
-familiar_bootstrapped_divergences <- analyze_bootstrapped_divergences(familiar_bootstrapped_intervals, data_options)
-familiar_bootstrapped_divergences
+summary(familiar_bootstrapped_intervals, data_options)
 ```
 
 
