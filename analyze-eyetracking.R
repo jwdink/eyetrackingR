@@ -1256,13 +1256,13 @@ analyze_bootstraps.bootstrapped_data <- function(data, data_options) {
   }
   
   bootstrapped_data = as.data.frame(bootstrapped_data)
-  class(bootstrapped_data) = c('bootstrapped_intervals_data', class(bootstrapped_data))
+  class(bootstrapped_data) = c('bootstrap_analysis', class(bootstrapped_data))
   attr(bootstrapped_data, 'eyetrackingR') = list(bootstrapped = bootstrap_attr)
   
   return(bootstrapped_data)
 }
 
-#' summary.bootstrapped_intervals_data()
+#' summary.bootstrap_analysis()
 #' 
 #' TO DO: is this function really necessary?
 #' 
@@ -1272,7 +1272,7 @@ analyze_bootstraps.bootstrapped_data <- function(data, data_options) {
 #' ...
 #' @return dataframe 
 #' 
-summary.bootstrapped_intervals_data <- function(data, data_options) {
+summary.bootstrap_analysis <- function(data, data_options) {
 
   # make sure there is the proper kind of data frame, and check its attributes
   attrs = attr(data, "eyetrackingR")
@@ -1610,7 +1610,7 @@ plot.bootstrapped_data = function(data, data_options) {
   
   # if within-subjects, plot difference score
   if (bootstrap_attr$within_subj == TRUE) {
-    # use plot.bootstrapped_intervals_data() to plot within-subjects difference
+    # use plot.bootstrap_analysis() to plot within-subjects difference
     # because, for a within-subjects test, this is all that matters
     data <- analyze_bootstraps(data, data_options)
     
@@ -1645,11 +1645,11 @@ plot.bootstrapped_data = function(data, data_options) {
 #...
 # @return dataframe 
 
-plot.bootstrapped_intervals_data = function(data, data_options) {
+plot.bootstrap_analysis = function(data, data_options) {
   require(ggplot2, quietly=TRUE)
   
-  # Must be a bootstrapped_intervals_data:
-  if (!'bootstrapped_intervals_data' %in% class(data)) stop('This function can only be run on the output of the "analyze_bootstraps_intervals" function.')
+  # Must be a bootstrap_analysis:
+  if (!'bootstrap_analysis' %in% class(data)) stop('This function can only be run on the output of the "analyze_bootstraps_intervals" function.')
   
   # make sure there is the proper kind of data frame, and check its attributes
   attrs = attr(data, "eyetrackingR")
@@ -1733,10 +1733,10 @@ center_predictors = function(data, predictors) {
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
 
-mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutuate_.bootstrapped_data = mutate_.bootstrapped_intervals_data = mutate_.onset_data = function(data, ...) {
+mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutuate_.bootstrapped_data = mutate_.bootstrap_analysis = mutate_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', "time_cluster_data", 'bin_analysis')
+  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "eyetrackingR") # also attributes
@@ -1750,10 +1750,10 @@ mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutuate_.bootst
   return(out)
 }
 
-group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = mutuate_.bootstrapped_data = group_by_.bootstrapped_intervals_data = group_by_.onset_data = function(data, ...) {
+group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = mutuate_.bootstrapped_data = group_by_.bootstrap_analysis = group_by_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', "time_cluster_data", 'bin_analysis')
+  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "eyetrackingR") # also attributes
@@ -1767,10 +1767,10 @@ group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = mutuate_.
   return(out)
 }
 
-filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstrapped_data = filter_.bootstrapped_intervals_data = filter_.onset_data = function(data, ...) {
+filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstrapped_data = filter_.bootstrap_analysis = filter_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', "time_cluster_data", 'bin_analysis')
+  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "eyetrackingR") # also attributes
@@ -1784,10 +1784,10 @@ filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstr
   return(out)
 }
 
-left_join.time_data = left_join.window_data = left_join.bin_analysis = left_join.bootstrapped_data = left_join.bootstrapped_intervals_data = left_join.onset_data = function(x, y, by = NULL, copy = FALSE, ...) {
+left_join.time_data = left_join.window_data = left_join.bin_analysis = left_join.bootstrapped_data = left_join.bootstrap_analysis = left_join.onset_data = function(x, y, by = NULL, copy = FALSE, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', "time_cluster_data", 'bin_analysis')
+  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
   temp_remove = class(x)[ class(x) %in% potential_classes]
   class(x) = class(x)[!class(x) %in% potential_classes]
   temp_attr = attr(x, "eyetrackingR") # also attributes

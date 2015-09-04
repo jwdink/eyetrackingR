@@ -198,12 +198,12 @@ bootstrapped_familiar <- make_bootstrapped_data(response_time, data_options, con
 
 plot(bootstrapped_familiar, data_options)
 
-familiar_bootstrapped_intervals <- analyze_bootstraps(bootstrapped_familiar, data_options)
+bootstrap_analysis_familiar <- analyze_bootstraps(bootstrapped_familiar, data_options)
 
 # same as above, because, for within-subjects data, it always plots the difference score estimates
-plot(familiar_bootstrapped_intervals, data_options) # TO DO: this should tell you in which direction the difference was taken
+plot(bootstrap_analysis_familiar, data_options) # TO DO: this should tell you in which direction the difference was taken
 
-summary(familiar_bootstrapped_intervals, data_options)
+summary(bootstrap_analysis_familiar, data_options)
 ```
 
 
