@@ -220,7 +220,7 @@ df_timeclust = make_time_cluster_data(response_time_by_subj, data_options, condi
                                  within_subj=TRUE, paired = TRUE, threshold = 3.25)
 plot(df_timeclust) + theme_bw()
 
-analyze_time_clusters(df_timeclust, data_options)
+analyze_time_clusters(df_timeclust, data_options, within_subj = TRUE, paired= TRUE)
 
 # 
 # 

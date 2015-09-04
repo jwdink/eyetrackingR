@@ -904,7 +904,7 @@ make_time_cluster_data.time_data = function(data, data_options,
   
   # Output data, add attributes w/ relevant info
   df_timeclust = as.data.frame(df_timeclust)
-  class(df_timeclust) = c("time_cluster_data", class(df_timeclust))
+  class(df_timeclust) = c("time_cluster_data", "time_data", class(df_timeclust))
   attrs = attr(df_timeclust, "eyetrackingR")
   attr(df_timeclust, "eyetrackingR") = c(attrs, 
                                          list(cluster_sum_stat = sum_stat,
@@ -961,7 +961,7 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   df_biggclust = filter(data, Cluster == which.max(attrs$cluster_sum_stat))
   
   # Resample this data and get sum statistic each time, creating null distribution
-  if (attrs$within_subj) {
+  if (within_subj) {
     
     # unique conditions, rows:
     participants = unique(df_biggclust[[data_options$participant_column]])
@@ -992,9 +992,9 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
       # run analyze time bins on it to get sum statistic for cluster
       time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
                                                      condition_column = attrs$condition_column,
-                                                     test = test,
-                                                     threshold = threshold,
-                                                     alpha = alpha,
+                                                     test = attrs$test,
+                                                     threshold = attrs$threshold,
+                                                     alpha = attrs$alpha,
                                                      formula = formula, 
                                                      return_model = FALSE,
                                                      quiet = TRUE,
@@ -1012,9 +1012,7 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   }
   cat("\n")
   
-  out = list(null_distribution = null_distribution,
-             data = df_timeclust,
-             cluster_sum_stats = sum_stat)
+  out = null_distribution
   
   return(out)
   
@@ -1767,7 +1765,7 @@ group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = group_by_
   return(out)
 }
 
-filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstrapped_data = filter.time_cluster_data =  filter_.bootstrap_analysis = filter_.onset_data = function(data, ...) {
+filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstrapped_data = filter_.time_cluster_data =  filter_.bootstrap_analysis = filter_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
   potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
