@@ -829,32 +829,33 @@ make_bootstrapped_data.time_data <- function (data, data_options, condition_colu
 
 # Analyzing ------------------------------------------------------------------------------------------
 
-#' analyze_time_clusters.time_data()
+#' make_time_cluster_data()
 #' 
 #' Takes data that has been summarized into time-bins, and finds adjacent time bins that
 #' pass some threshold of significance, and assigns these adjacent groups into clusters
-#' for further examination.
 #' 
-#' @param dataframe.time_data data The output of the 'time_data' function
-#' @param list data_options            
-#' ...
+#' @param dataframe.time_data data   The output of the 'time_data' function
+#' @param list data_options
+#' @param character condition_column  The variable whose test statistic you are interested in
+#' @param character aoi               If this dataframe has multiple AOIs, you must specify which to analyze
+#' @param character test              What type of test should be performed in each time bin? Supports t.test, wilcox, lm, or lmer.
+#' @param numeric threshold           Value of statistic used in determining significance
+#' @param numeric alpha               Alpha value for determining significance, ignored if threshold is given
+#' @param character formula           What formula should be used for test? Optional (for all but lmer), if unset uses `Prop ~ condition_column`
+#' @param ... ...                     Any other arguments to be passed to the selected 'test' function (e.g., paired, var.equal, etc.)
+#' 
 #' @return dataframe 
-analyze_time_clusters = function(data, data_options, condition_column, method, alpha, ...) {
-  UseMethod("analyze_time_clusters")
+make_time_cluster_data = function(data, ...) {
+  UseMethod("make_time_cluster_data")
 }
-analyze_time_clusters.time_data = function(data, 
-                                       data_options,
-                                       condition_column,
-                                       aoi = NULL,
-                                       test = "t.test",
-                                       within_subj = FALSE,
-                                       threshold = NULL,
-                                       alpha = .05,
-                                       formula = NULL,
-                                       samples = 1000,
-                                       ...) {
-  
-  
+make_time_cluster_data.time_data = function(data, data_options,
+                                  condition_column,
+                                  aoi = NULL,
+                                  test = "t.test",
+                                  threshold = NULL,
+                                  alpha = .05,
+                                  formula = NULL,
+                                  ...) {
   ## Helper:
   .label_clusters = function(vec) {
     vec = c(0,vec)
@@ -875,20 +876,6 @@ analyze_time_clusters.time_data = function(data,
   } else {
     data = filter(data, AOI == aoi)
   }
-
-  # Arg check:
-  if (test %in% c("t.test", "wilcox.test")) {
-    paired = list(...)[['paired']]
-    if (within_subj==TRUE) {
-      # if within_subj is true, we need to confirm they overrode default
-      if (!identical(paired, TRUE)) stop("For ", test, ", if 'within_subj' is TRUE, then 'paired' must also be TRUE.")
-    } else {
-      # if within_subj is false, we just need to confirm they didn't set paired = TRUE
-      if (identical(paired, TRUE)) stop("For ", test, ", if 'within_subj' is FALSE, then 'paired' must also be FALSE.")
-    }
-  } else if (test == "lm") {
-    if (within_subj == TRUE) stop("For lm, 'within_subj' must be FALSE.")
-  } 
   
   # Compute Time Bins:
   time_bin_summary = analyze_time_bins(data, data_options, 
@@ -911,23 +898,79 @@ analyze_time_clusters.time_data = function(data,
   for (clust in na.omit(unique(time_bin_summary$Cluster))) {
     sum_stat[clust] = sum(time_bin_summary$Statistic[which(time_bin_summary$Cluster==clust)])
   }
-  
-  # Find the cluster with the biggest sum statistic, get the original data for that cluster
-  biggest_cluster = which.max(sum_stat)
+
+  # Merge cluster info into original data
   df_timeclust = left_join(data, time_bin_summary[,c('TimeBin','AOI','Cluster')], by=c('TimeBin','AOI'))
-  df_biggclust = filter(df_timeclust, Cluster == biggest_cluster)# df_timeclust[which(df_timeclust$Cluster==biggest_cluster),]
+  
+  # Output data, add attributes w/ relevant info
+  df_timeclust = as.data.frame(df_timeclust)
+  class(df_timeclust) = c("time_cluster_data", class(df_timeclust))
+  attrs = attr(df_timeclust, "eyetrackingR")
+  attr(df_timeclust, "eyetrackingR") = c(attrs, 
+                                         list(cluster_sum_stat = sum_stat,
+                                              condition_column = condition_column,
+                                              test = test,
+                                              threshold = threshold,
+                                              alpha = alpha,
+                                              time_bin_summary = time_bin_summary))
+  df_timeclust
+  
+}
+
+#' analyze_time_clusters.time_cluster_data()
+#' 
+#' Takes data whose time bins have been clustered by significance (using the make_time_cluster_data fxn)
+#' and performs a bootstrapping analyses (Maris & Oostenveld, 2007). This analysis takes a summed statistic 
+#' for each cluster, and compares it to the "null" distribution of sum statistics obtained by resampling data
+#' within the largest of the clusters.
+#' 
+#' @param dataframe.time_data data The output of the 'make_time_cluster_data' function
+#' @param list data_options            
+#' @param logical within_subj Perform within-subjects bootstrap resampling? (Defaults to FALSE for between subjects resampling) 
+#' @param numeric samples     How many iterations should be performed in the bootstrap resampling procedure?
+#' @param formula formula     Formula for test. Should be identical to that passed to make_time_cluster_data fxn (if arg ignored there, can be ignored here)
+#' @param ... ...             Other args for to selected 'test' function; should be identical to those passed to make_time_cluster_data fxn
+#' @return dataframe 
+analyze_time_clusters = function(data, data_options, ...) {
+  UseMethod("analyze_time_clusters")
+}
+analyze_time_clusters.time_cluster_data = function(data, data_options, 
+                                                   within_subj = FALSE,
+                                                   samples = 1000,
+                                                   formula = NULL, 
+                                                   ...) {
+  
+  # Get important information about type of data/analyses, input when running make_time_cluster_data
+  attrs = attr(data, "eyetrackingR")
+  
+  # Arg check:
+  if (attrs$test %in% c("t.test", "wilcox.test")) {
+    paired = list(...)[['paired']]
+    if (within_subj==TRUE) {
+      # if within_subj is true, we need to confirm they overrode default
+      if (!identical(paired, TRUE)) stop("For ", attrs$test, ", if 'within_subj' is TRUE, then 'paired' should also be TRUE.")
+    } else {
+      # if within_subj is false, we just need to confirm they didn't set paired = TRUE
+      if (identical(paired, TRUE)) stop("For ", attrs$test, ", if 'within_subj' is FALSE, then 'paired' should also be FALSE.")
+    }
+  } else if (attrs$test == "lm") {
+    if (within_subj == TRUE) stop("For lm, 'within_subj' must be FALSE.")
+  } 
+ 
+  # get data for biggest cluster
+  df_biggclust = filter(data, Cluster == which.max(attrs$cluster_sum_stat))
   
   # Resample this data and get sum statistic each time, creating null distribution
-  if (within_subj) {
+  if (attrs$within_subj) {
     
     # unique conditions, rows:
     participants = unique(df_biggclust[[data_options$participant_column]])
-    conditions = unique(df_biggclust[[condition_column]])
+    conditions = unique(df_biggclust[[attrs$condition_column]])
     
     # get a list of list of rows. outer list corresponds to participants, inner to conditions
-    foo = lapply(X = participants, FUN = function(ppt) {
+    list_of_list_of_rows = lapply(X = participants, FUN = function(ppt) {
       lapply(X = conditions, FUN = function(cond) {
-        which(df_biggclust[[data_options$participant_column]] == ppt & df_biggclust[[condition_column]] == cond)
+        which(df_biggclust[[data_options$participant_column]] == ppt & df_biggclust[[attrs$condition_column]] == cond)
       })
     })
     
@@ -937,18 +980,18 @@ analyze_time_clusters.time_data = function(data,
       df_resampled = df_biggclust
       
       # for each participant, randomly select (w/replacement) rows to be assigned to each condition
-      for (list_of_rows in foo) {
+      for (list_of_rows in list_of_list_of_rows) {
         resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = TRUE)
         for (i in seq_along(resampled)) {
           rows = resampled[[i]]
-          df_resampled[rows,condition_column] = conditions[i]
+          df_resampled[rows,attrs$condition_column] = conditions[i]
         }
       }
       
       # this gives a dataframe where the "condition" label has been resampled within each participant 
       # run analyze time bins on it to get sum statistic for cluster
       time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
-                                                     condition_column = condition_column,
+                                                     condition_column = attrs$condition_column,
                                                      test = test,
                                                      threshold = threshold,
                                                      alpha = alpha,
@@ -990,7 +1033,7 @@ analyze_time_clusters.time_data = function(data,
 #' @param character formula           What formula should be used for the test? Optional (for all but lmer), if unset will use Prop ~ condition_column
 #' @param logical return_model        In the returned dataframe, should a model be given for each time bin, or just the summary of that model?
 #' @param ... ...                     Any other arguments to be passed to the selected 'test' function (e.g., paired, var.equal, etc.)
-#' ...
+#' 
 #' @return dataframe 
 analyze_time_bins = function(data, ...) {
   UseMethod("analyze_time_bins")
@@ -1269,8 +1312,9 @@ summary.bootstrapped_intervals_data <- function(data, data_options) {
 # @return an error
 
 plot.data.frame <- function(data, data_options, condition_column) {
-  stop("The class of this data, which specifies what type of data it is, has been removed.",
-       "This can happen by using functions that transform the data significantly, such as dplyr's summarize and select.")
+  stop("Cannot plot this data. Either no plotting method exists for this data, or the class of this data, which specifies ",
+       "what type of data it is, has been removed. This can happen by using functions that transform the data significantly, ",
+       "such as dplyr's 'summarize' and 'select'.")
 }
 
 
@@ -1391,6 +1435,39 @@ plot.bin_analysis <- function(data) {
     ylab("Statistic") +
     xlab("TimeBin") +
     facet_wrap( ~ AOI)
+}
+
+# plot.time_cluster_data()
+#
+# Plot time_cluster_data, highlights clusters
+#
+# @param dataframe data
+#
+# @return list A ggplot list object 
+plot.time_cluster_data = function(data) {
+  attrs = attr(data, "eyetrackingR")
+  g = plot(attrs$time_bin_summary)
+  
+  ribbons = list()
+  for (clust in unique(na.omit(attrs$time_bin_summary$Cluster))) {
+    ribbons[[clust]] = data.frame(
+      TimeBin = attrs$time_bin_summary$TimeBin,
+      ribbon_max = with(attrs$time_bin_summary,
+                        ifelse(test = Cluster==clust, 
+                          yes  = ifelse(Statistic > CritStatisticPos, Statistic, CritStatisticNeg), 
+                          no   = NA)
+                        ),
+      ribbon_min = with(attrs$time_bin_summary,
+                        ifelse(test = Cluster==clust, 
+                          yes  = ifelse(Statistic < CritStatisticNeg, Statistic, CritStatisticPos), 
+                          no   = NA)
+                        )
+    )
+    g = g + geom_ribbon(data = ribbons[[clust]], aes(x= TimeBin, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .33, colour= NA)
+  }
+  
+  g
+  
 }
 
 
@@ -1659,7 +1736,7 @@ center_predictors = function(data, predictors) {
 mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutuate_.bootstrapped_data = mutate_.bootstrapped_intervals_data = mutate_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', 'bin_analysis')
+  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', "time_cluster_data", 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "eyetrackingR") # also attributes
@@ -1676,7 +1753,7 @@ mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutuate_.bootst
 group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = mutuate_.bootstrapped_data = group_by_.bootstrapped_intervals_data = group_by_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', 'bin_analysis')
+  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', "time_cluster_data", 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "eyetrackingR") # also attributes
@@ -1693,7 +1770,7 @@ group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = mutuate_.
 filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstrapped_data = filter_.bootstrapped_intervals_data = filter_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', 'bin_analysis')
+  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', "time_cluster_data", 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "eyetrackingR") # also attributes
@@ -1710,7 +1787,7 @@ filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstr
 left_join.time_data = left_join.window_data = left_join.bin_analysis = left_join.bootstrapped_data = left_join.bootstrapped_intervals_data = left_join.onset_data = function(x, y, by = NULL, copy = FALSE, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', 'bin_analysis')
+  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrapped_intervals_data', "time_cluster_data", 'bin_analysis')
   temp_remove = class(x)[ class(x) %in% potential_classes]
   class(x) = class(x)[!class(x) %in% potential_classes]
   temp_attr = attr(x, "eyetrackingR") # also attributes
