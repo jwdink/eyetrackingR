@@ -1733,7 +1733,7 @@ center_predictors = function(data, predictors) {
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
 
-mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutuate_.bootstrapped_data = mutate_.bootstrap_analysis = mutate_.onset_data = function(data, ...) {
+mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutate_.bootstrapped_data = mutate_.time_cluster_data = mutate_.bootstrap_analysis = mutate_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
   potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
@@ -1750,7 +1750,7 @@ mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutuate_.bootst
   return(out)
 }
 
-group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = mutuate_.bootstrapped_data = group_by_.bootstrap_analysis = group_by_.onset_data = function(data, ...) {
+group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = group_by_.bootstrapped_data = group_by_.time_cluster_data = group_by_.bootstrap_analysis = group_by_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
   potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
@@ -1767,7 +1767,7 @@ group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = mutuate_.
   return(out)
 }
 
-filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstrapped_data = filter_.bootstrap_analysis = filter_.onset_data = function(data, ...) {
+filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstrapped_data = filter.time_cluster_data =  filter_.bootstrap_analysis = filter_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
   potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
@@ -1784,7 +1784,7 @@ filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstr
   return(out)
 }
 
-left_join.time_data = left_join.window_data = left_join.bin_analysis = left_join.bootstrapped_data = left_join.bootstrap_analysis = left_join.onset_data = function(x, y, by = NULL, copy = FALSE, ...) {
+left_join.time_data = left_join.window_data = left_join.bin_analysis = left_join.time_cluster_data = left_join.bootstrapped_data = left_join.bootstrap_analysis = left_join.onset_data = function(x, y, by = NULL, copy = FALSE, ...) {
   
   # remove class names (avoid infinite recursion):
   potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
