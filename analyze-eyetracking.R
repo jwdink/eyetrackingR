@@ -393,7 +393,7 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
 #' @param dataframe data
 #' @param list data_options
 #' @param character aoi                         Which AOIs are of interest? Defaults to all in 'data_options'
-#' @param character.vector condition_columns    Which columns indicate conditions, and therefore should be 
+#' @param character.vector predictor_columns    Which columns indicate predictor vars, and therefore should be 
 #'                                              preserved in grouping operations?
 #' @param character summarize_by                Should the data be summarized along, e.g., participants, items, etc.
 #'                                              If so, give column names here. If left blank, will leave trials distinct.
@@ -404,7 +404,7 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
 make_window_data <- function(data, 
                          data_options, 
                          aoi = data_options$aoi_columns, 
-                         condition_columns = NULL,
+                         predictor_columns = NULL,
                          summarize_by = NULL
 ) {
   require("dplyr", quietly=TRUE)
@@ -414,7 +414,7 @@ make_window_data <- function(data,
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
-      make_window_data(data, data_options, aoi = this_aoi, condition_columns, summarize_by)
+      make_window_data(data, data_options, aoi = this_aoi, predictor_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
     attrs = attr(out,"eyetrackingR")
@@ -434,9 +434,9 @@ make_window_data <- function(data,
     groups = c(data_options$participant_column, 
                data_options$item_columns,
                data_options$trial_column, 
-               condition_columns)
+               predictor_columns)
   } else {
-    groups = c(summarize_by, condition_columns)
+    groups = c(summarize_by, predictor_columns)
   }
   out = .make_proportion_looking_summary(data=data, groups = groups, aoi_col)
   
@@ -457,7 +457,7 @@ make_window_data <- function(data,
 #' @param list data_options
 #' @param numeric time_bin_size
 #' @param character aoi                         Which AOIs are of interest? Defaults to all in 'data_options'
-#' @param character.vector condition_columns    Which columns indicate conditions, and therefore should be 
+#' @param character.vector predictor_columns           Which columns indicate predictor vars, and therefore should be 
 #'                                              preserved in grouping operations?
 #' @param character summarize_by                Should the data be summarized along, e.g., participants, items, etc.?
 #'                                              If so, give column name(s) here. If left blank, will leave trials distinct.
@@ -470,7 +470,7 @@ make_time_data <- function (data,
                         data_options, 
                         time_bin_size, 
                         aoi = data_options$aoi_columns, 
-                        condition_columns = NULL,
+                        predictor_columns = NULL,
                         summarize_by = NULL) {
   
   
@@ -481,7 +481,7 @@ make_time_data <- function (data,
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
-      make_time_data(data, data_options, time_bin_size, this_aoi, condition_columns, summarize_by)
+      make_time_data(data, data_options, time_bin_size, this_aoi, predictor_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
     attrs = attr(out,"eyetrackingR")
@@ -504,9 +504,9 @@ make_time_data <- function (data,
     groups = c(data_options$participant_column, 
                data_options$item_columns,
                data_options$trial_column, 
-               condition_columns, "TimeBin")
+               predictor_columns, "TimeBin")
   } else {
-    groups = c(summarize_by, condition_columns, "TimeBin")
+    groups = c(summarize_by, predictor_columns, "TimeBin")
   }
   df_summarized = .make_proportion_looking_summary(data=data, groups = groups, aoi_col)
   df_summarized[["Time"]] = df_summarized[["TimeBin"]] * time_bin_size
@@ -619,14 +619,14 @@ make_onset_data = function(data, data_options, onset_time, fixation_window_lengt
 #' 
 #' @param dataframe data The output of "onset_data"
 #' @param list data_options
-#' @param character.vector condition_columns
+#' @param character.vector predictor_columns
 #' 
 #' @return dataframe 
 #' 
 make_switch_data = function(data, ...) {
   UseMethod("make_switch_data")
 }
-make_switch_data.onset_data = function(data, data_options, condition_columns=NULL) {
+make_switch_data.onset_data = function(data, data_options, predictor_columns=NULL) {
 
   time_col = as.name(data_options$time_column)
   
@@ -636,7 +636,7 @@ make_switch_data.onset_data = function(data, data_options, condition_columns=NUL
                                    data_options$trial_column, 
                                    data_options$item_columns, 
                                    "FirstAOI", 
-                                   condition_columns))
+                                   predictor_columns))
   df_summarized = summarise_(df_grouped,
                             .dots = list(FirstSwitch = interp(~TIME_COL[first(which(SwitchAOI), order_by= TIME_COL)], TIME_COL = time_col)
                                          ))
@@ -654,12 +654,12 @@ make_switch_data.onset_data = function(data, data_options, condition_columns=NUL
 #' 
 #' @param dataframe.time_data data   The output of the 'time_data' function
 #' @param list data_options
-#' @param character condition_column  The variable whose test statistic you are interested in
+#' @param character predictor_column  The predictor variable whose test statistic you are interested in
 #' @param character aoi               If this dataframe has multiple AOIs, you must specify which to analyze
 #' @param character test              What type of test should be performed in each time bin? Supports t.test, wilcox, lm, or lmer.
 #' @param numeric threshold           Value of statistic used in determining significance
 #' @param numeric alpha               Alpha value for determining significance, ignored if threshold is given
-#' @param character formula           What formula should be used for test? Optional (for all but lmer), if unset uses `Prop ~ condition_column`
+#' @param character formula           What formula should be used for test? Optional (for all but lmer), if unset uses `Prop ~ predictor_column`
 #' @param ... ...                     Any other arguments to be passed to the selected 'test' function (e.g., paired, var.equal, etc.)
 #' 
 #' @return dataframe 
@@ -667,7 +667,7 @@ make_time_cluster_data = function(data, ...) {
   UseMethod("make_time_cluster_data")
 }
 make_time_cluster_data.time_data = function(data, data_options,
-                                  condition_column,
+                                  predictor_column,
                                   aoi = NULL,
                                   test = "t.test",
                                   threshold = NULL,
@@ -700,7 +700,7 @@ make_time_cluster_data.time_data = function(data, data_options,
   
   # Compute Time Bins:
   time_bin_summary = analyze_time_bins(data, data_options, 
-                                       condition_column = condition_column,
+                                       predictor_column = predictor_column,
                                        test = test,
                                        threshold = threshold,
                                        alpha = NULL,
@@ -746,7 +746,7 @@ make_time_cluster_data.time_data = function(data, data_options,
   attrs = attr(df_timeclust, "eyetrackingR")
   attr(df_timeclust, "eyetrackingR") = c(attrs, 
                                          list(clusters = clusters,
-                                              condition_column = condition_column,
+                                              predictor_column = predictor_column,
                                               test = test,
                                               threshold = threshold,
                                               time_bin_summary = time_bin_summary)
@@ -755,14 +755,27 @@ make_time_cluster_data.time_data = function(data, data_options,
   
 }
 
+summary.time_cluster_data = function(data) {
+  clusters = attr(data, "eyetrackingR")$clusters
+  cat( 
+    "Test Type:\t", attr(data, "eyetrackingR")$test,
+    "\nIV:\t\t", attr(data, "eyetrackingR")$predictor_column,
+    paste(
+      "\nCluster", clusters["Cluster",], " =====",
+      "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
+      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 5)
+    )
+  )
+  invisible(data)
+}
 
-#' make_bootstrapped_data(data, data_options, condition_column, within_subj, samples, resolution, alpha)
+#' make_bootstrapped_data(data, data_options, predictor_column, within_subj, samples, resolution, alpha)
 #' 
 #' Bootstrap splines from a time_data() data. Return bootstrapped splines.
 #' 
 #' @param dataframe.time_data data 
 #' @param list data_options Standard list of options for manipulating dataset
-#' @param character condition_column What condition_column to split by? Maximum two conditions
+#' @param character predictor_column What predictor var to split by? Maximum two conditions
 #' @param logical within_subj Are the two conditions within or between subjects?
 #' @param int samples How many (re)samples to take?
 #' @param numeric resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
@@ -774,7 +787,7 @@ make_bootstrapped_data = function(data, ...) {
   UseMethod("make_bootstrapped_data")
 }
 
-make_bootstrapped_data.time_data <- function (data, data_options, condition_column, aoi = NULL, within_subj = FALSE, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
+make_bootstrapped_data.time_data <- function (data, data_options, predictor_column, aoi = NULL, within_subj = FALSE, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
   require("dplyr", quietly=TRUE)
   if (!require("pbapply")) {
     pbreplicate = function(n, expr, simplify) replicate(n, expr, simplify)
@@ -782,8 +795,8 @@ make_bootstrapped_data.time_data <- function (data, data_options, condition_colu
   }
 
   # validate arguments
-  if ( length(levels(as.factor(data[[condition_column]]))) != 2 ) {
-    stop('make_bootstrapped_data requires a condition_column with exactly 2 levels.')
+  if ( length(levels(as.factor(data[[predictor_column]]))) != 2 ) {
+    stop('make_bootstrapped_data requires a predictor_column with exactly 2 levels.')
   }
   
   if (!(smoother %in% c('smooth.spline','loess','none'))) {
@@ -796,7 +809,7 @@ make_bootstrapped_data.time_data <- function (data, data_options, condition_colu
   } else {
     data = filter(data, AOI == aoi)
   }
-  data = data[ !is.na(data[[condition_column]]), ]
+  data = data[ !is.na(data[[predictor_column]]), ]
 
   # define sampler/bootstrapper:
   sampler <- function (run_original, run_subjects_rows, data_options, resolution, smoother) {
@@ -852,9 +865,9 @@ make_bootstrapped_data.time_data <- function (data, data_options, condition_colu
   
   if (within_subj == FALSE) {
     # between-subjects:
-    for (level in unique(data[[condition_column]]) ) {
+    for (level in unique(data[[predictor_column]]) ) {
       # subset for condition level
-      subsetted_data <- data[which(data[, condition_column] == level),]
+      subsetted_data <- data[which(data[, predictor_column] == level),]
       subsetted_data$RowNum = 1:nrow(subsetted_data)
       
       # get subjects
@@ -871,11 +884,11 @@ make_bootstrapped_data.time_data <- function (data, data_options, condition_colu
       colnames(bootstrapped_data) <- sample_rows
       
       bootstrapped_data <- data.frame(stringsAsFactors = FALSE,
-        condition_column = level,
+        predictor_column = level,
         Time = seq(min(subsetted_data$Time), max(subsetted_data$Time), by=resolution),
         bootstrapped_data
       )
-      colnames(bootstrapped_data)[1] <- condition_column
+      colnames(bootstrapped_data)[1] <- predictor_column
       
       # 
       combined_bootstrapped_data <- bind_rows(combined_bootstrapped_data,bootstrapped_data)
@@ -885,12 +898,12 @@ make_bootstrapped_data.time_data <- function (data, data_options, condition_colu
     # within-subjects:
     
     # Group by participant, timebin; Calculate the difference in proportion between level1 and level2
-    level1 = levels(data[[condition_column]])[1]
-    level2 = levels(data[[condition_column]])[2]
+    level1 = levels(data[[predictor_column]])[1]
+    level2 = levels(data[[predictor_column]])[2]
     df_grouped = group_by_(data, .dots = c(data_options$participant_column, "Time") ) 
     df_diff = summarise_(df_grouped, 
-                         .dots = list(Prop1 = interp(~mean(Prop[CONDITION_COL == level1]), CONDITION_COL = as.name(condition_column)),
-                                      Prop2 = interp(~mean(Prop[CONDITION_COL == level2]), CONDITION_COL = as.name(condition_column)),
+                         .dots = list(Prop1 = interp(~mean(Prop[PRED_COL == level1]), PRED_COL = as.name(predictor_column)),
+                                      Prop2 = interp(~mean(Prop[PRED_COL == level2]), PRED_COL = as.name(predictor_column)),
                                       Prop  = interp(~Prop1 - Prop2)
                          ))
     
@@ -925,7 +938,7 @@ make_bootstrapped_data.time_data <- function (data, data_options, condition_colu
   class(combined_bootstrapped_data) = c('bootstrapped_data', class(combined_bootstrapped_data))
   attr(combined_bootstrapped_data, 'eyetrackingR') = list(
     bootstrapped = list(within_subj = within_subj,
-                        condition_column = condition_column,
+                        predictor_column = predictor_column,
                         samples = samples,
                         alpha = alpha,
                         resolution = resolution,
@@ -946,10 +959,17 @@ make_bootstrapped_data.time_data <- function (data, data_options, condition_colu
 #' 
 #' @param dataframe.time_data data The output of the 'make_time_cluster_data' function
 #' @param list data_options            
-#' @param logical within_subj Perform within-subjects bootstrap resampling? (Defaults to FALSE for between subjects resampling) 
-#' @param numeric samples     How many iterations should be performed in the bootstrap resampling procedure?
-#' @param formula formula     Formula for test. Should be identical to that passed to make_time_cluster_data fxn (if arg ignored there, can be ignored here)
-#' @param ... ...             Other args for to selected 'test' function; should be identical to those passed to make_time_cluster_data fxn
+#' @param logical within_subj   Perform within-subjects bootstrap resampling? (Defaults to FALSE for between subjects resampling) 
+#' @param numeric samples       How many iterations should be performed in the bootstrap resampling procedure?
+#' @param formula formula       Formula for test. Should be identical to that passed to make_time_cluster_data fxn (if arg ignored there, can be ignored here)
+#' @param character shuffle_by  If the predictor_column is numeric *and* within-subjects, then observations with the same predictor value could 
+#'                              nevertheless correspond to distinct conditions/categories that should be shuffled separately. For example, when 
+#'                              using vocabulary scores to predict looking behavior, a participant might get identical vocab scores for 
+#'                              verbs and nouns; these are nevertheless distinct categories that should be re-assigned separately when 
+#'                              bootstrap-resampling data. The 'shuffle_by' argument allows you to specify a column which indicates these kinds 
+#'                              of distinct categories that should be resampled separately-- but it's only needed if you've specified a numeric 
+#'                              *and* within-subjects predictor column.
+#' @param ... ...               Other args for to selected 'test' function; should be identical to those passed to make_time_cluster_data fxn
 #' @return dataframe 
 analyze_time_clusters = function(data, data_options, ...) {
   UseMethod("analyze_time_clusters")
@@ -958,10 +978,21 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
                                                    within_subj = FALSE,
                                                    samples = 1000,
                                                    formula = NULL, 
+                                                   shuffle_by = NULL,
                                                    ...) {
   
   # Get important information about type of data/analyses, input when running make_time_cluster_data
   attrs = attr(data, "eyetrackingR")
+  if (is.null(shuffle_by)) {
+    
+  }
+  if (is.null(shuffle_by)) {
+    shuffle_by = attrs$predictor_column
+    if ( attrs$test %in% c("lm", "lmer") & is.numeric(data[[attrs$predictor_column]])) {
+      warning("If your predictor column is numeric, consider specifying a 'shuffle_by' argument.")
+    }
+  }
+  
   
   # Arg check:
   if (attrs$test %in% c("t.test", "wilcox.test")) {
@@ -978,7 +1009,8 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   } 
  
   # get data for biggest cluster
-  df_biggclust = filter(data, Cluster == which.max(attrs$clusters["SumStat",]))
+  df_biggclust = data[!is.na(data[[attrs$predictor_column]]),]
+  df_biggclust = filter(df_biggclust, Cluster == which.max(attrs$clusters["SumStat",]))
   
   # Resample this data and get sum statistic each time, creating null distribution
   if (within_subj) {
@@ -988,13 +1020,40 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
     # get a list of list of rows. outer list corresponds to participants, inner to conditions
     list_of_list_of_rows = lapply(X = participants, FUN = function(ppt) {
       ppt_logical = (df_biggclust[[data_options$participant_column]] == ppt)
-      conditions = unique(df_biggclust[[attrs$condition_column]][ppt_logical])
+      conditions = unique(df_biggclust[[attrs$predictor_column]][ppt_logical])
       out= lapply(X = conditions, FUN = function(cond) {
-        which(ppt_logical & df_biggclust[[attrs$condition_column]] == cond)
+        which(ppt_logical & df_biggclust[[attrs$predictor_column]] == cond)
       })
       names(out) = conditions
       return(out)
     })
+    
+    ##TEMP##
+    df_resampled = df_biggclust
+      
+      # for each participant, randomly resample rows to be assigned to each condition
+      # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
+      # gets reassigned once per condition across all participants (rather than once per condition per participant)
+      for (list_of_rows in list_of_list_of_rows) {
+        resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = FALSE)
+        for (i in seq_along(resampled)) {
+          rows = resampled[[i]]
+          df_resampled[rows,attrs$predictor_column] = names(list_of_rows)[i]
+        }
+      }
+      
+      # this gives a dataframe where the "condition" label has been resampled within each participant 
+      # run analyze time bins on it to get sum statistic for cluster
+      time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
+                                                     predictor_column = attrs$predictor_column,
+                                                     test = attrs$test,
+                                                     threshold = attrs$threshold,
+                                                     alpha = attrs$alpha,
+                                                     formula = formula, 
+                                                     return_model = FALSE,
+                                                     quiet = TRUE,
+                                                     ...)
+    ##TEMP##
     
     null_distribution = pbsapply(1:samples, FUN = function(iter) {
       df_resampled = df_biggclust
@@ -1006,14 +1065,14 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
         resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = FALSE)
         for (i in seq_along(resampled)) {
           rows = resampled[[i]]
-          df_resampled[rows,attrs$condition_column] = names(list_of_rows)[i]
+          df_resampled[rows,attrs$predictor_column] = names(list_of_rows)[i]
         }
       }
       
       # this gives a dataframe where the "condition" label has been resampled within each participant 
       # run analyze time bins on it to get sum statistic for cluster
       time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
-                                                     condition_column = attrs$condition_column,
+                                                     predictor_column = attrs$predictor_column,
                                                      test = attrs$test,
                                                      threshold = attrs$threshold,
                                                      alpha = attrs$alpha,
@@ -1031,9 +1090,10 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
     null_distribution = pbsapply(1:samples, FUN = function(iter) {
       df_resampled = df_biggclust
       
+      stop("FIX ME (reassign without relacement)")
       
       # get rows for each participant
-      conditions = unique(df_biggclust[[attrs$condition_column]])
+      conditions = unique(df_biggclust[[attrs$predictor_column]])
       participants = unique(df_biggclust[[data_options$participant_column]])
       rows_of_participants = lapply(participants, FUN = function(ppt) which(df_biggclust[[data_options$participant_column]] == ppt))
       
@@ -1042,13 +1102,13 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
       for (i in seq_along(new_conditions)) {
         # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
         # gets reassigned once per condition across all participants (rather than once per participant)
-        df_resampled[rows_of_participants[[i]], attrs$condition_column] = new_conditions[i]
+        df_resampled[rows_of_participants[[i]], attrs$predictor_column] = new_conditions[i]
       }
       
       # this gives a dataframe where the "condition" label has been resampled for participants 
       # run analyze time bins on it to get sum statistic for cluster
       time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
-                                                     condition_column = attrs$condition_column,
+                                                     predictor_column = attrs$predictor_column,
                                                      test = attrs$test,
                                                      threshold = attrs$threshold,
                                                      alpha = attrs$alpha,
@@ -1065,7 +1125,7 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
 
   # Get p-values:
   out = c(list(null_distribution = null_distribution), attr(df_timeclust, "eyetrackingR"))
-  probs = sapply(cl_analysis$clusters["SumStat",], 
+  probs = sapply(out$clusters["SumStat",], 
                  FUN= function(ss) ifelse(sign(out$threshold)==1,
                    mean(ss<out$null_distribution, na.rm=TRUE),
                    mean(ss>out$null_distribution, na.rm=TRUE)
@@ -1080,24 +1140,11 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   
 }
 
-
-plot.cluster_analysis = function(cl_analysis) {
-  dat = c(cl_analysis$clusters['SumStat',], cl_analysis$null_distribution)
-  x_min = min(dat, na.rm=TRUE) - sd(dat)
-  x_max = max(dat, na.rm=TRUE) + sd(dat)
-  ggplot(data = data.frame(NullDistribution = cl_analysis$null_distribution), aes(x = NullDistribution)) +
-    geom_histogram(aes(y=..density..), binwidth = sd(cl_analysis$null_distribution)/5, alpha=.75 ) +
-    coord_cartesian(xlim = c(x_min, x_max)) +
-    geom_vline(xintercept = cl_analysis$clusters['SumStat',], linetype="dashed", size=1) + # TO DO: add cluster labels
-    xlab(paste0("Distribution of '", cl_analysis$test, "' statistics")) + ylab("Density")
-  
-}
-
 summary.cluster_analysis = print.cluster_analysis = function(cl_analysis) {
   clusters = cl_analysis$clusters
   cat( 
     "Test Type:\t", cl_analysis$test,
-    "\nIV:\t\t", cl_analysis$condition_column,
+    "\nIV:\t\t", cl_analysis$predictor_column,
     "\nNull Distribution =====",
     "\n\tMean:\t", round(mean(cl_analysis$null_distribution, na.rm=TRUE), digits = 5),
     "\n\tSD:\t", round(sd(cl_analysis$null_distribution, na.rm=TRUE), digits = 5),
@@ -1117,11 +1164,11 @@ summary.cluster_analysis = print.cluster_analysis = function(cl_analysis) {
 #' 
 #' @param dataframe.time_data data   The output of the 'time_data' function
 #' @param list data_options
-#' @param character condition_column  The variable whose test statistic you are interested in
+#' @param character predictor_column  The variable whose test statistic you are interested in
 #' @param numeric threshold           Value of statistic used in determining significance
 #' @param numeric alpha               Alpha value for determining significance, ignored if threshold is given
 #' @param character test              What type of test should be performed in each time bin? Supports t.test, wilcox, lm, or lmer.
-#' @param character formula           What formula should be used for the test? Optional (for all but lmer), if unset will use Prop ~ condition_column
+#' @param character formula           What formula should be used for the test? Optional (for all but lmer), if unset will use Prop ~ predictor_column
 #' @param logical return_model        In the returned dataframe, should a model be given for each time bin, or just the summary of that model?
 #' @param ... ...                     Any other arguments to be passed to the selected 'test' function (e.g., paired, var.equal, etc.)
 #' 
@@ -1131,7 +1178,7 @@ analyze_time_bins = function(data, ...) {
 }
 analyze_time_bins.time_data <- function(data, 
                               data_options, 
-                              condition_column,
+                              predictor_column,
                               test = "t.test",
                               threshold = NULL,
                               alpha = .05,
@@ -1156,7 +1203,7 @@ analyze_time_bins.time_data <- function(data,
       if (!quiet) message("Analyzing ", this_aoi, "...")
       this_df = filter(data, AOI == this_aoi)
       class(this_df) = class(data)
-      analyze_time_bins(data = this_df, data_options, condition_column, test, threshold, alpha, formula, return_model, quiet, ...)
+      analyze_time_bins(data = this_df, data_options, predictor_column, test, threshold, alpha, formula, return_model, quiet, ...)
     })
     out = bind_rows(list_of_dfs)
     out = as.data.frame(out)
@@ -1177,7 +1224,7 @@ analyze_time_bins.time_data <- function(data,
   # auto-make a formula, unless they specified one
   if (is.null(formula)) {
     if (test=="lmer") stop("Must specify a formula if using lmer.")
-    formula = as.formula(paste("Prop ~", condition_column))
+    formula = as.formula(paste("Prop ~", predictor_column))
   }
   
   # Run a model for each time-bin
@@ -1191,12 +1238,12 @@ analyze_time_bins.time_data <- function(data,
     
     # Makes paired test more robust to unpaired observations within a bin:
     if (identical(paired, TRUE)) {
-      lvl1 = levels(data[[condition_column]])[1]
+      lvl1 = levels(data[[predictor_column]])[1]
       temp_dat = try(
         temp_dat %>%
           group_by(ParticipantName) %>%
           mutate_(.dots = list(PairedObs = interp(~length(which(COND_COL == lvl1)) > 0 & length(which(COND_COL != lvl1)) > 0, 
-                                                  COND_COL = as.name(condition_column))) ) %>%
+                                                  COND_COL = as.name(predictor_column))) ) %>%
           filter(PairedObs) %>%
           select(-PairedObs) %>%
           ungroup()
@@ -1206,8 +1253,8 @@ analyze_time_bins.time_data <- function(data,
     model = failsafe_test(formula = formula, data = temp_dat, ... = ...) 
     # get N:
     if (test=="wilcox.test" | test=="lm") {
-      condition_col_is_na = is.na(temp_dat[[condition_column]])
-      model$sample_size = length(unique( temp_dat[[data_options$participant_column]][!condition_col_is_na] ))
+      predictor_col_is_na = is.na(temp_dat[[predictor_column]])
+      model$sample_size = length(unique( temp_dat[[data_options$participant_column]][!predictor_col_is_na] ))
     }
     model
   })
@@ -1222,14 +1269,14 @@ analyze_time_bins.time_data <- function(data,
     models_statistics = sapply(tidied_models, function(x) ifelse('statistic' %in% names(x), x[,'statistic'], NA) )
   } else {
     models_statistics = sapply(tidied_models, function(x) {
-      which_row = grep(pattern = condition_column, x = x[['term']], fixed = TRUE) # look for partially matching param (for treatment coding)
+      which_row = grep(pattern = predictor_column, x = x[['term']], fixed = TRUE) # look for partially matching param (for treatment coding)
       if (length(which_row)==1) {
         return(x[which_row, 'statistic'])
       } else {
         # too many matches? look for exact match (happens with continous predictor)
-        which_row = which(x[['term']] == condition_column)
+        which_row = which(x[['term']] == predictor_column)
         if (length(which_row)==1) return(x[which_row, 'statistic'])
-        warning("Could not find the parameter '",condition_column,"' in your model. Found instead: ", paste(x[['term']], collapse=", ") )
+        warning("Could not find the parameter '",predictor_column,"' in your model. Found instead: ", paste(x[['term']], collapse=", ") )
         return(NA)
       }
     } )
@@ -1353,14 +1400,6 @@ analyze_bootstraps.bootstrapped_data <- function(data, data_options) {
   return(bootstrapped_data)
 }
 
-#' summary.bootstrap_analysis()
-#' 
-#' Returns the windows in which the splines diverged in the bootstrapped analysis.
-#' 
-#' @param dataframe data Returned from analyze_bootstraps()
-#' ...
-#' @return dataframe 
-#' 
 summary.bootstrap_analysis <- function(data, data_options) {
 
   # make sure there is the proper kind of data frame, and check its attributes
@@ -1396,27 +1435,47 @@ summary.bootstrap_analysis <- function(data, data_options) {
 #
 # @param dataframe data
 # @param list data_options
-# @param character condition_column
+# @param character predictor_column
 #
 # @return an error
 
-plot.data.frame <- function(data, data_options, condition_column) {
+plot.data.frame <- function(data, data_options, predictor_column) {
   stop("Cannot plot this data. Either no plotting method exists for this data, or the class of this data, which specifies ",
        "what type of data it is, has been removed. This can happen by using functions that transform the data significantly, ",
        "such as dplyr's 'summarize' and 'select'.")
 }
 
 
-# plot.window_data()
-#
-# Plots a window data
-#
-# @param dataframe data returned by window_data()
-# @param list data_options
-# @param character x_axis_column
-# @param character group_column
-#
-# @return list A ggplot list object  
+#' plot.cluster_analysis()
+#' 
+#' Plots the result of the bootstrapping cluster analysis. A histogram of the sum statistics for the 
+#' shuffled (null) distribution, with the sum statisics for each of the clusters indicated by dashed lines.
+#' 
+#' @param cluster_analysis object returned by cluster_analysis()
+#' 
+#' @return list A ggplot list object 
+plot.cluster_analysis = function(cl_analysis) {
+  dat = c(cl_analysis$clusters['SumStat',], cl_analysis$null_distribution)
+  x_min = min(dat, na.rm=TRUE) - sd(dat)
+  x_max = max(dat, na.rm=TRUE) + sd(dat)
+  ggplot(data = data.frame(NullDistribution = cl_analysis$null_distribution), aes(x = NullDistribution)) +
+    geom_density() +
+    geom_histogram(aes(y=..density..), binwidth = sd(cl_analysis$null_distribution)/5, alpha=.75 ) +
+    coord_cartesian(xlim = c(x_min, x_max)) +
+    geom_vline(xintercept = cl_analysis$clusters['SumStat',], linetype="dashed", size=1) + # TO DO: add cluster labels
+    xlab(paste0("Distribution of summed '", cl_analysis$test, "' statistics")) + ylab("Density")
+  
+}
+
+
+#' plot.window_data()
+#' 
+#' @param dataframe data returned by window_data()
+#' @param list data_options
+#' @param character x_axis_column
+#' @param character group_column
+#' 
+#' @return list A ggplot list object  
 plot.window_data <- function(data, data_options, x_axis_column, group_column = NULL) {
   
   dopts = data_options
@@ -1457,16 +1516,16 @@ plot.window_data <- function(data, data_options, x_axis_column, group_column = N
   
 }
 
-# plot.time_data()
-#
-# Plot the timecourse of looking across groups. Median split if factor is continous
-#
-# @param dataframe data
-# @param list data_options
-# @param character condition_column
-#
-# @return list A ggplot list object  
-plot.time_data <- function(data, data_options, condition_column=NULL, dv='Prop') {
+#' plot.time_data()
+#' 
+#' Plot the timecourse of looking across groups. Median split if factor is continous
+#' 
+#' @param dataframe data
+#' @param list data_options
+#' @param character predictor_column
+#' 
+#' @return list A ggplot list object  
+plot.time_data <- function(data, data_options, predictor_column=NULL, dv='Prop') {
   require('ggplot2', quietly=TRUE)
   
   ## Prelims:
@@ -1474,29 +1533,29 @@ plot.time_data <- function(data, data_options, condition_column=NULL, dv='Prop')
   dopts = data_options
   
   ## Check condition factor
-  if ( length(condition_column) > 1 ) {
+  if ( length(predictor_column) > 1 ) {
     stop('Can only plot time-analysis for one factor at a time.')
   } 
-  numeric_condition_col = FALSE
-  if (!is.null(condition_column)) {
-    if (is.numeric(data[[condition_column]])) numeric_condition_col = TRUE
+  numeric_predictor_col = FALSE
+  if (!is.null(predictor_column)) {
+    if (is.numeric(data[[predictor_column]])) numeric_predictor_col = TRUE
   }
   
   ## Plot:
-  if (numeric_condition_col) {
+  if (numeric_predictor_col) {
     message("Condition factor is numeric, performing median split...")
-    data[["GroupFactor"]] = ifelse(data[[condition_column]] > median(data[[condition_column]], na.rm=TRUE), "High", "Low")
+    data[["GroupFactor"]] = ifelse(data[[predictor_column]] > median(data[[predictor_column]], na.rm=TRUE), "High", "Low")
 
     g <- ggplot(out, aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
-      guides(color= guide_legend(title= condition_column)) +
+      guides(color= guide_legend(title= predictor_column)) +
       xlab('Time (ms) in Trial')
     return(g)
     
   } else {
-    g <- ggplot(data, aes_string(x = "Time", y=dv, group=condition_column, color=condition_column, fill=condition_column)) +
+    g <- ggplot(data, aes_string(x = "Time", y=dv, group=predictor_column, color=predictor_column, fill=predictor_column)) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
@@ -1552,7 +1611,7 @@ plot.time_cluster_data = function(data) {
                           no   = NA)
                         )
     )
-    g = g + geom_ribbon(data = ribbons[[clust]], aes(x= Time, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .33, colour= NA)
+    g = g + geom_ribbon(data = ribbons[[clust]], aes(x= Time, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .75, colour= NA)
   }
   
   g
@@ -1568,11 +1627,11 @@ plot.time_cluster_data = function(data) {
 #...
 # @return dataframe 
 
-plot.onset_data = function(data, data_options, condition_columns=NULL, smoothing_window_size = NULL) {
+plot.onset_data = function(data, data_options, predictor_columns=NULL, smoothing_window_size = NULL) {
   require(ggplot2, quietly=TRUE)
   
   ## Prelims:
-  if (length(condition_columns) > 2) {
+  if (length(predictor_columns) > 2) {
     stop("Maximum two condition factors")
   }
   attrs = attr(data, "eyetrackingR")
@@ -1586,24 +1645,24 @@ plot.onset_data = function(data, data_options, condition_columns=NULL, smoothing
   
   # clean out unknown first AOIs:
   df_clean = filter(data, !is.na(FirstAOI))
-  for (condition_col in condition_columns) {
+  for (predictor_col in predictor_columns) {
     df_clean = filter_(df_clean, 
-                       .dots = list(interp(~!is.na(CONDITION_COL), CONDITION_COL = as.name(condition_col))
+                       .dots = list(interp(~!is.na(PRED_COL), PRED_COL = as.name(predictor_col))
                        ))
   }
   
   # summarise by time bin:
   df_clean[[".Time"]] = floor(df_clean[[data_options$time_column]] / smoothing_window_size) * smoothing_window_size
   df_grouped = group_by_(df_clean, 
-                         .dots = c(condition_columns, data_options$participant_column, ".Time", "FirstAOI", onset_attr$distractor_aoi, onset_attr$target_aoi)) 
+                         .dots = c(predictor_columns, data_options$participant_column, ".Time", "FirstAOI", onset_attr$distractor_aoi, onset_attr$target_aoi)) 
   df_smoothed = summarise(df_grouped, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
   
   # collapse into lines for graphing:
-  df_summarized = group_by_(df_smoothed, .dots = c(".Time", "FirstAOI", condition_columns) )
+  df_summarized = group_by_(df_smoothed, .dots = c(".Time", "FirstAOI", predictor_columns) )
   df_summarized = summarise(df_summarized, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
   
   # compute grayed area:
-  df_graph = group_by_(df_summarized, .dots = c(".Time", condition_columns) )
+  df_graph = group_by_(df_summarized, .dots = c(".Time", predictor_columns) )
   df_graph = mutate(df_graph,
                     Max= max(SwitchAOI),
                     Min= min(SwitchAOI),
@@ -1613,10 +1672,10 @@ plot.onset_data = function(data, data_options, condition_columns=NULL, smoothing
   df_graph$Min = with(df_graph, ifelse(Max==Top, Min, NA))
   
   ## Graph:
-  if (is.null(condition_columns)) {
+  if (is.null(predictor_columns)) {
     color_factor= NULL
   } else {
-    color_factor = condition_columns[1]
+    color_factor = predictor_columns[1]
   }
   g = ggplot(df_graph, aes_string(x = ".Time", y = "SwitchAOI", 
                                   group = "FirstAOI", 
@@ -1628,38 +1687,38 @@ plot.onset_data = function(data, data_options, condition_columns=NULL, smoothing
     xlab("Time") 
   
   ## Add Facets for Conditions:
-  if (length(condition_columns)>1) return(g+facet_grid(as.formula(paste(condition_columns, collapse="~"))))
-  if (length(condition_columns)>0) return(g+facet_grid(as.formula(paste(condition_columns, "~ ."))))
+  if (length(predictor_columns)>1) return(g+facet_grid(as.formula(paste(predictor_columns, collapse="~"))))
+  if (length(predictor_columns)>0) return(g+facet_grid(as.formula(paste(predictor_columns, "~ ."))))
   return(g)
   
 }
 
 # plot.switch_data()
 #
-# Boxplot of mean switch time aggregated by subjects within each FirstAOI, potentially faceted by condition_columns.
+# Boxplot of mean switch time aggregated by subjects within each FirstAOI, potentially faceted by predictor_columns.
 #
 # @param dataframe.switch_data data The output of the 'switch_data' function
 #...
 # @return dataframe 
 
-plot.switch_data = function(data, data_options, condition_columns=NULL) {
+plot.switch_data = function(data, data_options, predictor_columns=NULL) {
   require(ggplot2, quietly=TRUE)
   
   ## Prelims:
-  if (length(condition_columns) > 2) {
-    stop("Maximum two condition factors")
+  if (length(predictor_columns) > 2) {
+    stop("Maximum two levels to I.V.")
   }
   
   ## Prepare for Graphing:
   data = filter(data, !is.na(FirstAOI))
-  df_grouped = group_by_(data, .dots = c(data_options$participant_column, condition_columns, "FirstAOI"))
+  df_grouped = group_by_(data, .dots = c(data_options$participant_column, predictor_columns, "FirstAOI"))
   df_summarised = summarise(df_grouped, MeanFirstSwitch = mean(FirstSwitch)) 
   
   ## Graph:
-  if (is.null(condition_columns)) {
+  if (is.null(predictor_columns)) {
     color_factor= NULL
   } else {
-    color_factor = condition_columns[1]
+    color_factor = predictor_columns[1]
   }
   
   g = ggplot(df_summarised, aes_string(x = "FirstAOI", y = "MeanFirstSwitch", 
@@ -1671,8 +1730,8 @@ plot.switch_data = function(data, data_options, condition_columns=NULL) {
     xlab("Onset AOI") 
   
   ## Add Facets for Conditions:
-  if (length(condition_columns)>1) return(g+facet_grid(as.formula(paste(condition_columns, collapse="~"))))
-  if (length(condition_columns)>0) return(g+facet_grid(as.formula(paste(condition_columns, "~ ."))))
+  if (length(predictor_columns)>1) return(g+facet_grid(as.formula(paste(predictor_columns, collapse="~"))))
+  if (length(predictor_columns)>0) return(g+facet_grid(as.formula(paste(predictor_columns, "~ ."))))
   
   return(g)
   
@@ -1715,9 +1774,9 @@ plot.bootstrapped_data = function(data, data_options) {
     data$CI_high <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5)
     data$CI_low <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5)
     
-    g <- ggplot(data, aes_string(x='Time', y='Mean', color=bootstrap_attr$condition_column)) +
+    g <- ggplot(data, aes_string(x='Time', y='Mean', color=bootstrap_attr$predictor_column)) +
       geom_line() +
-      geom_ribbon(aes_string(ymax='CI_high', ymin='CI_low', fill=bootstrap_attr$condition_column), mult=1, alpha=.2, colour=NA) +
+      geom_ribbon(aes_string(ymax='CI_high', ymin='CI_low', fill=bootstrap_attr$predictor_column), mult=1, alpha=.2, colour=NA) +
       xlab('Time') +
       ylab('Proportion')
   }

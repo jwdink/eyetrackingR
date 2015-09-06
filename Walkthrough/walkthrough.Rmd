@@ -97,15 +97,15 @@ data_summary <- describe_data(response_window, data_options, dv='Animate', facto
 
 # aggregate across trials within subjects in time analysis
 response_time <- make_time_data(response_window, data_options, time_bin_size = 100, 
-                                 condition_columns = c("Target"),
+                                 predictor_columns = c("Target"),
                                  aoi = c("Animate")
                             )
 
 # visualize time results
-plot(response_time, data_options, condition_column = "Target")
+plot(response_time, data_options, predictor_column = "Target")
 
 # aggregate by subject across the response window
-response_window_agg <- make_window_data(response_window, data_options, aoi='Animate', condition_columns=c('Target','Age','MCDI_Total'))
+response_window_agg <- make_window_data(response_window, data_options, aoi='Animate', predictor_columns=c('Target','Age','MCDI_Total'))
 
 # take a quick peek at mean proportion by Target condition
 # note this automatically aggregates across trials by subjects
@@ -194,7 +194,7 @@ drop1(model,~.,test="Chi")
 Do a proper within-subjects analysis for the familiar trials.
 
 ```{r}
-bootstrapped_familiar <- make_bootstrapped_data(response_time, data_options, condition_column = 'Target', within_subj = TRUE, samples = 1000, resolution = 100, alpha = .05, smoother = 'smooth.spline') 
+bootstrapped_familiar <- make_bootstrapped_data(response_time, data_options, predictor_column = 'Target', within_subj = TRUE, samples = 1000, resolution = 100, alpha = .05, smoother = 'smooth.spline') 
 
 plot(bootstrapped_familiar, data_options)
 
@@ -209,24 +209,24 @@ summary(bootstrap_analysis_familiar, data_options)
 
 ## Cluster Analysis
 
+Perform a different type of bootstrapping analyses (Maris & Oostenveld, 2007), sometimes referred to as a cluster analysis. This analysis takes a summed statistic for each cluster of time bins that pass some level of significance, and compares each to the "null" distribution of sum statistics (obtained by bootstrap resampling data within the largest of the clusters).
+
+This type of analysis should often give similar results to the above, but it comes with a set of advantages and disadvantages. The main advantage is that it can be used with several types of statistical techniques (t.test, wilcox.test, lm, and lmer), so that continuous predictors, covariates, etc. can be included in the model being tested. The main disadvantage is that it is much slower.
+
 ```{r}
 response_time_by_subj <- make_time_data(response_window, data_options, time_bin_size = 100, 
-                                 condition_columns = c("Target"),
+                                 predictor_columns = c("Target"),
                                  aoi = c("Animate"), 
                                  summarize_by = "ParticipantName"
                             )
-#response_time_by_subj$ParticipantName = paste(response_time_by_subj$ParticipantName, response_time_by_subj$Target, sep="_")
 
-df_timeclust = make_time_cluster_data(response_time_by_subj, data_options, condition_column = "Target", 
-                                 within_subj=FALSE, paired = FALSE, threshold = 2)
-plot(df_timeclust) + theme_bw()
+df_timeclust = make_time_cluster_data(response_time_by_subj, data_options, predictor_column = "Target", paired = TRUE, threshold = 2)
+plot(df_timeclust) 
 
-cl_analysis = analyze_time_clusters(df_timeclust, data_options, samples = 100, within_subj = TRUE, paired=TRUE)
+clust_analysis = analyze_time_clusters(df_timeclust, data_options,samples=200, within_subj = TRUE, paired=TRUE)
+clust_analysis
 
-plot(cl_analysis) 
-cl_analysis
-
-
+plot(clust_analysis) 
 ```
 
 
