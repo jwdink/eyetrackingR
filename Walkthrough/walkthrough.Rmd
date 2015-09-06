@@ -215,28 +215,17 @@ response_time_by_subj <- make_time_data(response_window, data_options, time_bin_
                                  aoi = c("Animate"), 
                                  summarize_by = "ParticipantName"
                             )
-
-response_time_by_subj$ParticipantName = paste(response_time_by_subj$ParticipantName, response_time_by_subj$Target, sep="_")
+#response_time_by_subj$ParticipantName = paste(response_time_by_subj$ParticipantName, response_time_by_subj$Target, sep="_")
 
 df_timeclust = make_time_cluster_data(response_time_by_subj, data_options, condition_column = "Target", 
                                  within_subj=FALSE, paired = FALSE, threshold = 2)
 plot(df_timeclust) + theme_bw()
 
-# need a summary method for time_cluster_data
+cl_analysis = analyze_time_clusters(df_timeclust, data_options, samples = 100, within_subj = TRUE, paired=TRUE)
 
-foo = analyze_time_clusters(df_timeclust, data_options, samples = 100, within_subj = FALSE)
-hist(foo$null_distribution)
-abline(v= attr(foo, "eyetrackingR")$cluster_sum_stat)
-attr(foo, "eyetrackingR")$cluster_sum_stat
+plot(cl_analysis) 
+cl_analysis
 
-# need a summary and plot method for time_cluster_analysis
-
-# 
-# 
-# hist(bar$null_distribution, breaks = 25)
-# abline(v = bar$cluster_sum_stats)
-# 
-# sapply(bar$cluster_sum_stats, FUN = function(x) mean(x<bar$null_distribution))
 
 ```
 

@@ -671,7 +671,6 @@ make_time_cluster_data.time_data = function(data, data_options,
                                   aoi = NULL,
                                   test = "t.test",
                                   threshold = NULL,
-                                  alpha = .05,
                                   formula = NULL,
                                   ...) {
   ## Helper:
@@ -682,6 +681,10 @@ make_time_cluster_data.time_data = function(data, data_options,
     out[!vec] = NA
     out[-1]
   }
+  
+  # Check Arg:
+  if (is.null(threshold)) stop("This function requires a 'threshold' for each test. ",
+                               "Since this method is directional, take care when choosing the sign of the threshold.")
   
   # Filter Data:
   if (is.null(aoi)) {
@@ -700,15 +703,21 @@ make_time_cluster_data.time_data = function(data, data_options,
                                        condition_column = condition_column,
                                        test = test,
                                        threshold = threshold,
-                                       alpha = alpha,
+                                       alpha = NULL,
                                        formula = formula, 
                                        return_model = FALSE,
                                        ...)
   
   # Label Adjacent Clusters:
-  # TO DO: do so separately for neg and for pos
-  time_bin_summary$Significant = 
-    time_bin_summary$Statistic >= time_bin_summary$CritStatisticPos | time_bin_summary$Statistic <= time_bin_summary$CritStatisticNeg
+  if (sign(threshold)==1) {
+    time_bin_summary$CritStatistic = time_bin_summary$CritStatisticPos
+    time_bin_summary$CritStatisticNeg = time_bin_summary$CritStatistic
+    time_bin_summary$Significant = time_bin_summary$Statistic > time_bin_summary$CritStatistic
+  } else {
+    time_bin_summary$CritStatistic = time_bin_summary$CritStatisticNeg
+    time_bin_summary$CritStatisticPos = time_bin_summary$CritStatistic
+     time_bin_summary$Significant = time_bin_summary$Statistic < time_bin_summary$CritStatistic
+  }
   time_bin_summary$Cluster = .label_clusters(time_bin_summary$Significant)
   
   # Compute Sum Statistic for each Cluster
@@ -720,17 +729,28 @@ make_time_cluster_data.time_data = function(data, data_options,
   # Merge cluster info into original data
   df_timeclust = left_join(data, time_bin_summary[,c('Time','AOI','Cluster')], by=c('Time','AOI'))
   
+  # Collect info about each cluster:
+  start_times = sapply(seq_along(sum_stat), 
+                       FUN = function(clust) time_bin_summary$Time[first(which(time_bin_summary$Cluster==clust))]
+  )
+  end_times = sapply(seq_along(sum_stat), 
+                     FUN = function(clust) time_bin_summary$Time[last(which(time_bin_summary$Cluster==clust))]
+  )
+  clusters = sapply(seq_along(sum_stat), function(i) {
+    c(Cluster = i, SumStat = sum_stat[i], StartTime = start_times[i], EndTime = end_times[i])
+  })
+  
   # Output data, add attributes w/ relevant info
   df_timeclust = as.data.frame(df_timeclust)
   class(df_timeclust) = c("time_cluster_data", "time_data", class(df_timeclust))
   attrs = attr(df_timeclust, "eyetrackingR")
   attr(df_timeclust, "eyetrackingR") = c(attrs, 
-                                         list(cluster_sum_stat = sum_stat,
+                                         list(clusters = clusters,
                                               condition_column = condition_column,
                                               test = test,
                                               threshold = threshold,
-                                              alpha = alpha,
-                                              time_bin_summary = time_bin_summary))
+                                              time_bin_summary = time_bin_summary)
+  )
   df_timeclust
   
 }
@@ -958,7 +978,7 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   } 
  
   # get data for biggest cluster
-  df_biggclust = filter(data, Cluster == which.max(attrs$cluster_sum_stat))
+  df_biggclust = filter(data, Cluster == which.max(attrs$clusters["SumStat",]))
   
   # Resample this data and get sum statistic each time, creating null distribution
   if (within_subj) {
@@ -975,6 +995,33 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
       names(out) = conditions
       return(out)
     })
+    
+    # ### ### ###
+    df_resampled = df_biggclust
+      
+      # for each participant, randomly select (w/replacement) rows to be assigned to each condition
+      # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
+      # gets reassigned once per condition across all participants (rather than once per condition per participant)
+      for (list_of_rows in list_of_list_of_rows) {
+        resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = TRUE)
+        for (i in seq_along(resampled)) {
+          rows = resampled[[i]]
+          df_resampled[rows,attrs$condition_column] = names(list_of_rows)[i]
+        }
+      }
+      
+      # this gives a dataframe where the "condition" label has been resampled within each participant 
+      # run analyze time bins on it to get sum statistic for cluster
+      time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
+                                                     condition_column = attrs$condition_column,
+                                                     test = attrs$test,
+                                                     threshold = attrs$threshold,
+                                                     alpha = attrs$alpha,
+                                                     formula = formula, 
+                                                     return_model = FALSE,
+                                                     quiet = TRUE,
+                                                     ...)
+    ## ### ### #
     
     null_distribution = pbsapply(1:samples, FUN = function(iter) {
       df_resampled = df_biggclust
@@ -1043,12 +1090,52 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
 
   }
 
-  out = list(null_distribution = null_distribution)
-  class(out) = "cluster_analysis"
-  attr(out, "eyetrackingR") = attr(df_timeclust, "eyetrackingR")
+  # Get p-values:
+  out = c(list(null_distribution = null_distribution), attr(df_timeclust, "eyetrackingR"))
+  probs = sapply(cl_analysis$clusters["SumStat",], 
+                 FUN= function(ss) ifelse(sign(out$threshold)==1,
+                   mean(ss<out$null_distribution, na.rm=TRUE),
+                   mean(ss>out$null_distribution, na.rm=TRUE)
+                 )
+  )
+  out$clusters = rbind(out$clusters, matrix(probs, nrow = 1))
+  row.names(out$clusters)[nrow(out$clusters)] = "Prob"
   
+  #
+  class(out) = "cluster_analysis"
   return(out)
   
+}
+
+
+plot.cluster_analysis = function(cl_analysis) {
+  dat = c(cl_analysis$clusters['SumStat',], cl_analysis$null_distribution)
+  x_min = min(dat, na.rm=TRUE) - sd(dat)
+  x_max = max(dat, na.rm=TRUE) + sd(dat)
+  ggplot(data = data.frame(NullDistribution = cl_analysis$null_distribution), aes(x = NullDistribution)) +
+    geom_histogram(aes(y=..density..), binwidth = sd(cl_analysis$null_distribution)/5, alpha=.75 ) +
+    coord_cartesian(xlim = c(x_min, x_max)) +
+    geom_vline(xintercept = cl_analysis$clusters['SumStat',], linetype="dashed", size=1) + # TO DO: add cluster labels
+    xlab(paste0("Distribution of '", cl_analysis$test, "' statistics")) + ylab("Density")
+  
+}
+
+summary.cluster_analysis = print.cluster_analysis = function(cl_analysis) {
+  clusters = cl_analysis$clusters
+  cat( 
+    "Test Type:\t", cl_analysis$test,
+    "\nIV:\t\t", cl_analysis$condition_column,
+    "\nNull Distribution =====",
+    "\n\tMean:\t", round(mean(cl_analysis$null_distribution, na.rm=TRUE), digits = 5),
+    "\n\tSD:\t", round(sd(cl_analysis$null_distribution, na.rm=TRUE), digits = 5),
+    paste(
+      "\nCluster", clusters["Cluster",], " =====",
+      "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
+      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 5),
+      "\n\tProbability:\t", round(clusters["Prob",], digits = 5)
+    )
+  )
+  invisible(cl_analysis)
 }
 
 #' analyze_time_bins()
@@ -1294,8 +1381,6 @@ analyze_bootstraps.bootstrapped_data <- function(data, data_options) {
 }
 
 #' summary.bootstrap_analysis()
-#' 
-#' TO DO: is this function really necessary?
 #' 
 #' Returns the windows in which the splines diverged in the bootstrapped analysis.
 #' 
