@@ -996,41 +996,14 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
       return(out)
     })
     
-    # ### ### ###
-    df_resampled = df_biggclust
-      
-      # for each participant, randomly select (w/replacement) rows to be assigned to each condition
-      # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
-      # gets reassigned once per condition across all participants (rather than once per condition per participant)
-      for (list_of_rows in list_of_list_of_rows) {
-        resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = TRUE)
-        for (i in seq_along(resampled)) {
-          rows = resampled[[i]]
-          df_resampled[rows,attrs$condition_column] = names(list_of_rows)[i]
-        }
-      }
-      
-      # this gives a dataframe where the "condition" label has been resampled within each participant 
-      # run analyze time bins on it to get sum statistic for cluster
-      time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
-                                                     condition_column = attrs$condition_column,
-                                                     test = attrs$test,
-                                                     threshold = attrs$threshold,
-                                                     alpha = attrs$alpha,
-                                                     formula = formula, 
-                                                     return_model = FALSE,
-                                                     quiet = TRUE,
-                                                     ...)
-    ## ### ### #
-    
     null_distribution = pbsapply(1:samples, FUN = function(iter) {
       df_resampled = df_biggclust
       
-      # for each participant, randomly select (w/replacement) rows to be assigned to each condition
+      # for each participant, randomly resample rows to be assigned to each condition
       # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
       # gets reassigned once per condition across all participants (rather than once per condition per participant)
       for (list_of_rows in list_of_list_of_rows) {
-        resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = TRUE)
+        resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = FALSE)
         for (i in seq_along(resampled)) {
           rows = resampled[[i]]
           df_resampled[rows,attrs$condition_column] = names(list_of_rows)[i]
