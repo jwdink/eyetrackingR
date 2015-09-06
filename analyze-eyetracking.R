@@ -647,21 +647,109 @@ make_switch_data.onset_data = function(data, data_options, condition_columns=NUL
   return(df_summarized)
 }
 
+#' make_time_cluster_data()
+#' 
+#' Takes data that has been summarized into time-bins, and finds adjacent time bins that
+#' pass some threshold of significance, and assigns these adjacent groups into clusters
+#' 
+#' @param dataframe.time_data data   The output of the 'time_data' function
+#' @param list data_options
+#' @param character condition_column  The variable whose test statistic you are interested in
+#' @param character aoi               If this dataframe has multiple AOIs, you must specify which to analyze
+#' @param character test              What type of test should be performed in each time bin? Supports t.test, wilcox, lm, or lmer.
+#' @param numeric threshold           Value of statistic used in determining significance
+#' @param numeric alpha               Alpha value for determining significance, ignored if threshold is given
+#' @param character formula           What formula should be used for test? Optional (for all but lmer), if unset uses `Prop ~ condition_column`
+#' @param ... ...                     Any other arguments to be passed to the selected 'test' function (e.g., paired, var.equal, etc.)
+#' 
+#' @return dataframe 
+make_time_cluster_data = function(data, ...) {
+  UseMethod("make_time_cluster_data")
+}
+make_time_cluster_data.time_data = function(data, data_options,
+                                  condition_column,
+                                  aoi = NULL,
+                                  test = "t.test",
+                                  threshold = NULL,
+                                  alpha = .05,
+                                  formula = NULL,
+                                  ...) {
+  ## Helper:
+  .label_clusters = function(vec) {
+    vec = c(0,vec)
+    vec[is.na(vec)] = 0
+    out = c(cumsum(diff(vec)==1))
+    out[!vec] = NA
+    out[-1]
+  }
+  
+  # Filter Data:
+  if (is.null(aoi)) {
+    if (length(unique(data$AOI)) == 1) {
+      aoi = unique(data$AOI)
+      data = filter(data, AOI == aoi)
+    } else {
+      stop("Please specify the AOI column.")
+    }
+  } else {
+    data = filter(data, AOI == aoi)
+  }
+  
+  # Compute Time Bins:
+  time_bin_summary = analyze_time_bins(data, data_options, 
+                                       condition_column = condition_column,
+                                       test = test,
+                                       threshold = threshold,
+                                       alpha = alpha,
+                                       formula = formula, 
+                                       return_model = FALSE,
+                                       ...)
+  
+  # Label Adjacent Clusters:
+  # TO DO: do so separately for neg and for pos
+  time_bin_summary$Significant = 
+    time_bin_summary$Statistic >= time_bin_summary$CritStatisticPos | time_bin_summary$Statistic <= time_bin_summary$CritStatisticNeg
+  time_bin_summary$Cluster = .label_clusters(time_bin_summary$Significant)
+  
+  # Compute Sum Statistic for each Cluster
+  sum_stat = c()
+  for (clust in na.omit(unique(time_bin_summary$Cluster))) {
+    sum_stat[clust] = sum(time_bin_summary$Statistic[which(time_bin_summary$Cluster==clust)])
+  }
 
-# make_bootstrapped_data(data, data_options, condition_column, within_subj, samples, resolution, alpha)
-#
-# Bootstrap splines from a time_data() data. Return bootstrapped splines.
-#
-# @param dataframe data a time_data dataset
-# @param list data_options Standard list of options for manipulating dataset
-# @param character factor What factor to split by? Maximum two conditions!
-# @param boolean within_subj Are the two conditions within or between subjects?
-# @param int samples How many (re)samples to take?
-# @param numeric resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
-# @param numeric alpha p-value when the groups are sufficiently "diverged"
-# @param character smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing 
-# 
-# @return dataframe
+  # Merge cluster info into original data
+  df_timeclust = left_join(data, time_bin_summary[,c('Time','AOI','Cluster')], by=c('Time','AOI'))
+  
+  # Output data, add attributes w/ relevant info
+  df_timeclust = as.data.frame(df_timeclust)
+  class(df_timeclust) = c("time_cluster_data", "time_data", class(df_timeclust))
+  attrs = attr(df_timeclust, "eyetrackingR")
+  attr(df_timeclust, "eyetrackingR") = c(attrs, 
+                                         list(cluster_sum_stat = sum_stat,
+                                              condition_column = condition_column,
+                                              test = test,
+                                              threshold = threshold,
+                                              alpha = alpha,
+                                              time_bin_summary = time_bin_summary))
+  df_timeclust
+  
+}
+
+
+#' make_bootstrapped_data(data, data_options, condition_column, within_subj, samples, resolution, alpha)
+#' 
+#' Bootstrap splines from a time_data() data. Return bootstrapped splines.
+#' 
+#' @param dataframe.time_data data 
+#' @param list data_options Standard list of options for manipulating dataset
+#' @param character condition_column What condition_column to split by? Maximum two conditions
+#' @param logical within_subj Are the two conditions within or between subjects?
+#' @param int samples How many (re)samples to take?
+#' @param numeric resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals per second, or hundredths of a second
+#' @param numeric alpha p-value when the groups are sufficiently "diverged"
+#' @param character smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing 
+#' 
+#' @return dataframe
 make_bootstrapped_data = function(data, ...) {
   UseMethod("make_bootstrapped_data")
 }
@@ -829,94 +917,6 @@ make_bootstrapped_data.time_data <- function (data, data_options, condition_colu
 
 # Analyzing ------------------------------------------------------------------------------------------
 
-#' make_time_cluster_data()
-#' 
-#' Takes data that has been summarized into time-bins, and finds adjacent time bins that
-#' pass some threshold of significance, and assigns these adjacent groups into clusters
-#' 
-#' @param dataframe.time_data data   The output of the 'time_data' function
-#' @param list data_options
-#' @param character condition_column  The variable whose test statistic you are interested in
-#' @param character aoi               If this dataframe has multiple AOIs, you must specify which to analyze
-#' @param character test              What type of test should be performed in each time bin? Supports t.test, wilcox, lm, or lmer.
-#' @param numeric threshold           Value of statistic used in determining significance
-#' @param numeric alpha               Alpha value for determining significance, ignored if threshold is given
-#' @param character formula           What formula should be used for test? Optional (for all but lmer), if unset uses `Prop ~ condition_column`
-#' @param ... ...                     Any other arguments to be passed to the selected 'test' function (e.g., paired, var.equal, etc.)
-#' 
-#' @return dataframe 
-make_time_cluster_data = function(data, ...) {
-  UseMethod("make_time_cluster_data")
-}
-make_time_cluster_data.time_data = function(data, data_options,
-                                  condition_column,
-                                  aoi = NULL,
-                                  test = "t.test",
-                                  threshold = NULL,
-                                  alpha = .05,
-                                  formula = NULL,
-                                  ...) {
-  ## Helper:
-  .label_clusters = function(vec) {
-    vec = c(0,vec)
-    vec[is.na(vec)] = 0
-    out = c(cumsum(diff(vec)==1))
-    out[!vec] = NA
-    out[-1]
-  }
-  
-  # Filter Data:
-  if (is.null(aoi)) {
-    if (length(unique(data$AOI)) == 1) {
-      aoi = unique(data$AOI)
-      data = filter(data, AOI == aoi)
-    } else {
-      stop("Please specify the AOI column.")
-    }
-  } else {
-    data = filter(data, AOI == aoi)
-  }
-  
-  # Compute Time Bins:
-  time_bin_summary = analyze_time_bins(data, data_options, 
-                                       condition_column = condition_column,
-                                       test = test,
-                                       threshold = threshold,
-                                       alpha = alpha,
-                                       formula = formula, 
-                                       return_model = FALSE,
-                                       ...)
-  
-  # Label Adjacent Clusters:
-  # TO DO: do so separately for neg and for pos
-  time_bin_summary$Significant = 
-    time_bin_summary$Statistic >= time_bin_summary$CritStatisticPos | time_bin_summary$Statistic <= time_bin_summary$CritStatisticNeg
-  time_bin_summary$Cluster = .label_clusters(time_bin_summary$Significant)
-  
-  # Compute Sum Statistic for each Cluster
-  sum_stat = c()
-  for (clust in na.omit(unique(time_bin_summary$Cluster))) {
-    sum_stat[clust] = sum(time_bin_summary$Statistic[which(time_bin_summary$Cluster==clust)])
-  }
-
-  # Merge cluster info into original data
-  df_timeclust = left_join(data, time_bin_summary[,c('TimeBin','AOI','Cluster')], by=c('TimeBin','AOI'))
-  
-  # Output data, add attributes w/ relevant info
-  df_timeclust = as.data.frame(df_timeclust)
-  class(df_timeclust) = c("time_cluster_data", "time_data", class(df_timeclust))
-  attrs = attr(df_timeclust, "eyetrackingR")
-  attr(df_timeclust, "eyetrackingR") = c(attrs, 
-                                         list(cluster_sum_stat = sum_stat,
-                                              condition_column = condition_column,
-                                              test = test,
-                                              threshold = threshold,
-                                              alpha = alpha,
-                                              time_bin_summary = time_bin_summary))
-  df_timeclust
-  
-}
-
 #' analyze_time_clusters.time_cluster_data()
 #' 
 #' Takes data whose time bins have been clustered by significance (using the make_time_cluster_data fxn)
@@ -963,28 +963,30 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   # Resample this data and get sum statistic each time, creating null distribution
   if (within_subj) {
     
-    # unique conditions, rows:
     participants = unique(df_biggclust[[data_options$participant_column]])
-    conditions = unique(df_biggclust[[attrs$condition_column]])
-    
+
     # get a list of list of rows. outer list corresponds to participants, inner to conditions
     list_of_list_of_rows = lapply(X = participants, FUN = function(ppt) {
-      lapply(X = conditions, FUN = function(cond) {
-        which(df_biggclust[[data_options$participant_column]] == ppt & df_biggclust[[attrs$condition_column]] == cond)
+      ppt_logical = (df_biggclust[[data_options$participant_column]] == ppt)
+      conditions = unique(df_biggclust[[attrs$condition_column]][ppt_logical])
+      out= lapply(X = conditions, FUN = function(cond) {
+        which(ppt_logical & df_biggclust[[attrs$condition_column]] == cond)
       })
+      names(out) = conditions
+      return(out)
     })
     
-    null_distribution = rep(NA, samples)
-    for (iter in 1:samples) {
-      cat(".")
+    null_distribution = pbsapply(1:samples, FUN = function(iter) {
       df_resampled = df_biggclust
       
       # for each participant, randomly select (w/replacement) rows to be assigned to each condition
+      # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
+      # gets reassigned once per condition across all participants (rather than once per condition per participant)
       for (list_of_rows in list_of_list_of_rows) {
         resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = TRUE)
         for (i in seq_along(resampled)) {
           rows = resampled[[i]]
-          df_resampled[rows,attrs$condition_column] = conditions[i]
+          df_resampled[rows,attrs$condition_column] = names(list_of_rows)[i]
         }
       }
       
@@ -1000,19 +1002,50 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
                                                      quiet = TRUE,
                                                      ...)
       
-      null_distribution[iter] = sum(time_bin_summary_resampled$Statistic, na.rm=TRUE)
-      
-    }
-    
+      return( sum(time_bin_summary_resampled$Statistic, na.rm=TRUE) )
+    })
     
     
   } else {
-    # between subjects
-    # to do (easier?)
+    
+    null_distribution = pbsapply(1:samples, FUN = function(iter) {
+      df_resampled = df_biggclust
+      
+      
+      # get rows for each participant
+      conditions = unique(df_biggclust[[attrs$condition_column]])
+      participants = unique(df_biggclust[[data_options$participant_column]])
+      rows_of_participants = lapply(participants, FUN = function(ppt) which(df_biggclust[[data_options$participant_column]] == ppt))
+      
+      # randomly re-assign each participant to a condition:
+      new_conditions = sample(conditions, size = length(participants), replace = TRUE)
+      for (i in seq_along(new_conditions)) {
+        # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
+        # gets reassigned once per condition across all participants (rather than once per participant)
+        df_resampled[rows_of_participants[[i]], attrs$condition_column] = new_conditions[i]
+      }
+      
+      # this gives a dataframe where the "condition" label has been resampled for participants 
+      # run analyze time bins on it to get sum statistic for cluster
+      time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
+                                                     condition_column = attrs$condition_column,
+                                                     test = attrs$test,
+                                                     threshold = attrs$threshold,
+                                                     alpha = attrs$alpha,
+                                                     formula = formula, 
+                                                     return_model = FALSE,
+                                                     quiet = TRUE,
+                                                     ...)
+      
+      return( sum(time_bin_summary_resampled$Statistic, na.rm=TRUE) )
+      
+    })
+
   }
-  cat("\n")
-  
-  out = null_distribution
+
+  out = list(null_distribution = null_distribution)
+  class(out) = "cluster_analysis"
+  attr(out, "eyetrackingR") = attr(df_timeclust, "eyetrackingR")
   
   return(out)
   
@@ -1092,9 +1125,9 @@ analyze_time_bins.time_data <- function(data,
   if (!quiet) message("Computing ", test, " for each time bin...")
   failsafe_test = failwith(default = NA, f = get(test), quiet = FALSE)
   if (quiet) pblapply = lapply
-  models= pblapply(unique(df_analyze$TimeBin), function(tb) {
+  models= pblapply(unique(df_analyze$Time), function(tb) {
     # make model:
-    temp_dat = filter(df_analyze, TimeBin==tb)
+    temp_dat = filter(df_analyze, Time==tb)
     
     # Makes paired test more robust to unpaired observations within a bin:
     if (identical(paired, TRUE)) {
@@ -1172,7 +1205,7 @@ analyze_time_bins.time_data <- function(data,
                    Statistic = models_statistics,
                    CritStatisticPos = crit_pos,     
                    CritStatisticNeg = crit_neg,     
-                   TimeBin = unique(df_analyze$TimeBin)) # same order as for loop that built models
+                   Time = unique(df_analyze$Time)) # same order as for loop that built models
   out$AOI = df_analyze$AOI[1]
   if (return_model) out$Model = models
   
@@ -1427,11 +1460,11 @@ plot.bin_analysis <- function(data) {
   require('ggplot2', quietly=TRUE)
   
   ggplot(data = data) +
-    geom_line(mapping = aes(x = TimeBin, y= Statistic)) +
-    geom_line(mapping = aes(x = TimeBin, y= CritStatisticPos), linetype="dashed") +
-    geom_line(mapping = aes(x = TimeBin, y= CritStatisticNeg), linetype="dashed") +
+    geom_line(mapping = aes(x = Time, y= Statistic)) +
+    geom_line(mapping = aes(x = Time, y= CritStatisticPos), linetype="dashed") +
+    geom_line(mapping = aes(x = Time, y= CritStatisticNeg), linetype="dashed") +
     ylab("Statistic") +
-    xlab("TimeBin") +
+    xlab("Time") +
     facet_wrap( ~ AOI)
 }
 
@@ -1449,7 +1482,7 @@ plot.time_cluster_data = function(data) {
   ribbons = list()
   for (clust in unique(na.omit(attrs$time_bin_summary$Cluster))) {
     ribbons[[clust]] = data.frame(
-      TimeBin = attrs$time_bin_summary$TimeBin,
+      Time = attrs$time_bin_summary$Time,
       ribbon_max = with(attrs$time_bin_summary,
                         ifelse(test = Cluster==clust, 
                           yes  = ifelse(Statistic > CritStatisticPos, Statistic, CritStatisticNeg), 
@@ -1461,7 +1494,7 @@ plot.time_cluster_data = function(data) {
                           no   = NA)
                         )
     )
-    g = g + geom_ribbon(data = ribbons[[clust]], aes(x= TimeBin, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .33, colour= NA)
+    g = g + geom_ribbon(data = ribbons[[clust]], aes(x= Time, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .33, colour= NA)
   }
   
   g
