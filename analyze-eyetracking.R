@@ -669,7 +669,7 @@ make_time_cluster_data = function(data, ...) {
 make_time_cluster_data.time_data = function(data, data_options,
                                   predictor_column,
                                   aoi = NULL,
-                                  test = "t.test",
+                                  test,
                                   threshold = NULL,
                                   formula = NULL,
                                   ...) {
@@ -988,8 +988,9 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   }
   if (is.null(shuffle_by)) {
     shuffle_by = attrs$predictor_column
-    if ( attrs$test %in% c("lm", "lmer") & is.numeric(data[[attrs$predictor_column]])) {
-      warning("If your predictor column is numeric, consider specifying a 'shuffle_by' argument.")
+    if ( attrs$test %in% c("lm", "lmer") & is.numeric(data[[attrs$predictor_column]]) & within_subj) {
+      stop("If predictor column is numeric and within-subjects, you should specify a 'shuffle_by' argument. ",
+           "See the documentation for more details.")
     }
   }
   
@@ -1020,52 +1021,28 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
     # get a list of list of rows. outer list corresponds to participants, inner to conditions
     list_of_list_of_rows = lapply(X = participants, FUN = function(ppt) {
       ppt_logical = (df_biggclust[[data_options$participant_column]] == ppt)
-      conditions = unique(df_biggclust[[attrs$predictor_column]][ppt_logical])
-      out= lapply(X = conditions, FUN = function(cond) {
-        which(ppt_logical & df_biggclust[[attrs$predictor_column]] == cond)
+      
+      # for each participant, get the rows for each of level of the shuffle_by col
+      this_ppt_levels = unique(df_biggclust[[shuffle_by]][ppt_logical])
+      out= lapply(X = this_ppt_levels, FUN = function(lev) {
+        which(ppt_logical & df_biggclust[[shuffle_by]] == lev)
       })
-      names(out) = conditions
+      names(out) = this_ppt_levels
       return(out)
     })
-    
-    ##TEMP##
-    df_resampled = df_biggclust
-      
-      # for each participant, randomly resample rows to be assigned to each condition
-      # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
-      # gets reassigned once per condition across all participants (rather than once per condition per participant)
-      for (list_of_rows in list_of_list_of_rows) {
-        resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = FALSE)
-        for (i in seq_along(resampled)) {
-          rows = resampled[[i]]
-          df_resampled[rows,attrs$predictor_column] = names(list_of_rows)[i]
-        }
-      }
-      
-      # this gives a dataframe where the "condition" label has been resampled within each participant 
-      # run analyze time bins on it to get sum statistic for cluster
-      time_bin_summary_resampled = analyze_time_bins(df_resampled, data_options, 
-                                                     predictor_column = attrs$predictor_column,
-                                                     test = attrs$test,
-                                                     threshold = attrs$threshold,
-                                                     alpha = attrs$alpha,
-                                                     formula = formula, 
-                                                     return_model = FALSE,
-                                                     quiet = TRUE,
-                                                     ...)
-    ##TEMP##
     
     null_distribution = pbsapply(1:samples, FUN = function(iter) {
       df_resampled = df_biggclust
       
-      # for each participant, randomly resample rows to be assigned to each condition
+      # for each participant, randomly resample rows to be assigned to each possible level of the predictor
       # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
       # gets reassigned once per condition across all participants (rather than once per condition per participant)
       for (list_of_rows in list_of_list_of_rows) {
         resampled = sample(x = list_of_rows, size = length(list_of_rows), replace = FALSE)
         for (i in seq_along(resampled)) {
-          rows = resampled[[i]]
-          df_resampled[rows,attrs$predictor_column] = names(list_of_rows)[i]
+          rows_orig = list_of_rows[[i]]
+          rows_new = resampled[[i]]
+          df_resampled[rows_new,attrs$predictor_column] = df_biggclust[first(rows_orig),attrs$predictor_column]
         }
       }
       
@@ -1090,19 +1067,16 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
     null_distribution = pbsapply(1:samples, FUN = function(iter) {
       df_resampled = df_biggclust
       
-      stop("FIX ME (reassign without relacement)")
-      
       # get rows for each participant
-      conditions = unique(df_biggclust[[attrs$predictor_column]])
       participants = unique(df_biggclust[[data_options$participant_column]])
       rows_of_participants = lapply(participants, FUN = function(ppt) which(df_biggclust[[data_options$participant_column]] == ppt))
       
       # randomly re-assign each participant to a condition:
-      new_conditions = sample(conditions, size = length(participants), replace = TRUE)
-      for (i in seq_along(new_conditions)) {
+      rows_of_participants_resampled = sample(rows_of_participants, size=length(rows_of_participants), replace=FALSE)
+      for (i in seq_along(rows_of_participants_resampled)) {
         # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
         # gets reassigned once per condition across all participants (rather than once per participant)
-        df_resampled[rows_of_participants[[i]], attrs$predictor_column] = new_conditions[i]
+        df_resampled[rows_of_participants_resampled[[i]], attrs$predictor_column] = df_biggclust[first(rows_of_participants[[i]]),attrs$predictor_column]
       }
       
       # this gives a dataframe where the "condition" label has been resampled for participants 
@@ -1179,7 +1153,7 @@ analyze_time_bins = function(data, ...) {
 analyze_time_bins.time_data <- function(data, 
                               data_options, 
                               predictor_column,
-                              test = "t.test",
+                              test,
                               threshold = NULL,
                               alpha = .05,
                               formula = NULL,
@@ -1587,32 +1561,42 @@ plot.bin_analysis <- function(data) {
 
 # plot.time_cluster_data()
 #
-# Plot time_cluster_data, highlights clusters
-#
-# @param dataframe data
-#
-# @return list A ggplot list object 
-plot.time_cluster_data = function(data) {
+#' Plot time_cluster_data, highlights clusters
+#' 
+#' @param dataframe data
+#' @param numeric clusters A vector of the clusters you'd like highlighted. If left blank, all are highlighted
+#' 
+#' @return list A ggplot list object 
+plot.time_cluster_data = function(data, clusters = NULL) {
   attrs = attr(data, "eyetrackingR")
   g = plot(attrs$time_bin_summary)
   
-  ribbons = list()
-  for (clust in unique(na.omit(attrs$time_bin_summary$Cluster))) {
-    ribbons[[clust]] = data.frame(
-      Time = attrs$time_bin_summary$Time,
-      ribbon_max = with(attrs$time_bin_summary,
-                        ifelse(test = Cluster==clust, 
-                          yes  = ifelse(Statistic > CritStatisticPos, Statistic, CritStatisticNeg), 
-                          no   = NA)
-                        ),
-      ribbon_min = with(attrs$time_bin_summary,
-                        ifelse(test = Cluster==clust, 
-                          yes  = ifelse(Statistic < CritStatisticNeg, Statistic, CritStatisticPos), 
-                          no   = NA)
-                        )
-    )
-    g = g + geom_ribbon(data = ribbons[[clust]], aes(x= Time, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .75, colour= NA)
+  if (is.null(clusters)) clusters = unique(na.omit(attrs$time_bin_summary$Cluster))
+  
+  # Make data for shaded region
+  time_vec = seq(from = min(attrs$time_bin_summary$Time, na.rm=TRUE), 
+                 to = max(attrs$time_bin_summary$Time, na.rm=TRUE), 
+                 length.out = length(attrs$time_bin_summary$Time)*50)
+  cluster_vec = sapply(X = time_vec, function(x) with(attrs$time_bin_summary, Cluster[which.min(abs(x - Time))]))
+  stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = Statistic)(time_vec))
+  if (sign(attrs$threshold)==1) {
+    crit_stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticPos)(time_vec))
+    ribbon_max = ifelse(test = stat_vec>crit_stat_vec, stat_vec, NA)
+    ribbon_min = ifelse(test = stat_vec>crit_stat_vec, crit_stat_vec, NA)
+  } else {
+    crit_stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticNeg)(time_vec))
+    ribbon_min = ifelse(test = stat_vec<crit_stat_vec, stat_vec, NA)
+    ribbon_max = ifelse(test = stat_vec<crit_stat_vec, crit_stat_vec, NA)
   }
+  
+  ribbons = data.frame(
+    Time = time_vec,
+    ribbon_max = ribbon_max,
+    ribbon_min = ribbon_min
+  )
+  
+  # add to plot:
+  g = g + geom_ribbon(data = ribbons, aes(x= Time, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .75, colour= NA)
   
   g
   
@@ -1627,7 +1611,7 @@ plot.time_cluster_data = function(data) {
 #...
 # @return dataframe 
 
-plot.onset_data = function(data, data_options, predictor_columns=NULL, smoothing_window_size = NULL) {
+plot.onset_data = function(data, data_options, predictor_columns=NULL) {
   require(ggplot2, quietly=TRUE)
   
   ## Prelims:
@@ -1639,9 +1623,7 @@ plot.onset_data = function(data, data_options, predictor_columns=NULL, smoothing
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   
   # set smoothing_window_size based on fixation_window_length in attr's
-  if (is.null(smoothing_window_size)) {
-    smoothing_window_size <- onset_attr$fixation_window_length
-  }
+  smoothing_window_size <- onset_attr$fixation_window_length / 5
   
   # clean out unknown first AOIs:
   df_clean = filter(data, !is.na(FirstAOI))
