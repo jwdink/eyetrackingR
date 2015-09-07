@@ -762,14 +762,14 @@ summary.time_cluster_data = function(data) {
   if (length(clusters)==0) {
     cat( 
       "Test Type:\t", attr(data, "eyetrackingR")$test,
-      "\nIV:\t\t", attr(data, "eyetrackingR")$predictor_column,
+      "\nPredictor:\t", attr(data, "eyetrackingR")$predictor_column,
       "\nFormula:\t", Reduce(paste, deparse(attr(data, "eyetrackingR")$formula)),
       "\nNo Clusters"
     )
   } else {
     cat( 
       "Test Type:\t", attr(data, "eyetrackingR")$test,
-      "\nIV:\t\t", attr(data, "eyetrackingR")$predictor_column,
+      "\nPredictor:\t", attr(data, "eyetrackingR")$predictor_column,
       "\nFormula:\t", Reduce(paste, deparse(attr(data, "eyetrackingR")$formula)),
       paste(
         "\nCluster", clusters["Cluster",], " =====",
@@ -1137,7 +1137,7 @@ summary.cluster_analysis = print.cluster_analysis = function(cl_analysis) {
   clusters = cl_analysis$clusters
   cat( 
     "Test Type:\t", cl_analysis$test,
-    "\nIV:\t\t", cl_analysis$predictor_column,
+    "\nPredictor:\t", cl_analysis$predictor_column,
     "\nFormula:\t", Reduce(paste, deparse(cl_analysis$formula)),
     "\nNull Distribution =====",
     "\n\tMean:\t", round(mean(cl_analysis$null_distribution, na.rm=TRUE), digits = 5),
@@ -1224,7 +1224,7 @@ analyze_time_bins.time_data <- function(data,
   # Run a model for each time-bin
   paired = list(...)[["paired"]]
   if (!quiet) message("Computing ", test, " for each time bin...")
-  failsafe_test = failwith(default = NA, f = get(test), quiet = FALSE)
+  failsafe_test = failwith(default = NA, f = get(test), quiet = quiet)
   if (quiet) pblapply = lapply
   models= pblapply(unique(df_analyze$Time), function(tb) {
     # make model:
@@ -1598,16 +1598,16 @@ plot.time_cluster_data = function(data, clusters = NULL) {
     time_vec = seq(from = min(attrs$time_bin_summary$Time, na.rm=TRUE), 
                    to = max(attrs$time_bin_summary$Time, na.rm=TRUE), 
                    length.out = length(attrs$time_bin_summary$Time)*50)
-    cluster_vec = sapply(X = time_vec, function(x) with(attrs$time_bin_summary, Cluster[which.min(abs(x - Time))]))
+    cluster_vec = sapply(X = time_vec, function(x) with(attrs$time_bin_summary[!is.na(attrs$time_bin_summary$Cluster),], Cluster[which.min(abs(x - Time))]))
     stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = Statistic)(time_vec))
     if (sign(attrs$threshold)==1) {
       crit_stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticPos)(time_vec))
-      ribbon_max = ifelse(test = stat_vec>crit_stat_vec, stat_vec, NA)
-      ribbon_min = ifelse(test = stat_vec>crit_stat_vec, crit_stat_vec, NA)
+      ribbon_max = ifelse(test = stat_vec>crit_stat_vec & cluster_vec %in% clusters, stat_vec, NA)
+      ribbon_min = ifelse(test = stat_vec>crit_stat_vec & cluster_vec %in% clusters, crit_stat_vec, NA)
     } else {
       crit_stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticNeg)(time_vec))
-      ribbon_min = ifelse(test = stat_vec<crit_stat_vec, stat_vec, NA)
-      ribbon_max = ifelse(test = stat_vec<crit_stat_vec, crit_stat_vec, NA)
+      ribbon_min = ifelse(test = stat_vec<crit_stat_vec & cluster_vec %in% clusters, stat_vec, NA)
+      ribbon_max = ifelse(test = stat_vec<crit_stat_vec & cluster_vec %in% clusters, crit_stat_vec, NA)
     }
     
     ribbons = data.frame(
