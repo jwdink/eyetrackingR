@@ -133,7 +133,7 @@ condition_means
 
 ```{r}
 # simple t-test between conditions
-t.test(ArcSin ~ Target, data=subject_means, paired=T)
+t.test(ArcSin ~ Target, data=subject_means, paired=TRUE)
 ```
 
 ## Mixed-effects models on windowed data
@@ -211,7 +211,7 @@ summary(bootstrap_analysis_familiar, data_options)
 
 Perform a different type of bootstrapping analyses (Maris & Oostenveld, 2007), sometimes referred to as a cluster analysis. This analysis takes a summed statistic for each cluster of time bins that pass some level of significance, and compares each to the "null" distribution of sum statistics (obtained by bootstrap resampling data within the largest of the clusters).
 
-This type of analysis should often give similar results to the above, but it comes with a set of advantages and disadvantages. The main advantage is that it can be used with several types of statistical techniques (t.test, wilcox.test, lm, and lmer), so that continuous predictors, covariates, etc. can be included in the model being tested. The main disadvantage is that it is much slower.
+This type of analysis should often give similar results to the above, with the main advantage is that it can be used with several types of statistical techniques (t.test, wilcox.test, lm, and lmer), so that continuous predictors, covariates, etc. can be included in the model being tested; and the main disadvantage is that it is slower.
 
 ```{r}
 response_time_by_subj <- make_time_data(response_window, data_options, time_bin_size = 100, 
@@ -220,10 +220,13 @@ response_time_by_subj <- make_time_data(response_window, data_options, time_bin_
                                  summarize_by = "ParticipantName"
                             )
 
-df_timeclust = make_time_cluster_data(response_time_by_subj, data_options, predictor_column = "Target", paired = TRUE, threshold = 2)
+df_timeclust = make_time_cluster_data(response_time_by_subj, data_options, 
+                                      test= "t.test", paired = TRUE,
+                                      predictor_column = "Target", 
+                                      threshold = 2)
 plot(df_timeclust) 
 
-clust_analysis = analyze_time_clusters(df_timeclust, data_options,samples=200, within_subj = TRUE, paired=TRUE)
+clust_analysis = analyze_time_clusters(df_timeclust, data_options, within_subj = TRUE, paired=TRUE)
 clust_analysis
 
 plot(clust_analysis) 

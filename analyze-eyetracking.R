@@ -696,6 +696,7 @@ make_time_cluster_data.time_data = function(data, data_options,
     }
   } else {
     data = filter(data, AOI == aoi)
+    if (nrow(data)==0) stop("AOI not found in data.")
   }
   
   # Compute Time Bins:
@@ -749,6 +750,7 @@ make_time_cluster_data.time_data = function(data, data_options,
                                               predictor_column = predictor_column,
                                               test = test,
                                               threshold = threshold,
+                                              formula = formula,
                                               time_bin_summary = time_bin_summary)
   )
   df_timeclust
@@ -757,15 +759,25 @@ make_time_cluster_data.time_data = function(data, data_options,
 
 summary.time_cluster_data = function(data) {
   clusters = attr(data, "eyetrackingR")$clusters
-  cat( 
-    "Test Type:\t", attr(data, "eyetrackingR")$test,
-    "\nIV:\t\t", attr(data, "eyetrackingR")$predictor_column,
-    paste(
-      "\nCluster", clusters["Cluster",], " =====",
-      "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
-      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 5)
+  if (length(clusters)==0) {
+    cat( 
+      "Test Type:\t", attr(data, "eyetrackingR")$test,
+      "\nIV:\t\t", attr(data, "eyetrackingR")$predictor_column,
+      "\nFormula:\t", Reduce(paste, deparse(attr(data, "eyetrackingR")$formula)),
+      "\nNo Clusters"
     )
-  )
+  } else {
+    cat( 
+      "Test Type:\t", attr(data, "eyetrackingR")$test,
+      "\nIV:\t\t", attr(data, "eyetrackingR")$predictor_column,
+      "\nFormula:\t", Reduce(paste, deparse(attr(data, "eyetrackingR")$formula)),
+      paste(
+        "\nCluster", clusters["Cluster",], " =====",
+        "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
+        "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 5)
+      )
+    )
+  }
   invisible(data)
 }
 
@@ -983,9 +995,7 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   
   # Get important information about type of data/analyses, input when running make_time_cluster_data
   attrs = attr(data, "eyetrackingR")
-  if (is.null(shuffle_by)) {
-    
-  }
+
   if (is.null(shuffle_by)) {
     shuffle_by = attrs$predictor_column
     if ( attrs$test %in% c("lm", "lmer") & is.numeric(data[[attrs$predictor_column]]) & within_subj) {
@@ -996,6 +1006,11 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   
   
   # Arg check:
+  if (is.null(formula)) {
+    formula = attrs$formula
+  } else {
+    if (attrs$formula != formula) stop("Formula given in 'make_time_cluster_data' does not match formula given here.")
+  }
   if (attrs$test %in% c("t.test", "wilcox.test")) {
     paired = list(...)[['paired']]
     if (within_subj==TRUE) {
@@ -1011,7 +1026,11 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
  
   # get data for biggest cluster
   df_biggclust = data[!is.na(data[[attrs$predictor_column]]),]
-  df_biggclust = filter(df_biggclust, Cluster == which.max(attrs$clusters["SumStat",]))
+  if (sign(attrs$threshold)==1) {
+    df_biggclust = filter(df_biggclust, Cluster == which.max(attrs$clusters["SumStat",]))
+  } else {
+    df_biggclust = filter(df_biggclust, Cluster == which.min(attrs$clusters["SumStat",]))
+  }
   
   # Resample this data and get sum statistic each time, creating null distribution
   if (within_subj) {
@@ -1064,12 +1083,12 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
     
   } else {
     
+    # get rows for each participant
+    participants = unique(df_biggclust[[data_options$participant_column]])
+    rows_of_participants = lapply(participants, FUN = function(ppt) which(df_biggclust[[data_options$participant_column]] == ppt))
+    
     null_distribution = pbsapply(1:samples, FUN = function(iter) {
       df_resampled = df_biggclust
-      
-      # get rows for each participant
-      participants = unique(df_biggclust[[data_options$participant_column]])
-      rows_of_participants = lapply(participants, FUN = function(ppt) which(df_biggclust[[data_options$participant_column]] == ppt))
       
       # randomly re-assign each participant to a condition:
       rows_of_participants_resampled = sample(rows_of_participants, size=length(rows_of_participants), replace=FALSE)
@@ -1085,7 +1104,7 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
                                                      predictor_column = attrs$predictor_column,
                                                      test = attrs$test,
                                                      threshold = attrs$threshold,
-                                                     alpha = attrs$alpha,
+                                                     alpha = NULL,
                                                      formula = formula, 
                                                      return_model = FALSE,
                                                      quiet = TRUE,
@@ -1098,7 +1117,7 @@ analyze_time_clusters.time_cluster_data = function(data, data_options,
   }
 
   # Get p-values:
-  out = c(list(null_distribution = null_distribution), attr(df_timeclust, "eyetrackingR"))
+  out = c(list(null_distribution = null_distribution), attr(data, "eyetrackingR"))
   probs = sapply(out$clusters["SumStat",], 
                  FUN= function(ss) ifelse(sign(out$threshold)==1,
                    mean(ss<out$null_distribution, na.rm=TRUE),
@@ -1119,6 +1138,7 @@ summary.cluster_analysis = print.cluster_analysis = function(cl_analysis) {
   cat( 
     "Test Type:\t", cl_analysis$test,
     "\nIV:\t\t", cl_analysis$predictor_column,
+    "\nFormula:\t", Reduce(paste, deparse(cl_analysis$formula)),
     "\nNull Distribution =====",
     "\n\tMean:\t", round(mean(cl_analysis$null_distribution, na.rm=TRUE), digits = 5),
     "\n\tSD:\t", round(sd(cl_analysis$null_distribution, na.rm=TRUE), digits = 5),
@@ -1573,33 +1593,34 @@ plot.time_cluster_data = function(data, clusters = NULL) {
   
   if (is.null(clusters)) clusters = unique(na.omit(attrs$time_bin_summary$Cluster))
   
-  # Make data for shaded region
-  time_vec = seq(from = min(attrs$time_bin_summary$Time, na.rm=TRUE), 
-                 to = max(attrs$time_bin_summary$Time, na.rm=TRUE), 
-                 length.out = length(attrs$time_bin_summary$Time)*50)
-  cluster_vec = sapply(X = time_vec, function(x) with(attrs$time_bin_summary, Cluster[which.min(abs(x - Time))]))
-  stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = Statistic)(time_vec))
-  if (sign(attrs$threshold)==1) {
-    crit_stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticPos)(time_vec))
-    ribbon_max = ifelse(test = stat_vec>crit_stat_vec, stat_vec, NA)
-    ribbon_min = ifelse(test = stat_vec>crit_stat_vec, crit_stat_vec, NA)
-  } else {
-    crit_stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticNeg)(time_vec))
-    ribbon_min = ifelse(test = stat_vec<crit_stat_vec, stat_vec, NA)
-    ribbon_max = ifelse(test = stat_vec<crit_stat_vec, crit_stat_vec, NA)
-  }
-  
-  ribbons = data.frame(
-    Time = time_vec,
-    ribbon_max = ribbon_max,
-    ribbon_min = ribbon_min
-  )
-  
-  # add to plot:
-  g = g + geom_ribbon(data = ribbons, aes(x= Time, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .75, colour= NA)
-  
+  if (any(!is.na(attrs$time_bin_summary$Cluster))) {
+    # Make data for shaded region
+    time_vec = seq(from = min(attrs$time_bin_summary$Time, na.rm=TRUE), 
+                   to = max(attrs$time_bin_summary$Time, na.rm=TRUE), 
+                   length.out = length(attrs$time_bin_summary$Time)*50)
+    cluster_vec = sapply(X = time_vec, function(x) with(attrs$time_bin_summary, Cluster[which.min(abs(x - Time))]))
+    stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = Statistic)(time_vec))
+    if (sign(attrs$threshold)==1) {
+      crit_stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticPos)(time_vec))
+      ribbon_max = ifelse(test = stat_vec>crit_stat_vec, stat_vec, NA)
+      ribbon_min = ifelse(test = stat_vec>crit_stat_vec, crit_stat_vec, NA)
+    } else {
+      crit_stat_vec = with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticNeg)(time_vec))
+      ribbon_min = ifelse(test = stat_vec<crit_stat_vec, stat_vec, NA)
+      ribbon_max = ifelse(test = stat_vec<crit_stat_vec, crit_stat_vec, NA)
+    }
+    
+    ribbons = data.frame(
+      Time = time_vec,
+      ribbon_max = ribbon_max,
+      ribbon_min = ribbon_min
+    )
+    
+    # add to plot:
+    g = g + geom_ribbon(data = ribbons, aes(x= Time, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .75, colour= NA)
+    
+  } 
   g
-  
 }
 
 
