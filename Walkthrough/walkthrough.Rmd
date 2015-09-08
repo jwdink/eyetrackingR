@@ -96,7 +96,7 @@ response_window$Target <- factor(response_window$Target)
 data_summary <- describe_data(response_window, data_options, dv='Animate', factors=c('ParticipantName','Target'))
 
 # aggregate across trials within subjects in time analysis
-response_time <- make_time_data(response_window, data_options, time_bin_size = 100, 
+response_time <- make_time_sequence_data(response_window, data_options, time_bin_size = 100, 
                                  predictor_columns = c("Target"),
                                  aoi = c("Animate")
                             )
@@ -105,7 +105,7 @@ response_time <- make_time_data(response_window, data_options, time_bin_size = 1
 plot(response_time, data_options, predictor_column = "Target")
 
 # aggregate by subject across the response window
-response_window_agg <- make_window_data(response_window, data_options, aoi='Animate', predictor_columns=c('Target','Age','MCDI_Total'))
+response_window_agg <- make_time_window_data(response_window, data_options, aoi='Animate', predictor_columns=c('Target','Age','MCDI_Total'))
 
 # take a quick peek at mean proportion by Target condition
 # note this automatically aggregates across trials by subjects
@@ -177,12 +177,13 @@ onsets <- make_onset_data(response_window, data_options, onset_time = 15500, fix
 plot(onsets, data_options)
 
 # compare switch times
-onset_switches <- make_switch_data(onsets, data_options)
+onset_switches <- make_switch_data(onsets, data_options, predictor_columns = "Target")
 
-plot(onset_switches, data_options) 
+plot(onset_switches, data_options, predictor_columns = "Target") 
 
+# center predictor:
 onset_switches$FirstAOIC <- ifelse(onset_switches$FirstAOI == 'TrialTarget', .5, -.5)
-onset_switches$FirstAOIC <- scale(onset_switches$FirstAOIC, center=T, scale=F)
+onset_switches$FirstAOIC <- scale(onset_switches$FirstAOIC, center=TRUE, scale=FALSE)
 
 model <- lmer(FirstSwitch ~ FirstAOIC + (1 + FirstAOIC | Trial) + (1 + FirstAOIC | ParticipantName), data=onset_switches, REML=F)
 summary(model)
@@ -214,7 +215,7 @@ Perform a different type of bootstrapping analyses (Maris & Oostenveld, 2007), s
 This type of analysis should often give similar results to the above, with the main advantage is that it can be used with several types of statistical techniques (t.test, wilcox.test, lm, and lmer), so that continuous predictors, covariates, etc. can be included in the model being tested; and the main disadvantage is that it is slower.
 
 ```{r}
-response_time_by_subj <- make_time_data(response_window, data_options, time_bin_size = 100, 
+response_time_by_subj <- make_time_sequence_data(response_window, data_options, time_bin_size = 100, 
                                  predictor_columns = c("Target"),
                                  aoi = c("Animate"), 
                                  summarize_by = "ParticipantName"

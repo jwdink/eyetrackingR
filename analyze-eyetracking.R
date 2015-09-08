@@ -386,7 +386,7 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
 
 # Transforming Data ------------------------------------------------------------------------------------------
 
-#' make_window_data()
+#' make_time_window_data()
 #' 
 #' Collapse time across our entire window and return a dataframe ready for analyses (e.g., lmer)
 #' 
@@ -401,7 +401,7 @@ remove_trackloss = function(data, data_options, delete_rows = TRUE) {
 #'                                              the latter is preferable for mixed-effects models (lmer)
 #' 
 #' @return dataframe
-make_window_data <- function(data, 
+make_time_window_data <- function(data, 
                          data_options, 
                          aoi = data_options$aoi_columns, 
                          predictor_columns = NULL,
@@ -414,14 +414,14 @@ make_window_data <- function(data,
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
-      make_window_data(data, data_options, aoi = this_aoi, predictor_columns, summarize_by)
+      make_time_window_data(data, data_options, aoi = this_aoi, predictor_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
     attrs = attr(out,"eyetrackingR")
     new_attrs = list(summarized_by = summarize_by)
     attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
     out = as.data.frame(out)
-    class(out) = c('window_data', class(out))
+    class(out) = c('time_window_data', class(out))
     return( out )
   }
   
@@ -441,7 +441,7 @@ make_window_data <- function(data,
   out = .make_proportion_looking_summary(data=data, groups = groups, aoi_col)
   
   out = as.data.frame(out)
-  class(out) = c('window_data', class(out))
+  class(out) = c('time_window_data', class(out))
   attrs = attr(out,"eyetrackingR")
   new_attrs = list(summarized_by = summarize_by)
   attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
@@ -449,7 +449,7 @@ make_window_data <- function(data,
   
 }
 
-#' make_time_data()
+#' make_time_sequence_data()
 #' 
 #' Creates time-bins and summarizes proportion-looking within each time-bin
 #' 
@@ -466,7 +466,7 @@ make_window_data <- function(data,
 #' 
 #' @return dataframe summarized
 
-make_time_data <- function (data, 
+make_time_sequence_data <- function (data, 
                         data_options, 
                         time_bin_size, 
                         aoi = data_options$aoi_columns, 
@@ -481,14 +481,14 @@ make_time_data <- function (data,
   if (length(aoi) > 1) {
     list_of_dfs = lapply(X = aoi, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
-      make_time_data(data, data_options, time_bin_size, this_aoi, predictor_columns, summarize_by)
+      make_time_sequence_data(data, data_options, time_bin_size, this_aoi, predictor_columns, summarize_by)
     })
     out = bind_rows(list_of_dfs)
     attrs = attr(out,"eyetrackingR")
     new_attrs = list(summarized_by = summarize_by)
     attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
     out = as.data.frame(out)
-    class(out) = c('time_data', class(out))
+    class(out) = c('time_sequence_data', class(out))
     return( out )
   }
   
@@ -525,7 +525,7 @@ make_time_data <- function (data,
   out <- left_join(df_summarized, time_codes, by='TimeBin')
   
   out = as.data.frame(out)
-  class(out) = c('time_data', class(out))
+  class(out) = c('time_sequence_data', class(out))
   attrs = attr(out,"eyetrackingR")
   new_attrs = list(summarized_by = summarize_by)
   attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
@@ -652,7 +652,7 @@ make_switch_data.onset_data = function(data, data_options, predictor_columns=NUL
 #' Takes data that has been summarized into time-bins, and finds adjacent time bins that
 #' pass some threshold of significance, and assigns these adjacent groups into clusters
 #' 
-#' @param dataframe.time_data data   The output of the 'time_data' function
+#' @param dataframe.time_sequence_data data   The output of the 'make_time_sequence_data' function
 #' @param list data_options
 #' @param character predictor_column  The predictor variable whose test statistic you are interested in
 #' @param character aoi               If this dataframe has multiple AOIs, you must specify which to analyze
@@ -666,7 +666,7 @@ make_switch_data.onset_data = function(data, data_options, predictor_columns=NUL
 make_time_cluster_data = function(data, ...) {
   UseMethod("make_time_cluster_data")
 }
-make_time_cluster_data.time_data = function(data, data_options,
+make_time_cluster_data.time_sequence_data = function(data, data_options,
                                   predictor_column,
                                   aoi = NULL,
                                   test,
@@ -743,7 +743,7 @@ make_time_cluster_data.time_data = function(data, data_options,
   
   # Output data, add attributes w/ relevant info
   df_timeclust = as.data.frame(df_timeclust)
-  class(df_timeclust) = c("time_cluster_data", "time_data", class(df_timeclust))
+  class(df_timeclust) = c("time_cluster_data", "time_sequence_data", class(df_timeclust))
   attrs = attr(df_timeclust, "eyetrackingR")
   attr(df_timeclust, "eyetrackingR") = c(attrs, 
                                          list(clusters = clusters,
@@ -783,9 +783,9 @@ summary.time_cluster_data = function(data) {
 
 #' make_bootstrapped_data(data, data_options, predictor_column, within_subj, samples, resolution, alpha)
 #' 
-#' Bootstrap splines from a time_data() data. Return bootstrapped splines.
+#' Bootstrap splines from time_sequence_data(). Return bootstrapped splines.
 #' 
-#' @param dataframe.time_data data 
+#' @param dataframe.time_sequence_data data 
 #' @param list data_options Standard list of options for manipulating dataset
 #' @param character predictor_column What predictor var to split by? Maximum two conditions
 #' @param logical within_subj Are the two conditions within or between subjects?
@@ -799,7 +799,7 @@ make_bootstrapped_data = function(data, ...) {
   UseMethod("make_bootstrapped_data")
 }
 
-make_bootstrapped_data.time_data <- function (data, data_options, predictor_column, aoi = NULL, within_subj = FALSE, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
+make_bootstrapped_data.time_sequence_data <- function (data, data_options, predictor_column, aoi = NULL, within_subj = FALSE, samples = 1000, resolution = 10, alpha = .05, smoother = 'none') {
   require("dplyr", quietly=TRUE)
   if (!require("pbapply")) {
     pbreplicate = function(n, expr, simplify) replicate(n, expr, simplify)
@@ -969,7 +969,7 @@ make_bootstrapped_data.time_data <- function (data, data_options, predictor_colu
 #' for each cluster, and compares it to the "null" distribution of sum statistics obtained by resampling data
 #' within the largest of the clusters.
 #' 
-#' @param dataframe.time_data data The output of the 'make_time_cluster_data' function
+#' @param dataframe.time_sequence_data data The output of the 'make_time_cluster_data' function
 #' @param list data_options            
 #' @param logical within_subj   Perform within-subjects bootstrap resampling? (Defaults to FALSE for between subjects resampling) 
 #' @param numeric samples       How many iterations should be performed in the bootstrap resampling procedure?
@@ -1156,7 +1156,7 @@ summary.cluster_analysis = print.cluster_analysis = function(cl_analysis) {
 #' 
 #' Runs a test on each time-bin of a time-analysis. Defaults to a t-test, but supports wilcox, lm, and lmer as well.
 #' 
-#' @param dataframe.time_data data   The output of the 'time_data' function
+#' @param dataframe.time_sequence_data data   The output of the 'make_time_sequence_data' function
 #' @param list data_options
 #' @param character predictor_column  The variable whose test statistic you are interested in
 #' @param numeric threshold           Value of statistic used in determining significance
@@ -1170,7 +1170,7 @@ summary.cluster_analysis = print.cluster_analysis = function(cl_analysis) {
 analyze_time_bins = function(data, ...) {
   UseMethod("analyze_time_bins")
 }
-analyze_time_bins.time_data <- function(data, 
+analyze_time_bins.time_sequence_data <- function(data, 
                               data_options, 
                               predictor_column,
                               test,
@@ -1210,7 +1210,7 @@ analyze_time_bins.time_data <- function(data,
     attrs = attr(data, "eyetrackingR")
     summarized_by = attrs$summarized_by
     if (is.null(summarized_by)) stop(test, " requires summarized data. ",
-                                     "When using the 'time_data' function, please select an argument for 'summarize_by'",
+                                     "When using the 'make_time_sequence_data' function, please select an argument for 'summarize_by'",
                                      " (e.g., the participant column).")
   } 
   df_analyze = data
@@ -1462,15 +1462,15 @@ plot.cluster_analysis = function(cl_analysis) {
 }
 
 
-#' plot.window_data()
+#' plot.time_window_data()
 #' 
-#' @param dataframe data returned by window_data()
+#' @param dataframe data returned by make_time_window_data()
 #' @param list data_options
 #' @param character x_axis_column
 #' @param character group_column
 #' 
 #' @return list A ggplot list object  
-plot.window_data <- function(data, data_options, x_axis_column, group_column = NULL) {
+plot.time_window_data <- function(data, data_options, x_axis_column, group_column = NULL) {
   
   dopts = data_options
   
@@ -1501,7 +1501,7 @@ plot.window_data <- function(data, data_options, x_axis_column, group_column = N
       ylab("Proportion Looking")
   } else {
     ggplot(summarized, aes_string(x = x_axis_column, y = "Prop", group= group_var, color= color_var)) +
-      geom_point() +
+      geom_point(position = position_jitter(width = .025, height=0), alpha= .75) +
       stat_summary(fun.y = mean, geom='line') +
       stat_summary(fun.dat = mean_cl_boot) +
       facet_wrap( ~ AOI) +
@@ -1510,7 +1510,7 @@ plot.window_data <- function(data, data_options, x_axis_column, group_column = N
   
 }
 
-#' plot.time_data()
+#' plot.time_sequence_data()
 #' 
 #' Plot the timecourse of looking across groups. Median split if factor is continous
 #' 
@@ -1519,7 +1519,7 @@ plot.window_data <- function(data, data_options, x_axis_column, group_column = N
 #' @param character predictor_column
 #' 
 #' @return list A ggplot list object  
-plot.time_data <- function(data, data_options, predictor_column=NULL, dv='Prop') {
+plot.time_sequence_data <- function(data, data_options, predictor_column=NULL, dv='Prop') {
   require('ggplot2', quietly=TRUE)
   
   ## Prelims:
@@ -1852,7 +1852,7 @@ center_predictors = function(data, predictors) {
 
 #' .make_proportion_looking_summary()
 #' 
-#' A helper function for window_data and time_data. Takes a dataframe, groups it, and returns proportion looking
+#' A helper function for make_time_window_data and make_time_sequence_data. Takes a dataframe, groups it, and returns proportion looking
 #' and relevant transformations
 #' 
 #' @param dataframe data
@@ -1884,10 +1884,10 @@ center_predictors = function(data, predictors) {
 # Friendly Dplyr Verbs ----------------------------------------------------------------------------------
 # dplyr verbs remove custom classes from dataframe, so a custom method needs to be written to avoid this
 
-mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutate_.bootstrapped_data = mutate_.time_cluster_data = mutate_.bootstrap_analysis = mutate_.onset_data = function(data, ...) {
+mutate_.time_sequence_data = mutate_.time_window_data = mutate_.bin_analysis = mutate_.bootstrapped_data = mutate_.time_cluster_data = mutate_.bootstrap_analysis = mutate_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
+  potential_classes = c('time_sequence_data', 'time_window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "eyetrackingR") # also attributes
@@ -1901,10 +1901,10 @@ mutate_.time_data = mutate_.window_data = mutate_.bin_analysis = mutate_.bootstr
   return(out)
 }
 
-group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = group_by_.bootstrapped_data = group_by_.time_cluster_data = group_by_.bootstrap_analysis = group_by_.onset_data = function(data, ...) {
+group_by_.time_sequence_data = group_by_.time_window_data = group_by_.bin_analysis = group_by_.bootstrapped_data = group_by_.time_cluster_data = group_by_.bootstrap_analysis = group_by_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
+  potential_classes = c('time_sequence_data', 'time_window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "eyetrackingR") # also attributes
@@ -1918,10 +1918,10 @@ group_by_.time_data = group_by_.window_data = group_by_.bin_analysis = group_by_
   return(out)
 }
 
-filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstrapped_data = filter_.time_cluster_data =  filter_.bootstrap_analysis = filter_.onset_data = function(data, ...) {
+filter_.time_sequence_data = filter_.time_window_data = filter_.bin_analysis = filter_.bootstrapped_data = filter_.time_cluster_data =  filter_.bootstrap_analysis = filter_.onset_data = function(data, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
+  potential_classes = c('time_sequence_data', 'time_window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
   temp_remove = class(data)[ class(data) %in% potential_classes]
   class(data) = class(data)[!class(data) %in% potential_classes]
   temp_attr = attr(data, "eyetrackingR") # also attributes
@@ -1935,10 +1935,10 @@ filter_.time_data = filter_.window_data = filter_.bin_analysis = filter_.bootstr
   return(out)
 }
 
-left_join.time_data = left_join.window_data = left_join.bin_analysis = left_join.time_cluster_data = left_join.bootstrapped_data = left_join.bootstrap_analysis = left_join.onset_data = function(x, y, by = NULL, copy = FALSE, ...) {
+left_join.time_sequence_data = left_join.time_window_data = left_join.bin_analysis = left_join.time_cluster_data = left_join.bootstrapped_data = left_join.bootstrap_analysis = left_join.onset_data = function(x, y, by = NULL, copy = FALSE, ...) {
   
   # remove class names (avoid infinite recursion):
-  potential_classes = c('time_data', 'window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
+  potential_classes = c('time_sequence_data', 'time_window_data', 'onset_data', 'bootstrapped_data', 'bootstrap_analysis', "time_cluster_data", 'bin_analysis')
   temp_remove = class(x)[ class(x) %in% potential_classes]
   class(x) = class(x)[!class(x) %in% potential_classes]
   temp_attr = attr(x, "eyetrackingR") # also attributes
