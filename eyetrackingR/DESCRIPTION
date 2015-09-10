@@ -3,10 +3,10 @@ Title: Cleaning and Analysis of Eye-tracking Data
 Version: 0.0.0.9000
 Authors@R: c(
 	person("Jacob", "Dink", email = "jacobwdink@gmail.com", role = c("aut", "cre")),
-	person("Brock", "Ferguson", email = "brockferguson@gmail.com", role = c("aut"))
+	person("Brock", "Ferguson", email = "brock.ferguson@gmail.com", role = c("aut"))
 	)
 Description: This package addresses tasks along the pipeline from raw data to analysis and
-    visualization. It offers several popular types of analyses, including linear and 
+    visualization for eye-tracking data. It offers several popular types of analyses, including linear and 
     growth curve time analyses, onset-contingent reaction time analyses, and cluster mass 
     analyses, as well as novel non-parametric approaches to time-series data.
 Depends: R (>= 3.2.1)
