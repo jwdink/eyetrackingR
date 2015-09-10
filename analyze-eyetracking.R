@@ -678,8 +678,9 @@ make_time_cluster_data.time_sequence_data = function(data, data_options,
     vec = c(0,vec)
     vec[is.na(vec)] = 0
     out = c(cumsum(diff(vec)==1))
+    vec = vec[-1]
     out[!vec] = NA
-    out[-1]
+    out
   }
   
   # Check Arg:
