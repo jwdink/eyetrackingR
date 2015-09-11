@@ -1,3 +1,12 @@
+#' Prevent accidental plotting of data.frames whose class has been removed.
+#'
+#' Eyetracking R adds a plot method to most dataframes you can create with it.
+#' Sometimes, the class of the dataframe can be removed, so that plot will
+#' not have the expected result. This ensures a warning is issued to the user.
+#' 
+#' @param data
+#' @export
+#' @return NULL
 plot.data.frame <- function(data) {
   stop("Cannot plot this data. Either no plotting method exists for this data, or the class of this data, which specifies ",
        "what type of data it is, has been removed. This can happen by using functions that transform the data significantly, ",

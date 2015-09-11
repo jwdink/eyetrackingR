@@ -12,6 +12,7 @@
 #'   column name(s) here. If left blank, will leave trials distinct. The former is needed for more traditional
 #'   analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)
 #'
+#' @export
 #' @return Data binned into time-bins, with proportion-looking and transformations as well as orthogonal
 #'   time-polynomials for growth curve analysis
 
@@ -114,6 +115,7 @@ analyze_time_bins = function(data, ...) {
 #'   summary of those models?
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
 #'   var.equal, etc.)
+#' @export
 #' @return A dataframe indicating the results of the test at each time-bin.
 analyze_time_bins.time_sequence_data <- function(data,
                               data_options,
@@ -277,6 +279,7 @@ analyze_time_bins.time_sequence_data <- function(data,
 #' @param data
 #' @param predictor_column
 #'
+#' @export
 #' @return A ggplot object
 plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
 
@@ -330,6 +333,7 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
 #'
 #' @param data
 #'
+#' @export
 #' @return A ggplot object
 plot.bin_analysis <- function(data) {
 

@@ -18,7 +18,7 @@ load('../data/word_recognition.rda')
 ## Load and set data options for **eyetrackingR** library.
 
 ```{r results='hide'}
-devtools::load_all("../")
+library("eyetrackingR")
 
 # set data options
 data_options = set_data_options( 
@@ -226,10 +226,10 @@ df_timeclust = make_time_cluster_data(response_time_by_subj,
 plot(df_timeclust) 
 summary(df_timeclust)
 
-# clust_analysis = analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=500)
-# clust_analysis
-# 
-# plot(clust_analysis) 
+clust_analysis = analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=100)
+clust_analysis
+
+plot(clust_analysis) 
 ```
 
 

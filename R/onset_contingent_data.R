@@ -9,6 +9,7 @@
 #'   average. This is the width of window for rolling average.
 #' @param target_aoi      Which AOI is the target that should be switched *to*
 #' @param distractor_aoi  Which AOI is the distractor that should be switched *from* (default = !target_aoi)
+#' @export
 #' @return Original dataframe augmented with column indicating switch away from target AOI
 
 make_onset_data <- function(data, data_options, onset_time, fixation_window_length, target_aoi, distractor_aoi = NULL) {
@@ -87,6 +88,7 @@ make_switch_data <- function(data, ...) {
 #' @param summarize_by       Should the data be summarized along, e.g., participants, items, etc.? If so, give
 #'   column name(s) here. If left blank, will leave trials distinct. The former is needed for more traditional
 #'   analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)
+#' @export
 #' @return A dataframe indicating initial AOI and time-to-switch from that AOI for each trial/subject/item/etc.
 make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_by = NULL) {
 
@@ -122,6 +124,7 @@ make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_
 #'
 #' @param data The output of the \code{make_onset_data} function
 #' @param predictor_columns Column(s) by which to facet the data. Does NOT perform median split if numeric.
+#' @export
 #' @return A ggplot object
 
 plot.onset_data <- function(data, predictor_columns=NULL) {
@@ -190,6 +193,7 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
 #'
 #' @param data The output of the \code{make_switch_data} function
 #' @param predictor_columns Column(s) by which to facet the data. Does NOT perform median split if numeric.
+#' @export
 #' @return A ggplot object
 
 plot.switch_data <- function(data, predictor_columns=NULL) {

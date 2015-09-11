@@ -15,6 +15,7 @@ make_boot_splines_data = function(data, ...) {
 #'   per second, or hundredths of a second
 #' @param alpha p-value when the groups are sufficiently "diverged"
 #' @param smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing
+#' @export
 #' @return A bootstrapped distribution of samples for each time-bin
 make_boot_splines_data.time_sequence_data <- function (data,
                                                        predictor_column,
@@ -194,6 +195,7 @@ analyze_boot_splines <- function(data) {
 #' @describeIn analyze_boot_splines
 #'
 #' @param  data The output of the \code{boot_splines_data} function
+#' @export
 #' @return A dataframe indicating means and CIs for each time-bin
 analyze_boot_splines.boot_splines_data <- function(data) {
 
@@ -297,6 +299,7 @@ summary.boot_splines_analysis <- function(data) {
 #' Plot the means and CIs of bootstrapped splines (either within-subjects or between-subjects)
 #'
 #' @param  data The output of the \code{make_boot_splines_data} function
+#' @export
 #' @return A ggplot object
 plot.boot_splines_data = function(data) {
   # make sure there is the proper kind of data frame, and check its attributes
@@ -340,6 +343,7 @@ plot.boot_splines_data = function(data) {
 #' (either within-subjects or between-subjects)
 #'
 #' @param data The output of the \code{analyze_boot_splines} function
+#' @export
 #' @return A ggplot object
 plot.boot_splines_analysis <- function(data) {
 

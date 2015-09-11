@@ -10,6 +10,7 @@
 #' @param summarize_by  Should the data be summarized along, e.g., participants, items, etc.? If so, give
 #'   column names here. If left blank, will leave trials distinct. The former is needed for more traditional
 #'   analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)
+#' @export
 #' @return Data with proportion-looking and transformations (empirical logit, arc-sin)
 
 make_time_window_data <- function(data,
@@ -70,6 +71,7 @@ make_time_window_data <- function(data,
 #'  to group/color. If the latter is numeric, a median split is performed.
 #' @param dv  Which dv should be used in plotting? Raw proportion-looking ("Prop"), empirical logit ("Elog"),
 #'  or "ArcSin"?
+#' @export
 #' @return A ggplot object
 
 plot.time_window_data <- function(data, predictor_columns, dv = "Prop") {

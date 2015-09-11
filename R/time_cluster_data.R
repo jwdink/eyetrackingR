@@ -24,6 +24,7 @@ analyze_time_clusters <-function(data, data_options, ...) {
 #'   but it's only needed if you've specified a numeric *and* within-subjects predictor column.
 #' @param ...            Other args for to selected 'test' function; should be identical to those passed to
 #'   \code{make_time_cluster_data} function
+#' @export
 #' @return A cluster-analysis object, which can be plotted and summarized to examine which temporal periods
 #'   show a significant effect of the predictor variable
 analyze_time_clusters.time_cluster_data <-function(data,
@@ -228,6 +229,7 @@ make_time_cluster_data <-function(data, ...) {
 #'   uses \code{Prop ~ [predictor_column]}
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
 #'   var.equal, etc.)
+#' @export
 #' @return The original data, augmented with information about clusters. Calling summary on this data will
 #'   describe these clusters. The dataset is ready for the \code{\link{analyze_time_clusters}} method.
 make_time_cluster_data.time_sequence_data <- function(data, data_options,
@@ -357,6 +359,7 @@ summary.time_cluster_data <- function(data) {
 #'
 #' @param cluster_analysis object returned by cluster_analysis()
 #'
+#' @export
 #' @return A ggplot object
 plot.cluster_analysis <- function(cl_analysis) {
   dat <- c(cl_analysis$clusters['SumStat',], cl_analysis$null_distribution)
@@ -382,6 +385,7 @@ plot.cluster_analysis <- function(cl_analysis) {
 #' @param data
 #' @param clusters A vector of the clusters you'd like highlighted. If left blank, all are highlighted
 #'
+#' @export
 #' @return A ggplot object
 plot.time_cluster_data <- function(data, clusters = NULL) {
   attrs <- attr(data, "eyetrackingR")

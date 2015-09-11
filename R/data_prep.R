@@ -11,6 +11,7 @@
 #' @param trial_column       Column name indicating trial identifier
 #' @param item_columns       Column names indicating items (can be same as trial_column)
 #' @param aoi_columns        Names of AOIs
+#' @export
 #' @return list of configuration options
 
 set_data_options <- function(participant_column,
@@ -34,6 +35,7 @@ set_data_options <- function(participant_column,
 #'
 #' @param data Your data
 #' @param data_options Created by \code{set_data_options}
+#' @export
 #' @return Dataset with verified column types.
 
 verify_dataset <- function(data, data_options) {
@@ -82,6 +84,7 @@ verify_dataset <- function(data, data_options) {
 #' @param window_end Number (for timestamp) or character (for column that specifies timestamp)
 #' @param rezero Should the beginning of the window be considered the zero point of the timestamp?
 #'  Default TRUE when window_start is column, FALSE when window_start is number
+#' @export
 #' @return Subsetted data
 
 subset_by_window <- function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
@@ -141,6 +144,7 @@ subset_by_window <- function(data, data_options, window_start = -Inf, window_end
 #' @param data_options
 #' @param window_start Number (for timestamp) or character (for column that specifies timestamp)
 #' @param window_end Number (for timestamp) or character (for column that specifies timestamp)
+#' @export
 #' @return A dataframe describing trackloss by-trial and by-participant
 
 trackloss_analysis <- function(data, data_options, window_start = -Inf, window_end = Inf) {
@@ -189,6 +193,7 @@ trackloss_analysis <- function(data, data_options, window_start = -Inf, window_e
 #' @param trial_prop_thresh Maximum proportion of trackloss for trials
 #' @param window_start Number (for timestamp) or character (for column that specifies timestamp)
 #' @param window_end Number (for timestamp) or character (for column that specifies timestamp)
+#' @export
 #' @return Cleaned data
 
 clean_by_trackloss <- function(data, data_options,
@@ -243,6 +248,7 @@ clean_by_trackloss <- function(data, data_options,
 #' @param data
 #' @param data_options
 #'
+#' @export
 #' @return Data where non-AOI looks are now considered trackloss.
 
 convert_non_aoi_to_trackloss <- function(data, data_options) {
@@ -271,6 +277,7 @@ convert_non_aoi_to_trackloss <- function(data, data_options) {
 #'
 #' @param data
 #' @param data_options
+#' @export
 #' @return Data with trackloss preserved
 
 keep_trackloss <- function(data, data_options) {
@@ -306,6 +313,7 @@ keep_trackloss <- function(data, data_options) {
 #' @param data_options
 #' @param delete_rows (default: FALSE) Should rows with trackloss be deleted, or simply set to NA?
 #'
+#' @export
 #' @return Data with trackloss removed
 remove_trackloss <- function(data, data_options, delete_rows = FALSE) {
   out <- data
@@ -342,6 +350,7 @@ remove_trackloss <- function(data, data_options, delete_rows = FALSE) {
 #' @param describe_column The column to return descriptive statistics about.
 #' @param group_columns Any columns to group by when calculating descriptive statistics (e.g., participants,
 #'  conditions, etc.)
+#' @export
 #' @return A dataframe giving descriptive statistics for the \code{describe_column}, including mean, SD, var,
 #' min, max, and number of trials
 
