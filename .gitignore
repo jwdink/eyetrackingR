@@ -6,13 +6,11 @@
 *.Rproj
 graph*.png
 workspace*
-
 # Example code in package build process
 *-Ex.R
-
 # TODO file
 TODO-PRIVATE.md
 .Rproj.user
-
 # ignore paper until ready
 *.docx
+inst/doc

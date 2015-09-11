@@ -1,16 +1,13 @@
 ---
-title: "A quick eyetrackingR Walkthrough"
-output:
-  html_document: null
-  pdf_document: default
-  theme: null
-  toc: yes
+title: "A Brief Overview of EyetrackingR"
+author: "Brock Ferguson & Jacob Dink"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
-  
-Analysis Timestamp:
-```{r}
-date()
-```
 
 ## Load dataset
 
