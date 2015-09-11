@@ -127,9 +127,10 @@ response_window_agg <- make_time_window_data(response_window,
 
 # mixed-effects linear model on subject*trial data
 response_window_agg$TargetC <- ifelse(response_window_agg$Target == 'Animate', .5, -.5)
-response_window_agg$TargetC <- scale(response_window_agg$TargetC, center=T, scale=F)
+response_window_agg$TargetC <- scale(response_window_agg$TargetC, center=TRUE, scale=FALSE)
 
-model <- lmer(Elog ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), data = response_window_agg, REML = F)
+model <- lmer(Elog ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), 
+              data = response_window_agg, REML = FALSE)
 summary(model)
 drop1(model,~.,test="Chi")
 ```
@@ -139,39 +140,44 @@ drop1(model,~.,test="Chi")
 ```{r}
 # growth curve analysis on time series
 response_time$TargetC <- ifelse(response_time$Target == 'Animate', .5, -.5)
-response_time$TargetC <- scale(response_time$TargetC, center=T, scale=F)
+response_time$TargetC <- scale(response_time$TargetC, center=TRUE, scale=FALSE)
 
-model <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4 + ot5) + (1 | Trial) + (1 | ParticipantName), data = response_time, REML = F)
+model <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4 + ot5) + (1 | Trial) + (1 | ParticipantName), 
+              data = response_time, REML = FALSE)
 summary(model)
 drop1(model,~.,test="Chi")
 
 # visualize GCA model
 ggplot(response_time, aes(x=Time, y=Elog, color=Target)) +
   stat_summary(fun.y=mean, geom="point") +
-  stat_summary(aes(y=predict(model,response_time,re.form=NA)), fun.y=mean, geom="line", linetype='solid', size=2)
+  stat_summary(aes(y=predict(model,response_time,re.form=NA)), 
+               fun.y=mean, geom="line", linetype='solid', size=2)
 ```
 
 ## Onset-contingent analysis
 
 ```{r}
 # recode AOIs to target & distractor
-response_window$TrialTarget <- ifelse(response_window$Target == 'Animate', response_window$Animate, response_window$Inanimate)
-response_window$TrialDistractor <- ifelse(response_window$Target == 'Animate', response_window$Inanimate, response_window$Animate)
+response_window$TrialTarget <- 
+  ifelse(response_window$Target == 'Animate', response_window$Animate, response_window$Inanimate)
+response_window$TrialDistractor <- 
+  ifelse(response_window$Target == 'Animate', response_window$Inanimate, response_window$Animate)
 
 onsets <- make_onset_data(response_window, data_options, onset_time = 15500, fixation_window_length = 100, target_aoi='TrialTarget')
 
-plot(onsets, predictor_columns = "Target")
+plot(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=5))
 
 # compare switch times
 onset_switches <- make_switch_data(onsets, predictor_columns = "Target")
 
-plot(onset_switches, predictor_columns = "Target") 
+plot(onset_switches, predictor_columns = "Target") + theme(legend.position="none")
 
 # center predictor:
 onset_switches$FirstAOIC <- ifelse(onset_switches$FirstAOI == 'TrialTarget', .5, -.5)
 onset_switches$FirstAOIC <- scale(onset_switches$FirstAOIC, center=TRUE, scale=FALSE)
 
-model <- lmer(FirstSwitch ~ FirstAOIC + (1 + FirstAOIC | Trial) + (1 + FirstAOIC | ParticipantName), data=onset_switches, REML=F)
+model <- lmer(FirstSwitch ~ FirstAOIC + 
+                (1 + FirstAOIC | Trial) + (1 + FirstAOIC | ParticipantName), data=onset_switches, REML=FALSE)
 summary(model)
 drop1(model,~.,test="Chi")
 ```
@@ -194,7 +200,7 @@ plot(bootstrapped_familiar)
 bootstrap_analysis_familiar <- analyze_boot_splines(bootstrapped_familiar)
 
 # same as above, because, for within-subjects data, it always plots the difference score estimates
-plot(bootstrap_analysis_familiar) # TO DO: this should tell you in which direction the difference was taken
+#plot(bootstrap_analysis_familiar) 
 
 summary(bootstrap_analysis_familiar)
 ```
@@ -220,10 +226,10 @@ df_timeclust = make_time_cluster_data(response_time_by_subj,
 plot(df_timeclust) 
 summary(df_timeclust)
 
-clust_analysis = analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=500)
-clust_analysis
-
-plot(clust_analysis) 
+# clust_analysis = analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=500)
+# clust_analysis
+# 
+# plot(clust_analysis) 
 ```
 
 
