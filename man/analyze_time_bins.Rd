@@ -21,14 +21,14 @@ var.equal, etc.)}
 
 \item{predictor_column}{The variable whose test statistic you are interested in}
 
-\item{test}{What type of test should be performed in each time bin? Supports t.test, wilcox,
-lm, or lmer.}
+\item{test}{What type of test should be performed in each time bin? Supports \code{t.test},
+\code{wilcox.test}, \code{lm}, and \code{lmer}.}
 
 \item{threshold}{Value of statistic used in determining significance}
 
 \item{alpha}{Alpha value for determining significance, ignored if threshold is given}
 
-\item{formula}{What formula should be used for the test? Optional for all but lmer, if unset will
+\item{formula}{What formula should be used for the test? Optional for all but \code{lmer}, if unset will
 use \code{Prop ~ [predictor_column]}}
 
 \item{return_model}{In the returned dataframe, should a model be given for each time bin, or just the

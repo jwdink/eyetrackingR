@@ -18,7 +18,6 @@
 #' [to do]
 #'
 #' @importFrom lazyeval interp
-#' @importFrom lme4 lmer
 #' @import ggplot2
 #' @import dplyr
 #'

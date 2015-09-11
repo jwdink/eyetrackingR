@@ -104,11 +104,11 @@ analyze_time_bins = function(data, ...) {
 #' @param data   The output of the 'make_time_sequence_data' function
 #' @param data_options
 #' @param predictor_column  The variable whose test statistic you are interested in
-#' @param test              What type of test should be performed in each time bin? Supports t.test, wilcox,
-#'   lm, or lmer.
+#' @param test              What type of test should be performed in each time bin? Supports \code{t.test},
+#'   \code{wilcox.test}, \code{lm}, and \code{lmer}.
 #' @param threshold         Value of statistic used in determining significance
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given
-#' @param formula           What formula should be used for the test? Optional for all but lmer, if unset will
+#' @param formula           What formula should be used for the test? Optional for all but \code{lmer}, if unset will
 #'   use \code{Prop ~ [predictor_column]}
 #' @param return_model      In the returned dataframe, should a model be given for each time bin, or just the
 #'   summary of those models?
@@ -185,7 +185,11 @@ analyze_time_bins.time_sequence_data <- function(data,
   # Run a model for each time-bin
   paired <- list(...)[["paired"]]
   if (!quiet) message("Computing ", test, " for each time bin...")
-  failsafe_test <- failwith(default = NA, f = get(test), quiet = quiet)
+  if (test=="lmer") {
+    failsafe_test <- failwith(default = NA, f = lme4::lmer, quiet = quiet)
+  } else {
+    failsafe_test <- failwith(default = NA, f = get(test), quiet = quiet)
+  }
   if (quiet) pblapply <- lapply
   models= pblapply(unique(data$Time), function(tb) {
     # get data:
