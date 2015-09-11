@@ -76,7 +76,7 @@ response_window$Target <- ifelse(grepl('(Spoon|Bottle)', response_window$Trial),
 response_window$Target <- factor(response_window$Target)
 ```
 
-## Describe and visualize over results
+## Describe and visualize results
 
 ```{r}
 (data_summary <- describe_data(response_window, data_options, describe_column='Animate', group_columns=c('ParticipantName','Target')))
