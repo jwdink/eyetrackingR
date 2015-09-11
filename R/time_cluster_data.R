@@ -4,6 +4,10 @@
 #' function) and performs a bootstrapping analyses (Maris & Oostenveld, 2007). This analysis takes a summed
 #' statistic for each cluster, and compares it to the "null" distribution of sum statistics obtained by
 #' resampling data within the largest of the clusters.
+analyze_time_clusters <-function(data, data_options, ...) {
+  UseMethod("analyze_time_clusters")
+}
+#' @describeIn analyze_time_clusters
 #'
 #' @param data          The output of the \code{make_time_cluster_data} function
 #' @param within_subj   Logical indicating whether to perform within-subjects bootstrap resampling. (Defaults
@@ -22,9 +26,6 @@
 #'   \code{make_time_cluster_data} function
 #' @return A cluster-analysis object, which can be plotted and summarized to examine which temporal periods
 #'   show a significant effect of the predictor variable
-analyze_time_clusters <-function(data, data_options, ...) {
-  UseMethod("analyze_time_clusters")
-}
 analyze_time_clusters.time_cluster_data <-function(data,
                                                    within_subj = FALSE,
                                                    samples = 1000,
@@ -36,6 +37,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
   attrs <-attr(data, "eyetrackingR")
   data_options <-attrs$data_options
 
+  # Shuffle data by
   if (is.null(shuffle_by)) {
     shuffle_by <-attrs$predictor_column
     if ( attrs$test %in% c("lm", "lmer") & is.numeric(data[[attrs$predictor_column]]) & within_subj) {
@@ -44,6 +46,13 @@ analyze_time_clusters.time_cluster_data <-function(data,
     }
   }
 
+  # Progress Bar:
+  if (!requireNamespace("pbapply", quietly = TRUE)) {
+    pbsapply <- sapply
+    message("Install package 'pbapply' for a progress bar in this function.")
+  } else {
+    pbsapply <- pbapply::pbsapply
+  }
 
   # Arg check:
   if (is.null(formula)) {
@@ -203,23 +212,24 @@ summary.cluster_analysis <-print.cluster_analysis <- function(cl_analysis) {
 #' bins that pass some threshold of significance, and assigns these adjacent bins into groups (clusters).
 #' Output is ready for a bootstrapping analyses (Maris & Oostenveld, 2007)
 #'
+make_time_cluster_data <-function(data, ...) {
+  UseMethod("make_time_cluster_data")
+}
+#' @describeIn make_time_cluster_data
 #' @param data   The output of the \code{make_time_sequence_data} function
 #' @param predictor_column  The predictor variable whose test statistic you are interested in
 #' @param aoi               If this dataframe has multiple AOIs, you must specify which to analyze
 #' @param test              What type of test should be performed in each time bin? Supports \code{t.test},
 #'   \code{wilcox}, \code{lm}, or \code{lmer}.
 #' @param threshold         Value of statistic used in determining significance. Note the sign! This test is
-#'  directional.
+#'   directional.
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given
 #' @param formula           What formula should be used for test? Optional (for all but \code{lmer}), if unset
 #'   uses \code{Prop ~ [predictor_column]}
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
 #'   var.equal, etc.)
-#'
-#' @return dataframe
-make_time_cluster_data <-function(data, ...) {
-  UseMethod("make_time_cluster_data")
-}
+#' @return The original data, augmented with information about clusters. Calling summary on this data will
+#'   describe these clusters. The dataset is ready for the \code{\link{analyze_time_clusters}} method.
 make_time_cluster_data.time_sequence_data <- function(data, data_options,
                                                      predictor_column,
                                                      aoi = NULL,

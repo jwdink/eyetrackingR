@@ -1,7 +1,11 @@
-#' Bootstrap resample splines for time-series data
+#' Bootstrap resample splines for time-series data.
 #'
 #' Bootstrap splines from \code{time_sequence_data()}. This creates a distribution from which a non-parametric
 #' analysis can be performed.
+make_boot_splines_data = function(data, ...) {
+  UseMethod("make_boot_splines_data")
+}
+#' @describeIn make_boot_splines_data
 #'
 #' @param data
 #' @param predictor_column What predictor var to split by? Maximum two conditions
@@ -12,10 +16,6 @@
 #' @param alpha p-value when the groups are sufficiently "diverged"
 #' @param smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing
 #' @return A bootstrapped distribution of samples for each time-bin
-make_boot_splines_data = function(data, ...) {
-  UseMethod("make_boot_splines_data")
-}
-
 make_boot_splines_data.time_sequence_data <- function (data,
                                                        predictor_column,
                                                        aoi = NULL,
@@ -24,9 +24,11 @@ make_boot_splines_data.time_sequence_data <- function (data,
                                                        samples = 1000,
                                                        resolution = 10,
                                                        alpha = .05) {
-  if (!require("pbapply")) {
+  if (!requireNamespace("pbapply", quietly = TRUE)) {
     pbreplicate <- function(n, expr, simplify) replicate(n, expr, simplify)
     message("Install package 'pbapply' for a progress bar in this function.")
+  } else {
+    pbreplicate <- pbapply::pbreplicate
   }
 
   # validate arguments
@@ -133,7 +135,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
     level1 <- levels(data[[predictor_column]])[1]
     level2 <- levels(data[[predictor_column]])[2]
     df_grouped <- group_by_(data, .dots = c(data_options$participant_column, "Time") )
-    df_diff <- summarise_(df_grouped,
+    df_diff <- summarize_(df_grouped,
                          .dots = list(Prop1 = interp(~mean(Prop[PRED_COL == level1]), PRED_COL = as.name(predictor_column)),
                                       Prop2 = interp(~mean(Prop[PRED_COL == level2]), PRED_COL = as.name(predictor_column)),
                                       Prop  = interp(~Prop1 - Prop2)
@@ -186,15 +188,14 @@ make_boot_splines_data.time_sequence_data <- function (data,
 #' Estimates a confidence interval over the difference between means (within- or between-subjects)
 #' from a \code{boot_splines_data} object. Confidence intervals are derived from the alpha
 #' used to shape the dataset (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
+analyze_boot_splines <- function(data) {
+  UseMethod("analyze_boot_splines")
+}
+#' @describeIn analyze_boot_splines
 #'
 #' @param  data The output of the \code{boot_splines_data} function
-#' ...
 #' @return A dataframe indicating means and CIs for each time-bin
-#'
-analyze_bootstraps <- function(data) {
-  UseMethod("analyze_bootstraps")
-}
-analyze_bootstraps.boot_splines_data <- function(data) {
+analyze_boot_splines.boot_splines_data <- function(data) {
 
   # make sure there is the proper kind of data frame, and check its attributes
   attrs = attr(data, "eyetrackingR")
@@ -297,7 +298,6 @@ summary.boot_splines_analysis <- function(data) {
 #'
 #' @param  data The output of the \code{make_boot_splines_data} function
 #' @return A ggplot object
-
 plot.boot_splines_data = function(data) {
   # make sure there is the proper kind of data frame, and check its attributes
   attrs = attr(data, "eyetrackingR")
@@ -310,7 +310,7 @@ plot.boot_splines_data = function(data) {
     # use plot.boot_splines_analysis() to plot within-subjects difference
     # because, for a within-subjects test, this is all that matters
     message("Plotting within-subjects differences...")
-    data <- analyze_bootstraps(data)
+    data <- analyze_boot_splines(data)
 
     return (plot(data))
   }
@@ -339,9 +339,8 @@ plot.boot_splines_data = function(data) {
 #' Plot the means and CIs of bootstrapped spline difference estimates and intervals
 #' (either within-subjects or between-subjects)
 #'
-#' @param data The output of the \code{analyze_bootstraps} function
+#' @param data The output of the \code{analyze_boot_splines} function
 #' @return A ggplot object
-
 plot.boot_splines_analysis <- function(data) {
 
   # make sure there is the proper kind of data frame, and check its attributes

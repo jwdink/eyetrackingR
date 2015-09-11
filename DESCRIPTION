@@ -20,5 +20,6 @@ Imports:
 	zoo (>= 1.7-12)
 Suggests: 
 	pbapply,
-    knitr
+    knitr,
+    lme4 (>= 1.1-9)
 VignetteBuilder: knitr

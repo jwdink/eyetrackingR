@@ -14,9 +14,9 @@ plot.data.frame <- function(data) {
 #' @param aoi_col
 #' @return dataframe
 .make_proportion_looking_summary <- function(data, groups, aoi_col) {
-  # Group, Summarise Samples
+  # Group, summarize Samples
   df_grouped <- group_by_(data, .dots = groups)
-  df_summarized <- summarise_(df_grouped,
+  df_summarized <- summarize_(df_grouped,
                              .dots = list(SamplesInAOI = interp(~sum(AOI_COL, na.rm=TRUE), AOI_COL = aoi_col),
                                           SamplesTotal = interp(~sum(!is.na(AOI_COL)), AOI_COL = aoi_col) # ignore all NAs
                              ))

@@ -22,6 +22,6 @@ min, max, and number of trials
 }
 \description{
 Returns descriptive statistics about a column of choice. A simple wrapper around dplyr:group_by/
-dplyr::summarise that allows a quick glance at the data.
+dplyr::summarize that allows a quick glance at the data.
 }
 

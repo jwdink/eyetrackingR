@@ -2,9 +2,14 @@
 % Please edit documentation in R/time_spline_data.R
 \name{make_boot_splines_data}
 \alias{make_boot_splines_data}
-\title{Bootstrap resample splines for time-series data}
+\alias{make_boot_splines_data.time_sequence_data}
+\title{Bootstrap resample splines for time-series data.}
 \usage{
 make_boot_splines_data(data, ...)
+
+\method{make_boot_splines_data}{time_sequence_data}(data, predictor_column,
+  aoi = NULL, within_subj = FALSE, smoother = "smooth.spline",
+  samples = 1000, resolution = 10, alpha = 0.05)
 }
 \arguments{
 \item{data}{}
@@ -13,14 +18,14 @@ make_boot_splines_data(data, ...)
 
 \item{within_subj}{Are the two conditions within or between subjects?}
 
+\item{smoother}{Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing}
+
 \item{samples}{How many (re)samples to take?}
 
 \item{resolution}{What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals
 per second, or hundredths of a second}
 
 \item{alpha}{p-value when the groups are sufficiently "diverged"}
-
-\item{smoother}{Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing}
 }
 \value{
 A bootstrapped distribution of samples for each time-bin
@@ -29,4 +34,8 @@ A bootstrapped distribution of samples for each time-bin
 Bootstrap splines from \code{time_sequence_data()}. This creates a distribution from which a non-parametric
 analysis can be performed.
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{time_sequence_data}: 
+}}
 

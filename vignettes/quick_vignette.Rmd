@@ -1,8 +1,8 @@
 ---
 title: "A quick eyetrackingR Walkthrough"
 output:
-  pdf_document: default
   html_document: null
+  pdf_document: default
   theme: null
   toc: yes
 ---
@@ -10,15 +10,6 @@ output:
 Analysis Timestamp:
 ```{r}
 date()
-```
-
-## Dependencies
-
-```{r results='hide'}
-library(ggplot2)
-library(lme4)
-library(dplyr)
-library(zoo)
 ```
 
 ## Load dataset
@@ -131,6 +122,7 @@ t.test(ArcSin ~ Target, data=response_window_agg_by_sub, paired=TRUE)
 ## Mixed-effects models on windowed data
 
 ```{r}
+library("lme4")
 response_window_agg <- make_time_window_data(response_window, 
                                              data_options, 
                                              aois='Animate', 
@@ -202,7 +194,7 @@ bootstrapped_familiar <- make_boot_splines_data(response_time,
 
 plot(bootstrapped_familiar)
 
-bootstrap_analysis_familiar <- analyze_bootstraps(bootstrapped_familiar)
+bootstrap_analysis_familiar <- analyze_boot_splines(bootstrapped_familiar)
 
 # same as above, because, for within-subjects data, it always plots the difference score estimates
 plot(bootstrap_analysis_familiar) # TO DO: this should tell you in which direction the difference was taken
@@ -229,6 +221,7 @@ df_timeclust = make_time_cluster_data(response_time_by_subj,
                                       predictor_column = "Target", 
                                       threshold = 2.5) # <--- just to make things more challenging
 plot(df_timeclust) 
+summary(df_timeclust)
 
 clust_analysis = analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=500)
 clust_analysis

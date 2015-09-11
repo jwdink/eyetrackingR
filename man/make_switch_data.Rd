@@ -2,9 +2,13 @@
 % Please edit documentation in R/onset_contingent_data.R
 \name{make_switch_data}
 \alias{make_switch_data}
+\alias{make_switch_data.onset_data}
 \title{Summarize data into time-to-switch from initial AOI.}
 \usage{
 make_switch_data(data, ...)
+
+\method{make_switch_data}{onset_data}(data, predictor_columns = NULL,
+  summarize_by = NULL)
 }
 \arguments{
 \item{data}{The output of \code{make_onset_data}}
@@ -21,4 +25,8 @@ A dataframe indicating initial AOI and time-to-switch from that AOI for each tri
 \description{
 Take trials split by initial-AOI, and determine how quickly participants switch away from that AOI
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{onset_data}: 
+}}
 

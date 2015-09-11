@@ -2,9 +2,13 @@
 % Please edit documentation in R/time_cluster_data.R
 \name{analyze_time_clusters}
 \alias{analyze_time_clusters}
+\alias{analyze_time_clusters.time_cluster_data}
 \title{Bootstrap analysis of time-clusters.}
 \usage{
 analyze_time_clusters(data, data_options, ...)
+
+\method{analyze_time_clusters}{time_cluster_data}(data, within_subj = FALSE,
+  samples = 1000, formula = NULL, shuffle_by = NULL, ...)
 }
 \arguments{
 \item{data}{The output of the \code{make_time_cluster_data} function}
@@ -38,4 +42,8 @@ function) and performs a bootstrapping analyses (Maris & Oostenveld, 2007). This
 statistic for each cluster, and compares it to the "null" distribution of sum statistics obtained by
 resampling data within the largest of the clusters.
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{time_cluster_data}: 
+}}
 

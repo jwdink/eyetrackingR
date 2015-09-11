@@ -27,7 +27,7 @@ make_onset_data <- function(data, data_options, onset_time, fixation_window_leng
 
   ## Translate TimeWindow units from time to number of rows (for rolling mean):
   df_time_per_row <- group_by_(data, .dots = c(data_options$participant_column, data_options$trial_column) )
-  df_time_per_row <- summarise_(df_time_per_row,
+  df_time_per_row <- summarize_(df_time_per_row,
                                .dots = list(TimePerRow = interp(~mean(diff(TIME_COL)), TIME_COL = time_col)
                                             ))
   time_per_row <- round(mean(df_time_per_row[["TimePerRow"]]))
@@ -77,6 +77,10 @@ make_onset_data <- function(data, data_options, onset_time, fixation_window_leng
 #' Summarize data into time-to-switch from initial AOI.
 #'
 #' Take trials split by initial-AOI, and determine how quickly participants switch away from that AOI
+make_switch_data <- function(data, ...) {
+  UseMethod("make_switch_data")
+}
+#' @describeIn make_switch_data
 #'
 #' @param data               The output of \code{make_onset_data}
 #' @param predictor_columns  Variables/covariates of interest when analyzing time-to-switch
@@ -84,10 +88,6 @@ make_onset_data <- function(data, data_options, onset_time, fixation_window_leng
 #'   column name(s) here. If left blank, will leave trials distinct. The former is needed for more traditional
 #'   analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)
 #' @return A dataframe indicating initial AOI and time-to-switch from that AOI for each trial/subject/item/etc.
-#'
-make_switch_data <- function(data, ...) {
-  UseMethod("make_switch_data")
-}
 make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_by = NULL) {
 
   data_options = attr(data, "eyetrackingR")$data_options
@@ -105,7 +105,7 @@ make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_
                          .dots = c(summarize_by,
                                    "FirstAOI",
                                    predictor_columns))
-  df_summarized <- summarise_(df_grouped,
+  df_summarized <- summarize_(df_grouped,
                             .dots = list(FirstSwitch = interp(~TIME_COL[first(which(SwitchAOI), order_by= TIME_COL)], TIME_COL = time_col)
                                          ))
 
@@ -142,15 +142,15 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
     df_clean <- df_clean[ !is.na(df_clean[[predictor_col]]) , ]
   }
 
-  # summarise by time bin:
+  # summarize by time bin:
   df_clean[[".Time"]] <- floor(df_clean[[data_options$time_column]] / smoothing_window_size) * smoothing_window_size
   df_grouped <- group_by_(df_clean,
                          .dots = c(predictor_columns, data_options$participant_column, ".Time", "FirstAOI", onset_attr$distractor_aoi, onset_attr$target_aoi))
-  df_smoothed <- summarise(df_grouped, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
+  df_smoothed <- summarize(df_grouped, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
 
   # collapse into lines for graphing:
   df_summarized <- group_by_(df_smoothed, .dots = c(".Time", "FirstAOI", predictor_columns) )
-  df_summarized <- summarise(df_summarized, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
+  df_summarized <- summarize(df_summarized, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
 
   # compute grayed area:
   df_graph <- group_by_(df_summarized, .dots = c(".Time", predictor_columns) )
@@ -203,7 +203,7 @@ plot.switch_data <- function(data, predictor_columns=NULL) {
   ## Prepare for Graphing:
   data <- filter(data, !is.na(FirstAOI))
   df_grouped <- group_by_(data, .dots = c(data_options$participant_column, predictor_columns, "FirstAOI"))
-  df_summarised <- summarise(df_grouped, MeanFirstSwitch = mean(FirstSwitch))
+  df_summarized <- summarize(df_grouped, MeanFirstSwitch = mean(FirstSwitch))
 
   ## Graph:
   if (is.null(predictor_columns)) {
@@ -212,7 +212,7 @@ plot.switch_data <- function(data, predictor_columns=NULL) {
     color_factor <- predictor_columns[1]
   }
 
-  g <- ggplot(df_summarised, aes_string(x = "FirstAOI", y = "MeanFirstSwitch",
+  g <- ggplot(df_summarized, aes_string(x = "FirstAOI", y = "MeanFirstSwitch",
                              color = color_factor)) +
     geom_boxplot() +
     geom_point(position = position_jitter(.1)) +

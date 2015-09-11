@@ -7,7 +7,7 @@
 \method{plot}{boot_splines_analysis}(data)
 }
 \arguments{
-\item{data}{The output of the \code{analyze_bootstraps} function}
+\item{data}{The output of the \code{analyze_boot_splines} function}
 }
 \value{
 A ggplot object

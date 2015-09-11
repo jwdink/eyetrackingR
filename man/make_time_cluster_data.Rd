@@ -2,15 +2,20 @@
 % Please edit documentation in R/time_cluster_data.R
 \name{make_time_cluster_data}
 \alias{make_time_cluster_data}
+\alias{make_time_cluster_data.time_sequence_data}
 \title{Make data for cluster analysis.}
 \usage{
 make_time_cluster_data(data, ...)
+
+\method{make_time_cluster_data}{time_sequence_data}(data, data_options,
+  predictor_column, aoi = NULL, test, threshold = NULL, formula = NULL,
+  ...)
 }
 \arguments{
 \item{data}{The output of the \code{make_time_sequence_data} function}
 
 \item{...}{Any other arguments to be passed to the selected 'test' function (e.g., paired,
-  var.equal, etc.)}
+var.equal, etc.)}
 
 \item{predictor_column}{The predictor variable whose test statistic you are interested in}
 
@@ -22,17 +27,22 @@ make_time_cluster_data(data, ...)
 \item{threshold}{Value of statistic used in determining significance. Note the sign! This test is
 directional.}
 
-\item{alpha}{Alpha value for determining significance, ignored if threshold is given}
-
 \item{formula}{What formula should be used for test? Optional (for all but \code{lmer}), if unset
 uses \code{Prop ~ [predictor_column]}}
+
+\item{alpha}{Alpha value for determining significance, ignored if threshold is given}
 }
 \value{
-dataframe
+The original data, augmented with information about clusters. Calling summary on this data will
+  describe these clusters. The dataset is ready for the \code{\link{analyze_time_clusters}} method.
 }
 \description{
 Takes data that has been summarized into time-bins by \code{make_time_sequence_data()}, finds adjacent time
 bins that pass some threshold of significance, and assigns these adjacent bins into groups (clusters).
 Output is ready for a bootstrapping analyses (Maris & Oostenveld, 2007)
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{time_sequence_data}: 
+}}
 

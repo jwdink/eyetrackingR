@@ -2,9 +2,14 @@
 % Please edit documentation in R/time_sequence_data.R
 \name{analyze_time_bins}
 \alias{analyze_time_bins}
+\alias{analyze_time_bins.time_sequence_data}
 \title{analyze_time_bins()}
 \usage{
 analyze_time_bins(data, ...)
+
+\method{analyze_time_bins}{time_sequence_data}(data, data_options,
+  predictor_column, test, threshold = NULL, alpha = 0.05, formula = NULL,
+  return_model = FALSE, quiet = FALSE, ...)
 }
 \arguments{
 \item{data}{The output of the 'make_time_sequence_data' function}
@@ -36,4 +41,8 @@ A dataframe indicating the results of the test at each time-bin.
 Runs a test on each time-bin of a time-analysis. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
 \code{lmer}
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{time_sequence_data}: 
+}}
 

@@ -22,10 +22,6 @@ make_time_sequence_data <- function (data,
                         predictor_columns = NULL,
                         summarize_by = NULL) {
 
-
-  require("dplyr", quietly=TRUE)
-  require("lazyeval", quietly = TRUE)
-
   if (is.null(aois)) aois = data_options$aoi_columns
 
   # For Multiple AOIs:
@@ -52,8 +48,8 @@ make_time_sequence_data <- function (data,
   # check that the last time bin has an appropriate amount of data inside it
   # (e.g., it's not just a couple of samples at the end of the trial)
   df_grouped <- group_by_(data, .dots = c("TimeBin", data_options$trial_column))
-  df_tb_sum <- summarise_(df_grouped, .dots = list(N = interp(~n_distinct(TIME), TIME = as.name(data_options$time_column))) )
-  df_tb_sum <- summarise(df_tb_sum, N = mean(N))
+  df_tb_sum <- summarize_(df_grouped, .dots = list(N = interp(~n_distinct(TIME), TIME = as.name(data_options$time_column))) )
+  df_tb_sum <- summarize(df_tb_sum, N = mean(N))
   too_small_tb <- df_tb_sum$N[which.max(df_tb_sum$TimeBin)] < median(df_tb_sum$N, na.rm=TRUE) / 3
   if (too_small_tb) warning("With the current time-bin size, the final time-bin is very small. ",
                             "Consider choosing a different time-bin size or using subset_by_window ",
@@ -100,6 +96,10 @@ make_time_sequence_data <- function (data,
 #'
 #' Runs a test on each time-bin of a time-analysis. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
 #' \code{lmer}
+analyze_time_bins = function(data, ...) {
+  UseMethod("analyze_time_bins")
+}
+#' @describeIn analyze_time_bins
 #'
 #' @param data   The output of the 'make_time_sequence_data' function
 #' @param data_options
@@ -115,9 +115,6 @@ make_time_sequence_data <- function (data,
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
 #'   var.equal, etc.)
 #' @return A dataframe indicating the results of the test at each time-bin.
-analyze_time_bins = function(data, ...) {
-  UseMethod("analyze_time_bins")
-}
 analyze_time_bins.time_sequence_data <- function(data,
                               data_options,
                               predictor_column,
@@ -143,10 +140,16 @@ analyze_time_bins.time_sequence_data <- function(data,
   }
 
   # Prelims:
-  if (!require("lme4")) {
-    if (test == "lmer") stop("Please install the 'lme4' package to use this method.")
+  if (!requireNamespace("pbapply", quietly = TRUE)) {
+    pblapply <- lapply
+    message("Install package 'pbapply' for a progress bar in this function.")
+  } else {
+    pblapply <- pbapply::pblapply
   }
   test <- match.arg(test, c("t.test","wilcox.test","lm","lmer"))
+  if (!requireNamespace("lme4", quietly = TRUE)) {
+    if (test == "lmer") stop("Please install and load the 'lme4' package to use this method.")
+  }
 
   # For Multiple aois:
   if (!'AOI' %in% colnames(data)) stop("'AOI' column is missing from data.")
@@ -300,7 +303,7 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
 
     g <- ggplot(df_plot, aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
       stat_summary(fun.y='mean', geom='line') +
-      stat_summary(fun.dat='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
+      stat_summary(fun.dat=mean_se, geom='ribbon', alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
       guides(color= guide_legend(title= predictor_column)) +
       xlab('Time in Trial')
@@ -309,7 +312,7 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
   } else {
     g <- ggplot(df_plot, aes_string(x = "Time", y=dv, group=predictor_column, color=predictor_column, fill=predictor_column)) +
       stat_summary(fun.y='mean', geom='line') +
-      stat_summary(fun.data='mean_cl_normal', geom='ribbon', mult=1, alpha=.2, colour=NA) +
+      stat_summary(fun.dat=mean_se, geom='ribbon', alpha=.2, colour=NA) +
       facet_wrap( ~ AOI) +
       xlab('Time in Trial')
     return(g)

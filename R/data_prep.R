@@ -85,8 +85,6 @@ verify_dataset <- function(data, data_options) {
 #' @return Subsetted data
 
 subset_by_window <- function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
-  require("dplyr", quietly = TRUE)
-  require("lazyeval", quietly = TRUE)
 
   # Prelims:
   time_col <- as.name(data_options$time_column)
@@ -146,8 +144,6 @@ subset_by_window <- function(data, data_options, window_start = -Inf, window_end
 #' @return A dataframe describing trackloss by-trial and by-participant
 
 trackloss_analysis <- function(data, data_options, window_start = -Inf, window_end = Inf) {
-  require("dplyr", quietly = TRUE)
-  require("lazyeval", quietly = TRUE)
 
   trackloss_col <- as.name(data_options$trackloss_column)
 
@@ -171,7 +167,7 @@ trackloss_analysis <- function(data, data_options, window_start = -Inf, window_e
 
   # Get Z-Scores:
   df_grouped <- group_by_(df_trackloss_by_ppt, .dots = list(data_options$participant_column, data_options$trial_column))
-  df_summarized <- summarise(df_grouped,
+  df_summarized <- summarize(df_grouped,
                              Samples = mean(TotalTrialLength, na.rm = TRUE),
                              TracklossSamples = mean(SumTracklossForTrial, na.rm = TRUE),
                              TracklossForTrial = mean(TracklossForTrial, na.rm = TRUE),
@@ -339,7 +335,7 @@ remove_trackloss <- function(data, data_options, delete_rows = FALSE) {
 #' Describe dataset
 #'
 #' Returns descriptive statistics about a column of choice. A simple wrapper around dplyr:group_by/
-#' dplyr::summarise that allows a quick glance at the data.
+#' dplyr::summarize that allows a quick glance at the data.
 #'
 #' @param data
 #' @param data_options
