@@ -1,9 +1,10 @@
 ---
 title: "A quick eyetrackingR Walkthrough"
 output:
-  html_document:
-  toc: true
+  pdf_document: default
+  html_document: null
   theme: null
+  toc: yes
 ---
   
 Analysis Timestamp:
