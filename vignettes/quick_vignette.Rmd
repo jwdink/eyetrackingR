@@ -15,7 +15,7 @@ date()
 ## Load dataset
 
 ```{r}
-load('../data/word-recognition.Rdata')
+load('../data/word_recognition.rda')
 ```
 
 ## Load and set data options for **eyetrackingR** library.
@@ -36,7 +36,7 @@ data_options = set_data_options(
 ## Verify state of each relevant column.
 
 ```{r}
-data <- verify_dataset(data, data_options)
+data <- verify_dataset(word_recognition, data_options)
 ```
 
 ## Deal with trackloss.
