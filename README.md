@@ -36,6 +36,6 @@ These vignettes will also be available on the project website, coming soon.
 
 ---
 
-Copyright (c) 2015, Jacob W. Dink and Brock Ferguson.
+Copyright (c) 2015, Jacob Dink and Brock Ferguson
 
 Released under the MIT License (see LICENSE for details)
