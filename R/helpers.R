@@ -1,6 +1,6 @@
 #' Prevent accidental plotting of data.frames whose class has been removed.
 #'
-#' Eyetracking R adds a plot method to most dataframes you can create with it.
+#' EyetrackingR adds a plot method to most dataframes you can create with it.
 #' Sometimes, the class of the dataframe can be removed, so that plot will
 #' not have the expected result. This ensures a warning is issued to the user.
 #' 
