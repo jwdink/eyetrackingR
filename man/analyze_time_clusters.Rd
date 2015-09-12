@@ -5,7 +5,7 @@
 \alias{analyze_time_clusters.time_cluster_data}
 \title{Bootstrap analysis of time-clusters.}
 \usage{
-analyze_time_clusters(data, data_options, ...)
+analyze_time_clusters(data, ...)
 
 \method{analyze_time_clusters}{time_cluster_data}(data, within_subj = FALSE,
   samples = 1000, formula = NULL, shuffle_by = NULL, ...)

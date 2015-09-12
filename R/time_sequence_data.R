@@ -32,11 +32,12 @@ make_time_sequence_data <- function (data,
       make_time_sequence_data(data, data_options, time_bin_size, this_aoi, predictor_columns, summarize_by)
     })
     out <- bind_rows(list_of_dfs)
-    attrs <- attr(out,"eyetrackingR")
-    new_attrs <- list(summarized_by = summarize_by)
-    attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
     out <- as.data.frame(out)
     class(out) <- c('time_sequence_data', class(out))
+    attr(out,"eyetrackingR") <- list(
+      data_options = data_options,
+      summarized_by = summarize_by,
+      time_bin_size = time_bin_size)
     return( out )
   }
 
@@ -83,12 +84,10 @@ make_time_sequence_data <- function (data,
 
   out <- as.data.frame(out)
   class(out) <- c('time_sequence_data', class(out))
-  attrs <- attr(out,"eyetrackingR")
-  new_attrs <- list(
+  attr(out,"eyetrackingR") <- list(
     data_options = data_options,
     summarized_by = summarize_by,
     time_bin_size = time_bin_size)
-  attr(out,"eyetrackingR") <- as.list(c(attrs, new_attrs))
   return(out)
 
 }
@@ -119,7 +118,6 @@ analyze_time_bins = function(data, ...) {
 #' @export
 #' @return A dataframe indicating the results of the test at each time-bin.
 analyze_time_bins.time_sequence_data <- function(data,
-                              data_options,
                               predictor_column,
                               test,
                               threshold = NULL,
@@ -143,6 +141,8 @@ analyze_time_bins.time_sequence_data <- function(data,
   }
 
   # Prelims:
+  data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   if (!requireNamespace("pbapply", quietly = TRUE)) {
     pblapply <- lapply
     message("Install package 'pbapply' for a progress bar in this function.")
@@ -162,11 +162,12 @@ analyze_time_bins.time_sequence_data <- function(data,
       if (!quiet) message("Analyzing ", this_aoi, "...")
       this_df <- filter(data, AOI == this_aoi)
       class(this_df) = class(data)
-      analyze_time_bins(data = this_df, data_options, predictor_column, test, threshold, alpha, formula, return_model, quiet, ...)
+      analyze_time_bins(data = this_df, predictor_column, test, threshold, alpha, formula, return_model, quiet, ...)
     })
     out <- bind_rows(list_of_dfs)
     out <- as.data.frame(out)
     class(out) = c('bin_analysis', class(out))
+    attr(out,"eyetrackingR") <- list(formula= formula)
     return( out )
   }
 
@@ -186,7 +187,8 @@ analyze_time_bins.time_sequence_data <- function(data,
   }
 
   # Run a model for each time-bin
-  paired <- list(...)[["paired"]]
+  cc <- match.call(expand.dots = TRUE)
+  paired <- cc[["paired"]]
   if (!quiet) message("Computing ", test, " for each time bin...")
   if (test=="lmer") {
     failsafe_test <- failwith(default = NA, f = lme4::lmer, quiet = quiet)
@@ -269,6 +271,7 @@ analyze_time_bins.time_sequence_data <- function(data,
   out <- as.data.frame(out)
   class(out) <- c('bin_analysis', class(out))
   attr(out,"eyetrackingR") <- list(formula= formula)
+  out = out[order(out$Time),] # arrange chronologically if not already
   out
 }
 

@@ -267,6 +267,10 @@ analyze_boot_splines.boot_splines_data <- function(data) {
   return(bootstrapped_data)
 }
 
+#' Summary Method for Bootstrapped Splines Analysis
+#' @param  data The output of the \code{boot_splines_data} function
+#' @export
+#' @return Prints a list of divergence-times.
 summary.boot_splines_analysis <- function(data) {
 
   # make sure there is the proper kind of data frame, and check its attributes
@@ -276,10 +280,11 @@ summary.boot_splines_analysis <- function(data) {
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
 
   # find divergences as runs of Significant == TRUE
-  divergences <- rle(c(FALSE,data$Significant))
+  divergences <- rle(c(FALSE,data$Significant)) # TO DO: this should probably list times start_first_bin -> end_last_bin,
+                                                # instead of current behavior of start_first_bin -> start_last_bin
 
   if (sum(divergences$values) == 0) {
-    return(NULL)
+    message("No Divergences.")
   }
   else {
     # convert to time ranges
@@ -291,7 +296,7 @@ summary.boot_splines_analysis <- function(data) {
                           ' - ',
                           divergences$timestamps[which(divergences$values == TRUE)])
 
-    cat("Divergences:\n")
+    message("Divergences:\n")
     cat(paste(divergences, collapse="\n"))
   }
 }

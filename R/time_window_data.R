@@ -29,11 +29,10 @@ make_time_window_data <- function(data,
       make_time_window_data(data, data_options, aois = this_aoi, predictor_columns, summarize_by)
     })
     out <- bind_rows(list_of_dfs)
-    attrs <- attr(out,"eyetrackingR")
-    new_attrs <- list(summarized_by = summarize_by)
-    attr(out,"eyetrackingR") = as.list(c(attrs, new_attrs))
     out <- as.data.frame(out)
-    class(out) = c('time_window_data', class(out))
+    class(out) <- c('time_window_data', class(out))
+    attr(out,"eyetrackingR") <- list(summarized_by = summarize_by,
+                                     data_options = data_options)
     return( out )
   }
 
@@ -54,10 +53,8 @@ make_time_window_data <- function(data,
 
   out <- as.data.frame(out)
   class(out) <- c('time_window_data', class(out))
-  attrs <- attr(out,"eyetrackingR")
-  new_attrs <- list(summarized_by = summarize_by,
-                   data_options = data_options)
-  attr(out,"eyetrackingR") <- as.list(c(attrs, new_attrs))
+  attr(out,"eyetrackingR") <- list(summarized_by = summarize_by,
+                                   data_options = data_options)
   return(out)
 
 }

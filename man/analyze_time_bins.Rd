@@ -7,17 +7,15 @@
 \usage{
 analyze_time_bins(data, ...)
 
-\method{analyze_time_bins}{time_sequence_data}(data, data_options,
-  predictor_column, test, threshold = NULL, alpha = 0.05, formula = NULL,
-  return_model = FALSE, quiet = FALSE, ...)
+\method{analyze_time_bins}{time_sequence_data}(data, predictor_column, test,
+  threshold = NULL, alpha = 0.05, formula = NULL, return_model = FALSE,
+  quiet = FALSE, ...)
 }
 \arguments{
 \item{data}{The output of the 'make_time_sequence_data' function}
 
 \item{...}{Any other arguments to be passed to the selected 'test' function (e.g., paired,
 var.equal, etc.)}
-
-\item{data_options}{}
 
 \item{predictor_column}{The variable whose test statistic you are interested in}
 
@@ -33,6 +31,8 @@ use \code{Prop ~ [predictor_column]}}
 
 \item{return_model}{In the returned dataframe, should a model be given for each time bin, or just the
 summary of those models?}
+
+\item{data_options}{}
 }
 \value{
 A dataframe indicating the results of the test at each time-bin.

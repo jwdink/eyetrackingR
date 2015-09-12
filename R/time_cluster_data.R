@@ -5,7 +5,7 @@
 #' statistic for each cluster, and compares it to the "null" distribution of sum statistics obtained by
 #' resampling data within the largest of the clusters.
 #' @export
-analyze_time_clusters <-function(data, data_options, ...) {
+analyze_time_clusters <-function(data, ...) {
   UseMethod("analyze_time_clusters")
 }
 #' @describeIn analyze_time_clusters
@@ -82,7 +82,9 @@ analyze_time_clusters.time_cluster_data <-function(data,
   } else {
     df_biggclust <- filter(df_biggclust, Cluster == which.min(attrs$clusters["SumStat",]))
   }
+  cat(dim(df_biggclust))
 
+  
   # Resample this data and get sum statistic each time, creating null distribution
   if (within_subj) {
 
@@ -120,7 +122,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
       # this gives a dataframe where the "condition" label has been resampled within each participant
       # run analyze time bins on it to get sum statistic for cluster
-      time_bin_summary_resampled <-analyze_time_bins(df_resampled, data_options,
+      time_bin_summary_resampled <-analyze_time_bins(df_resampled,
                                                      predictor_column = attrs$predictor_column,
                                                      test = attrs$test,
                                                      threshold = attrs$threshold,
@@ -156,7 +158,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
       # this gives a dataframe where the "condition" label has been resampled for participants
       # run analyze time bins on it to get sum statistic for cluster
-      time_bin_summary_resampled <-analyze_time_bins(df_resampled, data_options,
+      time_bin_summary_resampled <-analyze_time_bins(df_resampled,
                                                      predictor_column = attrs$predictor_column,
                                                      test = attrs$test,
                                                      threshold = attrs$threshold,
@@ -189,7 +191,11 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
 }
 
-summary.cluster_analysis <-print.cluster_analysis <- function(cl_analysis) {
+#' Summary Method for Cluster Analysis
+#' @param  data The output of the \code{analyze_clusters} function
+#' @export
+#' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
+summary.cluster_analysis <- function(cl_analysis) {
   clusters <- cl_analysis$clusters
   cat(
     "Test Type:\t", cl_analysis$test,
@@ -207,6 +213,12 @@ summary.cluster_analysis <-print.cluster_analysis <- function(cl_analysis) {
   )
   invisible(cl_analysis)
 }
+
+#' Print Method for Cluster Analysis
+#' @param  data The output of the \code{analyze_clusters} function
+#' @export
+#' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
+print.cluster_analysis <- summary.cluster_analysis
 
 #' Make data for cluster analysis.
 #'
@@ -251,6 +263,7 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
   }
 
   data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
 
   # Check Arg:
   if (is.null(threshold)) stop("This function requires a 'threshold' for each test. ",
@@ -270,7 +283,7 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
   }
 
   # Compute Time Bins:
-  time_bin_summary <- analyze_time_bins(data, data_options,
+  time_bin_summary <- analyze_time_bins(data,
                                        predictor_column = predictor_column,
                                        test = test,
                                        threshold = threshold,

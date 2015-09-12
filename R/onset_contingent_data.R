@@ -133,6 +133,7 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
   ## Prelims:
   attrs <- attr(data, "eyetrackingR")
   data_options <- attrs$data_options
+  if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   onset_attr <- attrs$onset_contingent
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
 
@@ -201,6 +202,7 @@ plot.switch_data <- function(data, predictor_columns=NULL) {
 
   ## Prelims:
   data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   if (length(predictor_columns) > 2) {
     stop("Maximum two predictor columns.")
   }
