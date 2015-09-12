@@ -341,6 +341,10 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
 
 }
 
+#' Summary Method for Cluster Analysis
+#' @param  data The output of the \code{analyze_clusters} function
+#' @export
+#' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
 summary.time_cluster_data <- function(data) {
   clusters <- attr(data, "eyetrackingR")$clusters
   if (length(clusters)==0) {
