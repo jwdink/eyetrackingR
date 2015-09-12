@@ -4,6 +4,7 @@
 #' function) and performs a bootstrapping analyses (Maris & Oostenveld, 2007). This analysis takes a summed
 #' statistic for each cluster, and compares it to the "null" distribution of sum statistics obtained by
 #' resampling data within the largest of the clusters.
+#' @export
 analyze_time_clusters <-function(data, data_options, ...) {
   UseMethod("analyze_time_clusters")
 }
@@ -212,7 +213,7 @@ summary.cluster_analysis <-print.cluster_analysis <- function(cl_analysis) {
 #' Takes data that has been summarized into time-bins by \code{make_time_sequence_data()}, finds adjacent time
 #' bins that pass some threshold of significance, and assigns these adjacent bins into groups (clusters).
 #' Output is ready for a bootstrapping analyses (Maris & Oostenveld, 2007)
-#'
+#' @export
 make_time_cluster_data <-function(data, ...) {
   UseMethod("make_time_cluster_data")
 }

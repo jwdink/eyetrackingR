@@ -2,6 +2,7 @@
 #'
 #' Bootstrap splines from \code{time_sequence_data()}. This creates a distribution from which a non-parametric
 #' analysis can be performed.
+#' @export
 make_boot_splines_data = function(data, ...) {
   UseMethod("make_boot_splines_data")
 }
@@ -189,6 +190,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
 #' Estimates a confidence interval over the difference between means (within- or between-subjects)
 #' from a \code{boot_splines_data} object. Confidence intervals are derived from the alpha
 #' used to shape the dataset (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
+#' @export
 analyze_boot_splines <- function(data) {
   UseMethod("analyze_boot_splines")
 }

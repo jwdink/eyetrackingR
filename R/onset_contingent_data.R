@@ -78,6 +78,7 @@ make_onset_data <- function(data, data_options, onset_time, fixation_window_leng
 #' Summarize data into time-to-switch from initial AOI.
 #'
 #' Take trials split by initial-AOI, and determine how quickly participants switch away from that AOI
+#' @export
 make_switch_data <- function(data, ...) {
   UseMethod("make_switch_data")
 }
