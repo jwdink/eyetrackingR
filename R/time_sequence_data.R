@@ -219,11 +219,13 @@ analyze_time_bins.time_sequence_data <- function(data,
   }
   if (test %in% c('t.test','wilcox.test')) {
     models_statistics <- sapply(tidied_models, function(x) ifelse('statistic' %in% names(x), x[,'statistic'], NA) )
+    models_estimates  <- sapply(tidied_models, function(x) ifelse('estimate' %in% names(x), x[,'estimate'], NA) )
+    models_std_err  <- sapply(tidied_models, function(x) ifelse('estimate' %in% names(x), x[,'std.error'], NA) )
   } else {
-    models_statistics <- sapply(tidied_models, function(x) {
+    model_row <- lapply(tidied_models, function(x) {
       which_row <- grep(pattern = predictor_column, x = x[['term']], fixed = TRUE) # look for partially matching param (for treatment coding)
       if (length(which_row)==1) {
-        return(x[which_row, 'statistic'])
+        return(x[which_row, ])
       } else {
         # too many matches? look for exact match (happens with continous predictor)
         which_row <- which(x[['term']] == predictor_column)
@@ -232,6 +234,9 @@ analyze_time_bins.time_sequence_data <- function(data,
         return(NA)
       }
     } )
+    models_statistics <- sapply(model_row, function(x) x[,"statistic"])
+    models_estimates  <- sapply(model_row, function(x) x[,"estimate"])
+    models_std_err    <- sapply(model_row, function(x) x[,"std.error"])
   }
 
 
@@ -261,10 +266,12 @@ analyze_time_bins.time_sequence_data <- function(data,
 
   # Return DataFrame:
   out <- data.frame(stringsAsFactors = FALSE,
-                   Statistic = models_statistics,
-                   CritStatisticPos = crit_pos,
-                   CritStatisticNeg = crit_neg,
-                   Time = unique(data$Time)) # same order as for loop that built models
+                    Estimate = models_estimates,
+                    StdErr = models_std_err,
+                    Statistic = models_statistics,
+                    CritStatisticPos = crit_pos,
+                    CritStatisticNeg = crit_neg,
+                    Time = unique(data$Time)) # same order as for loop that built models
   out$AOI <- data$AOI[1]
   if (return_model) out$Model <- models
 
@@ -332,20 +339,34 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
 }
 
 #' Plot test-statistic for each time-bin in a time-series
-#'
+#' 
 #' Plot the result from the \code{analyze_time_bins} function, with the statistic and threshold for each bin
-#'
+#' 
 #' @param data
-#'
+#' @param type Plot the test-statistic at each time bin ("statistic"), or the parameter estimate at each time
+#'   bin ("estimate")?
+#'   
 #' @export
 #' @return A ggplot object
-plot.bin_analysis <- function(data) {
-
-  ggplot(data = data) +
-    geom_line(mapping = aes(x = Time, y= Statistic)) +
-    geom_line(mapping = aes(x = Time, y= CritStatisticPos), linetype="dashed") +
-    geom_line(mapping = aes(x = Time, y= CritStatisticNeg), linetype="dashed") +
-    ylab("Statistic") +
-    xlab("Time") +
-    facet_wrap( ~ AOI)
+plot.bin_analysis <- function(data, type = "statistic") {
+  
+  type = match.arg(type, c("statistic", "estimate"))
+  
+  if (type == "statistic") {
+    ggplot(data = data) +
+      geom_line(mapping = aes(x = Time, y= Statistic)) +
+      geom_line(mapping = aes(x = Time, y= CritStatisticPos), linetype="dashed") +
+      geom_line(mapping = aes(x = Time, y= CritStatisticNeg), linetype="dashed") +
+      ylab("Statistic") +
+      xlab("Time") +
+      facet_wrap( ~ AOI)
+  } else {
+    ggplot(data = data, mapping = aes(x = Time, y= Estimate)) +
+      geom_line() +
+      geom_ribbon(mapping = aes(ymin = Estimate - StdErr, ymax = Estimate + StdErr), alpha=.33) + 
+      geom_hline(yintercept = 0, linetype="dashed") +
+      ylab("Parameter Estimate") +
+      xlab("Time") +
+      facet_wrap( ~ AOI)
+  }
 }

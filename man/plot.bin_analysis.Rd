@@ -4,10 +4,13 @@
 \alias{plot.bin_analysis}
 \title{Plot test-statistic for each time-bin in a time-series}
 \usage{
-\method{plot}{bin_analysis}(data)
+\method{plot}{bin_analysis}(data, type = "statistic")
 }
 \arguments{
 \item{data}{}
+
+\item{type}{Plot the test-statistic at each time bin ("statistic"), or the parameter estimate at each time
+  bin ("estimate")?}
 }
 \value{
 A ggplot object
