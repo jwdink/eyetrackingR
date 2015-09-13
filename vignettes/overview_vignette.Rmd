@@ -84,7 +84,7 @@ response_window$Target <- factor(response_window$Target)
 (data_summary <- describe_data(response_window, data_options, describe_column='Animate', group_columns=c('ParticipantName','Target')))
 
 # aggregate across trials within subjects in time analysis
-response_time <- make_time_sequence_data(response_window, data_options, time_bin_size = 250, 
+response_time <- make_time_sequence_data(response_window, data_options, time_bin_size = 100, 
                                  predictor_columns = c("Target"),
                                  aoi = c("Animate")
                             )

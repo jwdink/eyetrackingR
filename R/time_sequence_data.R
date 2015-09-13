@@ -222,7 +222,7 @@ analyze_time_bins.time_sequence_data <- function(data,
     models_estimates  <- sapply(tidied_models, function(x) ifelse('estimate' %in% names(x), x[,'estimate'], NA) )
     
     # no std. error provided, so grab it from CI
-    models_std_err  <- sapply(tidied_models, function(x) ifelse(sum(c('conf.low','conf.high') %in% names(x)) == 2, (conf.high-conf.low)/(1.96*2), NA) )
+    models_std_err  <- sapply(tidied_models, function(x) ifelse(sum(c('conf.low','conf.high') %in% names(x)) == 2, (x[,'conf.high']-x[,'conf.low'])/(1.96*2), NA) )
   } else {
     model_row <- lapply(tidied_models, function(x) {
       which_row <- grep(pattern = predictor_column, x = x[['term']], fixed = TRUE) # look for partially matching param (for treatment coding)
