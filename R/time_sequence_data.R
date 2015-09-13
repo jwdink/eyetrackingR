@@ -53,7 +53,7 @@ make_time_sequence_data <- function (data,
   df_tb_sum <- summarize_(df_grouped, .dots = list(N = interp(~n_distinct(TIME), TIME = as.name(data_options$time_column))) )
   df_tb_sum <- summarize(df_tb_sum, N = mean(N))
   too_small_tb <- df_tb_sum$N[which.max(df_tb_sum$TimeBin)] < median(df_tb_sum$N, na.rm=TRUE) / 3
-  if (too_small_tb) warning("With the current time-bin size, the final time-bin is very small. ",
+  if (too_small_tb) warning("With the current time-bin size, the final N of subjects in the last time-bin is very small. ",
                             "Consider choosing a different time-bin size or using subset_by_window ",
                             "to remove this portion of the trial.")
 
@@ -220,7 +220,9 @@ analyze_time_bins.time_sequence_data <- function(data,
   if (test %in% c('t.test','wilcox.test')) {
     models_statistics <- sapply(tidied_models, function(x) ifelse('statistic' %in% names(x), x[,'statistic'], NA) )
     models_estimates  <- sapply(tidied_models, function(x) ifelse('estimate' %in% names(x), x[,'estimate'], NA) )
-    models_std_err  <- sapply(tidied_models, function(x) ifelse('estimate' %in% names(x), x[,'std.error'], NA) )
+    
+    # no std. error provided, so grab it from CI
+    models_std_err  <- sapply(tidied_models, function(x) ifelse(sum(c('conf.low','conf.high') %in% names(x)) == 2, (conf.high-conf.low)/(1.96*2), NA) )
   } else {
     model_row <- lapply(tidied_models, function(x) {
       which_row <- grep(pattern = predictor_column, x = x[['term']], fixed = TRUE) # look for partially matching param (for treatment coding)
@@ -234,6 +236,7 @@ analyze_time_bins.time_sequence_data <- function(data,
         return(NA)
       }
     } )
+    
     models_statistics <- sapply(model_row, function(x) x[,"statistic"])
     models_estimates  <- sapply(model_row, function(x) x[,"estimate"])
     models_std_err    <- sapply(model_row, function(x) x[,"std.error"])
