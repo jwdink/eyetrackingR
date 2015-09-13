@@ -9,10 +9,12 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-## Load dataset
+## Load dataset and dependencies
 
 ```{r}
 load('../data/word_recognition.rda')
+
+library(ggplot2)
 ```
 
 ## Load and set data options for **eyetrackingR** library.
