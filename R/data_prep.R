@@ -100,6 +100,11 @@ verify_dataset <- function(data, data_options) {
 #' 
 #' @param data               Your original dataset
 #' @param data_options       Information about your data created by \code{set_data_options}.
+#' @param rezero             Should the beginning of the window be considered the zero point of the timestamp?
+#'   Default TRUE
+#' @param remove             Should everything before the beginning and after the end of the window be removed? 
+#'   Default TRUE. If set to FALSE and \code{rezero} is set to FALSE, an error is thrown (since in this case,
+#'   the function would not do anything).
 #' @param window_start_msg   For method (1). A message that is present only in the row whose time corresponds 
 #'   to the trial start time. Common for eyetrackers that send a message at trial/stimuli start.
 #' @param window_end_msg     For method (1). A message that is present only in the row whose time corresponds 
@@ -110,20 +115,16 @@ verify_dataset <- function(data, data_options) {
 #' @param window_end_col     For method (2). A column that gives the end time for each trial.
 #' @param window_start_time  For method (3). Number indicating a start time that applies to all trials.
 #' @param window_end_time    For method (3). Number indicating an end time that applies to all trials.
-#' @param rezero             Should the beginning of the window be considered the zero point of the timestamp?
-#'   Default TRUE
-#' @param remove             Should everything before the beginning and after the end of the window be removed? 
-#'   Default TRUE. If set to FALSE and \code{rezero} is set to FALSE, an error is thrown (since in this case,
-#'   the function would not do anything).
 #' @export
 #' @return Subsetted data
 
 subset_by_window <- function(data, data_options, 
+                             rezero = TRUE,
+                             remove = TRUE,
                              window_start_msg = NULL, window_end_msg = NULL, msg_col = NULL,
                              window_start_col = NULL, window_end_col = NULL,
-                             window_start_time= NULL, window_end_time= NULL,
-                             rezero = TRUE,
-                             remove = TRUE) {
+                             window_start_time= NULL, window_end_time= NULL
+                             ) {
   
   ## Helper:
   .safe_msg_checker = function(msg_vec, msg, time_vec, ppt_vec, trial_vec) {
@@ -131,8 +132,8 @@ subset_by_window <- function(data, data_options,
     if (length(which(bool)) != 1) {
       warning("The message ", msg, 
               " does not appear *exactly* one time for participant '", ppt_vec[1], 
-              "' and trial '", trial_vec[1], "'. Trial will be removed from dataset.")
-      return(NA)
+              "' on trial '", trial_vec[1], "'. Trial will be removed from dataset.")
+      return(Inf) # not returning NA due to bug (at time of writing) in dplyr
     }
     return(time_vec[bool])
   }
@@ -141,11 +142,11 @@ subset_by_window <- function(data, data_options,
   time_col <- as.name(data_options$time_column)
   ppt_col <- as.name(data_options$participant_column)
   trial_col <- as.name(data_options$trial_column)
-  if (!(rezero & remove)) stop("If both 'rezero' and 'remove' are FALSE, then this function doesn't do anything!")
+  if (!(rezero | remove)) stop("If both 'rezero' and 'remove' are FALSE, then this function doesn't do anything!")
   
   # Which method?
-  start_method_num <- !(sapply(c(window_start_msg, window_start_col, window_start_time), is.null))
-  stop_method_num <- !(sapply(c(window_end_msg, window_end_col, window_end_time), is.null))
+  start_method_num <- !(sapply(list(window_start_msg, window_start_col, window_start_time), is.null))
+  stop_method_num <- !(sapply(list(window_end_msg, window_end_col, window_end_time), is.null))
   if ( sum(start_method_num) > 1 | sum(stop_method_num) > 1 ) {
     stop("Please use exactly one of the methods for start/stop time (msg, column, or time).")
   }
@@ -153,6 +154,7 @@ subset_by_window <- function(data, data_options,
   # Start Time:
   if (which(start_method_num) == 1) {
     # Message:
+    data[[msg_col]] <- as.character(data[[msg_col]])
     if (!is.character(msg_col)) stop("Please enter a column name for the message column (in quotes).")
     data <- group_by_(.data = data,
                       .dots = list(data_options$participant_column, data_options$trial_column
@@ -167,6 +169,7 @@ subset_by_window <- function(data, data_options,
                                                        
                     ))
     data <- ungroup(data)
+    data$.WindowStart[which(is.infinite(data$.WindowStart))] <- NA # see note above
   } else if (which(start_method_num) == 2) {
     # Column:
     data$.WindowStart <- data[[window_start_col]]
@@ -180,12 +183,13 @@ subset_by_window <- function(data, data_options,
   # Stop Time:
   if (which(stop_method_num) == 1) {
     # Message:
+    data[[msg_col]] <- as.character(data[[msg_col]])
     if (!is.character(msg_col)) stop("Please enter a column name for the message column (in quotes).")
     data <- group_by_(.data = data,
                       .dots = list(data_options$participant_column, data_options$trial_column
                       ))
     data <- mutate_(data, 
-                    .dots = list(.WindowEnd   = interp(~safe_msg_checker(MSG_COL, STOP_MSG, TIME_COL, PPT_COL, TRIAL_COL), 
+                    .dots = list(.WindowEnd   = interp(~.safe_msg_checker(MSG_COL, STOP_MSG, TIME_COL, PPT_COL, TRIAL_COL), 
                                                        MSG_COL = as.name(msg_col), 
                                                        STOP_MSG = window_end_msg,
                                                        TIME_COL = time_col,
@@ -193,6 +197,7 @@ subset_by_window <- function(data, data_options,
                                                        TRIAL_COL = trial_col)
                     ))
     data <- ungroup(data)
+    data$.WindowEnd[which(is.infinite(data$.WindowEnd))] <- NA # see note above
   } else if (which(stop_method_num) == 2) {
     # Column:
     data$.WindowEnd <- data[[window_end_col]]
@@ -203,6 +208,8 @@ subset_by_window <- function(data, data_options,
     data$.WindowEnd <- Inf
   }
   
+  #
+  message("Avg. window length in new data will be ", round(mean(data$.WindowEnd - data$.WindowStart, na.rm=TRUE),2) )
   
   # Subset
   df_subsetted <- filter(.data = data,
@@ -219,8 +226,8 @@ subset_by_window <- function(data, data_options,
                             .dots = list(data_options$participant_column, data_options$trial_column
                             ))
     df_rezeroed <- mutate_(.data = df_grouped,
-                           .dots = list(.NewTimeStamp = interp(~TIME_COL - .WindowStart, TIME_COL = time_col)
-                           ))
+                           .dots = list(.NewTimeStamp = interp(~TIME_COL - .WindowStart, TIME_COL = time_col))
+                           )
     out <- ungroup(df_rezeroed)
     out[[data_options$time_column]] <- out[[".NewTimeStamp"]]
     out[[".NewTimeStamp"]] <- NULL
@@ -236,25 +243,19 @@ subset_by_window <- function(data, data_options,
 
 #' Analyze trackloss.
 #'
-#' Get information on trackloss in your data. This can be for the entire dataset, or for a specific time
-#' window within a trial
+#' Get information on trackloss in your data.
 #'
 #' @param data
 #' @param data_options
-#' @param window_start Number (for timestamp) or character (for column that specifies timestamp)
-#' @param window_end Number (for timestamp) or character (for column that specifies timestamp)
 #' @export
 #' @return A dataframe describing trackloss by-trial and by-participant
 
-trackloss_analysis <- function(data, data_options, window_start = -Inf, window_end = Inf) {
+trackloss_analysis <- function(data, data_options) {
 
   trackloss_col <- as.name(data_options$trackloss_column)
 
-  # Filter by Time-Window:
-  df_subsetted <- subset_by_window(data, data_options, window_start, window_end)
-
   # Get Trackloss-by-Trial:
-  df_grouped_trial <- group_by_(df_subsetted, .dots = list(data_options$participant_column, data_options$trial_column))
+  df_grouped_trial <- group_by_(data, .dots = list(data_options$participant_column, data_options$trial_column))
   df_trackloss_by_trial <- mutate_(df_grouped_trial,
                                    .dots = list(SumTracklossForTrial = interp(~sum(TRACKLOSS_COL, na.rm = TRUE), TRACKLOSS_COL = trackloss_col),
                                                 TotalTrialLength = interp(~length(TRACKLOSS_COL), TRACKLOSS_COL = trackloss_col),
@@ -283,29 +284,25 @@ trackloss_analysis <- function(data, data_options, window_start = -Inf, window_e
 
 #' Clean data by removing high-trackloss trials/subjects.
 #'
-#' Remove trials/participants with too much trackloss, with a customizable threshold. This can be for the
-#' entire dataset, or for a specific time window within a trial.
+#' Remove trials/participants with too much trackloss, with a customizable threshold.
 #'
 #' @param data
 #' @param data_options
 #' @param participant_prop_thresh Maximum proportion of trackloss for participants
 #' @param trial_prop_thresh Maximum proportion of trackloss for trials
-#' @param window_start Number (for timestamp) or character (for column that specifies timestamp)
-#' @param window_end Number (for timestamp) or character (for column that specifies timestamp)
 #' @export
 #' @return Cleaned data
 
 clean_by_trackloss <- function(data, data_options,
                               participant_prop_thresh = 1,
-                              trial_prop_thresh = 1,
-                              window_start = -Inf, window_end = Inf) {
+                              trial_prop_thresh = 1) {
 
   # Helpful Column:
   data$.TrialID <- paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
 
   # Trackloss Analysis:
   message("Performing Trackloss Analysis...")
-  tl <- trackloss_analysis(data, data_options, window_start, window_end)
+  tl <- trackloss_analysis(data, data_options)
 
   # Bad Trials:
   if (trial_prop_thresh < 1) {

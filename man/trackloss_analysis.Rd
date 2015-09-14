@@ -4,23 +4,17 @@
 \alias{trackloss_analysis}
 \title{Analyze trackloss.}
 \usage{
-trackloss_analysis(data, data_options, window_start = -Inf,
-  window_end = Inf)
+trackloss_analysis(data, data_options)
 }
 \arguments{
 \item{data}{}
 
 \item{data_options}{}
-
-\item{window_start}{Number (for timestamp) or character (for column that specifies timestamp)}
-
-\item{window_end}{Number (for timestamp) or character (for column that specifies timestamp)}
 }
 \value{
 A dataframe describing trackloss by-trial and by-participant
 }
 \description{
-Get information on trackloss in your data. This can be for the entire dataset, or for a specific time
-window within a trial
+Get information on trackloss in your data.
 }
 

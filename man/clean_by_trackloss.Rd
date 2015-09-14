@@ -5,7 +5,7 @@
 \title{Clean data by removing high-trackloss trials/subjects.}
 \usage{
 clean_by_trackloss(data, data_options, participant_prop_thresh = 1,
-  trial_prop_thresh = 1, window_start = -Inf, window_end = Inf)
+  trial_prop_thresh = 1)
 }
 \arguments{
 \item{data}{}
@@ -15,16 +15,11 @@ clean_by_trackloss(data, data_options, participant_prop_thresh = 1,
 \item{participant_prop_thresh}{Maximum proportion of trackloss for participants}
 
 \item{trial_prop_thresh}{Maximum proportion of trackloss for trials}
-
-\item{window_start}{Number (for timestamp) or character (for column that specifies timestamp)}
-
-\item{window_end}{Number (for timestamp) or character (for column that specifies timestamp)}
 }
 \value{
 Cleaned data
 }
 \description{
-Remove trials/participants with too much trackloss, with a customizable threshold. This can be for the
-entire dataset, or for a specific time window within a trial.
+Remove trials/participants with too much trackloss, with a customizable threshold.
 }
 

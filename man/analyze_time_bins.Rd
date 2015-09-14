@@ -38,8 +38,8 @@ summary of those models?}
 A dataframe indicating the results of the test at each time-bin.
 }
 \description{
-Runs a test on each time-bin of a time-analysis. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
-\code{lmer}
+Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
+\code{lmer}. Results can be plotted to see how test-results or parameters estimates vary over time.
 }
 \section{Methods (by class)}{
 \itemize{

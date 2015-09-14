@@ -61,6 +61,7 @@ make_onset_data <- function(data, data_options, onset_time, fixation_window_leng
          WhichAOI  = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
          SwitchAOI = FirstAOI != WhichAOI)
   out <- select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
+  if (mean(is.na(out$FirstAOI)) > .5) warning("Very few trials have a legitimate first AOI! Possible incorrect onset time?")
 
   # Assign class information:
   out <- as.data.frame(out)

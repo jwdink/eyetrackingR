@@ -38,53 +38,53 @@ data_options = set_data_options(
 data <- verify_dataset(word_recognition, data_options)
 ```
 
-## Deal with trackloss.
+## Subset data to examine "response" window, and deal with trackloss.
 
 We are going to:
 
+* Subset the data into the time window of interest
 * Treat looks outside of our AOI as if they are trackloss
 * Calculate the amount of trackloss in each trial
 * Remove trials with over 50% trackloss
 * Remove all remaining trackloss samples from our dataset (so that, in each sample, the toddler is looking either to one AOI or the other)
 
 ```{r}
+# subset to response window
+response_window <- subset_by_window(data, data_options, window_start_time = 15500, window_end_time = 21000, rezero = FALSE)
+
 # convert non-AOI looks to trackloss
-data <- convert_non_aoi_to_trackloss(data, data_options)
+response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
 
 # analyze amount of trackloss by subjects and trials
-trackloss <- trackloss_analysis(data, data_options, window_start = 15500, window_end = 21000)
+trackloss <- trackloss_analysis(data = response_window,
+                                data_options = data_options)
 
 # show trackloss
 trackloss
 
-data <- clean_by_trackloss(data,
-                           data_options, 
-                           trial_prop_thresh = .25,
-                           window_start = 15500,
-                           window_end = 21000)
+response_window_clean <- clean_by_trackloss(data = response_window,
+                                            data_options = data_options, 
+                                            trial_prop_thresh = .25)
 
 # remove all trackloss from remaining trials
-data <- remove_trackloss(data, data_options, delete_rows=TRUE)
+response_window_clean <- remove_trackloss(response_window_clean, data_options, delete_rows=TRUE)
 ```
 
-## Subset data to examine "response" window, and create "Target" condition based on TrialName
+## Create "Target" condition based on TrialName
 
 ```{r}
-# subset to response window
-response_window <- subset_by_window(data, data_options, window_start = 15500, window_end = 21000)
-
 # create "Target" condition column based on trial names
-response_window$Target <- ifelse(grepl('(Spoon|Bottle)', response_window$Trial), 'Inanimate', 'Animate')
-response_window$Target <- factor(response_window$Target)
+response_window_clean$Target <- ifelse(grepl('(Spoon|Bottle)', response_window_clean$Trial), 'Inanimate', 'Animate')
+response_window_clean$Target <- factor(response_window_clean$Target)
 ```
 
 ## Describe and visualize results
 
 ```{r}
-(data_summary <- describe_data(response_window, data_options, describe_column='Animate', group_columns=c('ParticipantName','Target')))
+(data_summary <- describe_data(response_window_clean, data_options, describe_column='Animate', group_columns=c('ParticipantName','Target')))
 
 # aggregate across trials within subjects in time analysis
-response_time <- make_time_sequence_data(response_window, data_options, time_bin_size = 100, 
+response_time <- make_time_sequence_data(response_window_clean, data_options, time_bin_size = 100, 
                                  predictor_columns = c("Target"),
                                  aoi = c("Animate")
                             )
@@ -95,7 +95,7 @@ plot(response_time, predictor_column = "Target") +
   coord_cartesian(ylim = c(0,1))
 
 # aggregate by subject across the response window
-response_window_agg_by_sub <- make_time_window_data(response_window, 
+response_window_agg_by_sub <- make_time_window_data(response_window_clean, 
                                              data_options, 
                                              aois='Animate', 
                                              predictor_columns=c('Target','Age','MCDI_Total'),
@@ -124,7 +124,7 @@ t.test(ArcSin ~ Target, data=response_window_agg_by_sub, paired=TRUE)
 
 ```{r}
 library("lme4")
-response_window_agg <- make_time_window_data(response_window, 
+response_window_agg <- make_time_window_data(response_window_clean, 
                                              data_options, 
                                              aois='Animate', 
                                              predictor_columns=c('Target','Age','MCDI_Total'))
@@ -162,14 +162,14 @@ ggplot(response_time, aes(x=Time, y=Elog, color=Target)) +
 
 ```{r}
 # recode AOIs to target & distractor
-response_window$TrialTarget <- 
-  ifelse(response_window$Target == 'Animate', response_window$Animate, response_window$Inanimate)
-response_window$TrialDistractor <- 
-  ifelse(response_window$Target == 'Animate', response_window$Inanimate, response_window$Animate)
+response_window_clean$TrialTarget <- 
+  ifelse(response_window_clean$Target == 'Animate', response_window_clean$Animate, response_window_clean$Inanimate)
+response_window_clean$TrialDistractor <- 
+  ifelse(response_window_clean$Target == 'Animate', response_window_clean$Inanimate, response_window_clean$Animate)
 
-onsets <- make_onset_data(response_window, data_options, onset_time = 15500, fixation_window_length = 100, target_aoi='TrialTarget')
+onsets <- make_onset_data(response_window_clean, data_options, onset_time = 15500, fixation_window_length = 100, target_aoi='TrialTarget')
 
-plot.onset_data(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=5))
+plot(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=5))
 
 # compare switch times
 onset_switches <- make_switch_data(onsets, predictor_columns = "Target")
@@ -217,7 +217,7 @@ Perform a different type of bootstrapping analyses (Maris & Oostenveld, 2007), s
 This type of analysis should often give similar results to the above, with the main advantage is that it can be used with several types of statistical techniques (t.test, wilcox.test, lm, and lmer), so that continuous predictors, covariates, etc. can be included in the model being tested; and the main disadvantage is that it is slower.
 
 ```{r}
-response_time_by_subj <- make_time_sequence_data(response_window, data_options, time_bin_size = 225, 
+response_time_by_subj <- make_time_sequence_data(response_window_clean, data_options, time_bin_size = 225, 
                                  predictor_columns = c("Target"),
                                  aois = c("Animate"), 
                                  summarize_by = "ParticipantName"
