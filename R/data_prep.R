@@ -73,47 +73,146 @@ verify_dataset <- function(data, data_options) {
 }
 
 #' Extract a subset of the dataset within a time-window in each trial.
-#'
-#' Extract a subset of the dataset, where each trial falls inside a time-window.
-#' Time-window can either be specifed by a number (for a timestamp across all trials) or
-#' by a column which picks out a timestamp for each participant/trial
-#'
-#' @param data
-#' @param data_options
-#' @param window_start Number (for timestamp) or character (for column that specifies timestamp)
-#' @param window_end Number (for timestamp) or character (for column that specifies timestamp)
-#' @param rezero Should the beginning of the window be considered the zero point of the timestamp?
-#'  Default TRUE when window_start is column, FALSE when window_start is number
+#' 
+#' One of the more annoying aspects of preparing raw eyetracking data is filtering data down into the relevant
+#' window within the trial, since for many experiments the precise start and end time of this window can vary 
+#' from trial to trial. This function allows for several approaches to subsetting data into the relevant time-
+#' window.
+#' 
+#' (1) The trial start/end times can be indicated by a message that is sent (e.g., TRIAL_START) in a 
+#' particular row for each trial. In this case, the timestamp of that row is used.
+#' 
+#' (2) The trial start/end times can be indicated in by a column that specifies trial start/end times for each
+#' trial.
+#' 
+#' (3) The trial start/end times can be indicated by the actual start and stop time, the same across all
+#' trials (the simplest case).
+#' 
+#' If you only have a start time but the end time doesn't need adjusting, then leave the end time arg blank;
+#' and vice versa.
+#' 
+#' This function can either rezero your data (the trial start time you select is the new zero-time-point), or 
+#' not. The former is useful when performing initial data-cleaning (e.g., different trial-starts on each 
+#' trial, as indicated by a message), and the latter is useful if you want to "zoom in" on a particular 
+#' portion of your data while keeping obvious the fact that there were other parts of the trial (e.g., an 
+#' image always appears 5000ms-7000ms in the trial, so for one analysis you are only interested in this 
+#' portion).
+#' 
+#' @param data               Your original dataset
+#' @param data_options       Information about your data created by \code{set_data_options}.
+#' @param window_start_msg   For method (1). A message that is present only in the row whose time corresponds 
+#'   to the trial start time. Common for eyetrackers that send a message at trial/stimuli start.
+#' @param window_end_msg     For method (1). A message that is present only in the row whose time corresponds 
+#'   to the trial end time. Common for eyetrackers that send a message at trial-end/keypress/lookaway/etc.
+#' @param msg_col            For method (1). If you are indicating the trial start/end with a message column,
+#'   this is the name of that column.
+#' @param window_start_col   For method (2). A column that gives the start time for each trial.
+#' @param window_end_col     For method (2). A column that gives the end time for each trial.
+#' @param window_start_time  For method (3). Number indicating a start time that applies to all trials.
+#' @param window_end_time    For method (3). Number indicating an end time that applies to all trials.
+#' @param rezero             Should the beginning of the window be considered the zero point of the timestamp?
+#'   Default TRUE
+#' @param remove             Should everything before the beginning and after the end of the window be removed? 
+#'   Default TRUE. If set to FALSE and \code{rezero} is set to FALSE, an error is thrown (since in this case,
+#'   the function would not do anything).
 #' @export
 #' @return Subsetted data
 
-subset_by_window <- function(data, data_options, window_start = -Inf, window_end = Inf, rezero = NULL) {
-
+subset_by_window <- function(data, data_options, 
+                             window_start_msg = NULL, window_end_msg = NULL, msg_col = NULL,
+                             window_start_col = NULL, window_end_col = NULL,
+                             window_start_time= NULL, window_end_time= NULL,
+                             rezero = TRUE,
+                             remove = TRUE) {
+  
+  ## Helper:
+  .safe_msg_checker = function(msg_vec, msg, time_vec, ppt_vec, trial_vec) {
+    bool = (msg_vec==msg)
+    if (length(which(bool)) != 1) {
+      warning("The message ", msg, 
+              " does not appear *exactly* one time for participant '", ppt_vec[1], 
+              "' and trial '", trial_vec[1], "'. Trial will be removed from dataset.")
+      return(NA)
+    }
+    return(time_vec[bool])
+  }
+  
   # Prelims:
   time_col <- as.name(data_options$time_column)
-
-  # Window Start:
-  if (is.character(window_start)) {
-    data$.WindowStart <- data[[window_start]]
-    if (is.null(rezero))
-      rezero <- TRUE
-  } else {
-    data$.WindowStart <- window_start
-    if (is.null(rezero))
-      rezero <- FALSE
+  ppt_col <- as.name(data_options$participant_column)
+  trial_col <- as.name(data_options$trial_column)
+  if (!(rezero & remove)) stop("If both 'rezero' and 'remove' are FALSE, then this function doesn't do anything!")
+  
+  # Which method?
+  start_method_num <- !(sapply(c(window_start_msg, window_start_col, window_start_time), is.null))
+  stop_method_num <- !(sapply(c(window_end_msg, window_end_col, window_end_time), is.null))
+  if ( sum(start_method_num) > 1 | sum(stop_method_num) > 1 ) {
+    stop("Please use exactly one of the methods for start/stop time (msg, column, or time).")
   }
-
-  # Window End:
-  if (is.character(window_end)) {
-    data$.WindowEnd <- data[[window_end]]
+  
+  # Start Time:
+  if (which(start_method_num) == 1) {
+    # Message:
+    if (!is.character(msg_col)) stop("Please enter a column name for the message column (in quotes).")
+    data <- group_by_(.data = data,
+                      .dots = list(data_options$participant_column, data_options$trial_column
+                      ))
+    data <- mutate_(data, 
+                    .dots = list(.WindowStart = interp(~.safe_msg_checker(MSG_COL, START_MSG, TIME_COL, PPT_COL, TRIAL_COL), 
+                                                       MSG_COL = as.name(msg_col), 
+                                                       START_MSG = window_start_msg,
+                                                       TIME_COL = time_col,
+                                                       PPT_COL = ppt_col,
+                                                       TRIAL_COL = trial_col)
+                                                       
+                    ))
+    data <- ungroup(data)
+  } else if (which(start_method_num) == 2) {
+    # Column:
+    data$.WindowStart <- data[[window_start_col]]
+  } else if (which(start_method_num) == 3) {
+    # Single Number:
+    data$.WindowStart <- window_start_time
   } else {
-    data$.WindowEnd <- window_end
+    data$.WindowStart <- -Inf
   }
-
+  
+  # Stop Time:
+  if (which(stop_method_num) == 1) {
+    # Message:
+    if (!is.character(msg_col)) stop("Please enter a column name for the message column (in quotes).")
+    data <- group_by_(.data = data,
+                      .dots = list(data_options$participant_column, data_options$trial_column
+                      ))
+    data <- mutate_(data, 
+                    .dots = list(.WindowEnd   = interp(~safe_msg_checker(MSG_COL, STOP_MSG, TIME_COL, PPT_COL, TRIAL_COL), 
+                                                       MSG_COL = as.name(msg_col), 
+                                                       STOP_MSG = window_end_msg,
+                                                       TIME_COL = time_col,
+                                                       PPT_COL = ppt_col,
+                                                       TRIAL_COL = trial_col)
+                    ))
+    data <- ungroup(data)
+  } else if (which(stop_method_num) == 2) {
+    # Column:
+    data$.WindowEnd <- data[[window_end_col]]
+  } else if (which(stop_method_num) == 3) {
+    # Single Number:
+    data$.WindowEnd <- window_end_time
+  } else {
+    data$.WindowEnd <- Inf
+  }
+  
+  
   # Subset
-  df_subsetted <- filter_(.data = data,
+  df_subsetted <- filter(.data = data,
+                         !is.na(.WindowEnd),
+                         !is.na(.WindowStart))
+  if (remove) {
+    df_subsetted <- filter_(.data = df_subsetted,
                           .dots = list(interp(~TIME_COL >= .WindowStart & TIME_COL <= .WindowEnd, TIME_COL = time_col)))
-
+  } 
+  
   # Rezero
   if (rezero) {
     df_grouped <- group_by_(.data = df_subsetted,

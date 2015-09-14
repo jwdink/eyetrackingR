@@ -95,8 +95,8 @@ make_time_sequence_data <- function (data,
 
 #' analyze_time_bins()
 #'
-#' Runs a test on each time-bin of a time-analysis. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
-#' \code{lmer}
+#' Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
+#' \code{lmer}. Results can be plotted to see how test-results or parameters estimates vary over time.
 #' @export
 analyze_time_bins = function(data, ...) {
   UseMethod("analyze_time_bins")
