@@ -53,8 +53,9 @@ make_time_sequence_data <- function (data,
   df_tb_sum <- summarize_(df_grouped, .dots = list(N = interp(~n_distinct(TIME), TIME = as.name(data_options$time_column))) )
   df_tb_sum <- summarize(df_tb_sum, N = mean(N))
   too_small_tb <- df_tb_sum$N[which.max(df_tb_sum$TimeBin)] < median(df_tb_sum$N, na.rm=TRUE) / 3
-  if (too_small_tb) warning("With the current time-bin size, the final N of subjects in the last time-bin is very small. ",
-                            "Consider choosing a different time-bin size or using subset_by_window ",
+  if (too_small_tb) warning("With the current time-bin size, the final time-bin has a much smaller number of ",
+                            "distinct samples than the other time-bins. ",
+                            "Consider choosing a different time-bin size or using 'subset_by_window' ",
                             "to remove this portion of the trial.")
 
   # Make Summary
