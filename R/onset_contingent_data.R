@@ -138,7 +138,7 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
 
   # set smoothing_window_size based on fixation_window_length in attr's
-  smoothing_window_size <- onset_attr$fixation_window_length / 5
+  smoothing_window_size <- onset_attr$fixation_window_length / 4
 
   # clean out unknown first AOIs:
   df_clean <- data[ !is.na(data[["FirstAOI"]]) , ]
@@ -180,7 +180,8 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
     geom_ribbon(aes(ymin= Min, ymax= Max), fill= "gray", alpha= .2, colour= NA) +
     coord_cartesian(xlim=c(onset_attr$onset_time, max(df_graph$.Time) )) +
     ylab("Proportion Switch Looking") +
-    xlab("Time")
+    xlab("Time") +
+    guides(colour=FALSE)
 
   ## Add Facets for Conditions:
   if (length(predictor_columns)>1) return(g+facet_grid(as.formula(paste(predictor_columns, collapse="~"))))
@@ -225,7 +226,8 @@ plot.switch_data <- function(data, predictor_columns=NULL) {
     geom_point(position = position_jitter(.1)) +
     coord_flip() +
     ylab("Mean Switch Time") +
-    xlab("Onset AOI")
+    xlab("Onset AOI") +
+    guides(colour=FALSE)
 
   ## Add Facets for Conditions:
   if (length(predictor_columns)>1) return(g+facet_grid(as.formula(paste(predictor_columns, collapse="~"))))

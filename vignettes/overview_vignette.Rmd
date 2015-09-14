@@ -90,7 +90,9 @@ response_time <- make_time_sequence_data(response_window, data_options, time_bin
                             )
 
 # visualize time results
-plot(response_time, predictor_column = "Target")
+plot(response_time, predictor_column = "Target") + 
+  ylab("Proportion Looking to Animate") + theme_light() +
+  coord_cartesian(ylim = c(0,1))
 
 # aggregate by subject across the response window
 response_window_agg_by_sub <- make_time_window_data(response_window, 
@@ -167,12 +169,12 @@ response_window$TrialDistractor <-
 
 onsets <- make_onset_data(response_window, data_options, onset_time = 15500, fixation_window_length = 100, target_aoi='TrialTarget')
 
-plot(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=5))
+plot.onset_data(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=5))
 
 # compare switch times
 onset_switches <- make_switch_data(onsets, predictor_columns = "Target")
 
-plot(onset_switches, predictor_columns = "Target") + theme(legend.position="none")
+plot(onset_switches, predictor_columns = "Target") 
 
 # center predictor:
 onset_switches$FirstAOIC <- ifelse(onset_switches$FirstAOI == 'TrialTarget', .5, -.5)
@@ -225,10 +227,11 @@ df_timeclust = make_time_cluster_data(response_time_by_subj,
                                       test= "t.test", paired = TRUE,
                                       predictor_column = "Target", 
                                       threshold = 2.5) # <--- just to make things more challenging
-plot(df_timeclust) 
+plot(df_timeclust) +
+  ylab("T-Statistic")
 summary(df_timeclust)
 
-clust_analysis = analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=100)
+clust_analysis = analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=500)
 clust_analysis
 
 plot(clust_analysis) 

@@ -325,20 +325,19 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
     g <- ggplot(df_plot, aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.dat=mean_se, geom='ribbon', alpha=.2, colour=NA) +
-      facet_wrap( ~ AOI) +
       guides(color= guide_legend(title= predictor_column)) +
       xlab('Time in Trial')
-    return(g)
-
+    if (length(unique(df_plot$AOI))>1) g <- g + facet_wrap( ~ AOI)
   } else {
     g <- ggplot(df_plot, aes_string(x = "Time", y=dv, group=predictor_column, color=predictor_column, fill=predictor_column)) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.dat=mean_se, geom='ribbon', alpha=.2, colour=NA) +
-      facet_wrap( ~ AOI) +
       xlab('Time in Trial')
-    return(g)
+    if (length(unique(df_plot$AOI))>1) g <- g + facet_wrap( ~ AOI)
   }
-
+  
+  return(g)
+  
 }
 
 #' Plot test-statistic for each time-bin in a time-series
@@ -356,20 +355,21 @@ plot.bin_analysis <- function(data, type = "statistic") {
   type = match.arg(type, c("statistic", "estimate"))
   
   if (type == "statistic") {
-    ggplot(data = data) +
+    g <- ggplot(data = data) +
       geom_line(mapping = aes(x = Time, y= Statistic)) +
       geom_line(mapping = aes(x = Time, y= CritStatisticPos), linetype="dashed") +
       geom_line(mapping = aes(x = Time, y= CritStatisticNeg), linetype="dashed") +
       ylab("Statistic") +
-      xlab("Time") +
-      facet_wrap( ~ AOI)
+      xlab("Time") 
+    if (length(unique(data$AOI))>1) g <- g + facet_wrap( ~ AOI)
   } else {
-    ggplot(data = data, mapping = aes(x = Time, y= Estimate)) +
+    g <- ggplot(data = data, mapping = aes(x = Time, y= Estimate)) +
       geom_line() +
       geom_ribbon(mapping = aes(ymin = Estimate - StdErr, ymax = Estimate + StdErr), alpha=.33) + 
       geom_hline(yintercept = 0, linetype="dashed") +
       ylab("Parameter Estimate") +
-      xlab("Time") +
-      facet_wrap( ~ AOI)
+      xlab("Time") 
+    if (length(unique(data$AOI))>1) g <- g + facet_wrap( ~ AOI)
   }
+  return(g)
 }

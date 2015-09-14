@@ -106,16 +106,17 @@ plot.time_window_data <- function(data, predictor_columns, dv = "Prop") {
 
   # Plot:
   if ( is.numeric(df_summarized[[x_axis_column]]) ) {
-    ggplot(df_summarized, aes_string(x = x_axis_column, y = dv, group= group_var, color= color_var)) +
+    g <- ggplot(df_summarized, aes_string(x = x_axis_column, y = dv, group= group_var, color= color_var)) +
       geom_point() +
-      stat_smooth(method="lm") +
-      facet_wrap( ~ AOI)
+      stat_smooth(method="lm")
+    if (length(unique(df_summarized$AOI))>1) g <- g + facet_wrap( ~ AOI)
   } else {
-    ggplot(df_summarized, aes_string(x = x_axis_column, y = dv, group= group_var, color= color_var)) +
+    g <- ggplot(df_summarized, aes_string(x = x_axis_column, y = dv, group= group_var, color= color_var)) +
       geom_point(position = position_jitter(width = .025, height=0), alpha= .75) +
       stat_summary(fun.y = mean, geom='line') +
-      stat_summary(fun.dat = mean_cl_boot) +
-      facet_wrap( ~ AOI)
+      stat_summary(fun.dat = mean_cl_boot)
+      if (length(unique(df_summarized$AOI))>1) g <- g + facet_wrap( ~ AOI)
   }
+  return(g)
 
 }
