@@ -72,6 +72,63 @@ verify_dataset <- function(data, data_options) {
   return(out)
 }
 
+#' Add an area-of-interest to your dataset, based on x-y coordinates and the AOI rectangle.
+#' 
+#' Takes two dataframes: (1) your original data, (2) a dataframe specifying the bounding box for the AOI. The 
+#' latter can specify a different bounding box for each trial, each subject, each image, or even each
+#' video-frame-- anything you like. The two dataframes are simply joined by matching any columns they have in
+#' common (case sensitive!)
+#' 
+#' @param data Your data
+#' @param aoi_dataframe A dataframe specifying the bounding-box for the AOI
+#' @param x_col, y_col What are the column names for the x and y coordinates in your dataset?
+#' @param aoi_name What is the name of this AOI?
+#' @param x_min_col, x_max_col What are the column names for the left and right edge of the AOI-bounding box?
+#'   Default "L","R"
+#' @param y_min_col, y_max_col What are the column names for the top and bottom edge of the AOI-bounding box?
+#'   Default "T","B"
+#' @export
+#' @return Dataset with a new column indicating whether gaze is in the AOI
+add_aoi <- function(data, aoi_dataframe,
+                     x_col, y_col,
+                     aoi_name,
+                     xmin_col = "L", xmax_col = "R",
+                     ymin_col = "T", ymax_col = "B"
+) {
+  
+  ## Helper
+  .inside_rect = function(pt, ltrb) {
+    if (is.null(dim(pt))) {
+      pt = as.matrix(pt)
+      pt = t(pt)
+    }
+    if (is.null(dim(ltrb))) {
+      ltrb = as.matrix(ltrb)
+      ltrb = t(ltrb)
+    }
+    if (dim(pt)[2]   != 2) stop('First argument should be a vector of length 2 or an n-by-2 matrix')
+    if (dim(ltrb)[2] != 4) stop('Second argument should be a vector of length 4 or an n-by-4 matrix')
+    
+    return(
+      pt[,1] >= ltrb[,1] &
+      pt[,1] <= ltrb[,3] &
+      pt[,2] >= ltrb[,2] &
+      pt[,2] <= ltrb[,4] 
+    )
+  }
+  
+  ## Join AOI info to dataset
+  df_joined <- left_join(data, aoi_dataframe)
+  
+  ## Make AOI column
+  data[[aoi_name]] <- .inside_rect(pt    = cbind(df_joined[[x_col]], df_joined[[y_col]]),
+                                   ltrb  = cbind(df_joined[[xmin_col]], df_joined[[ymin_col]], df_joined[[xmax_col]], df_joined[[ymax_col]])
+  )
+  
+  return(data)
+}
+
+
 #' Extract a subset of the dataset within a time-window in each trial.
 #' 
 #' One of the more annoying aspects of preparing raw eyetracking data is filtering data down into the relevant
