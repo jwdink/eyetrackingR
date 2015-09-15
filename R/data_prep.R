@@ -74,10 +74,17 @@ verify_dataset <- function(data, data_options) {
 
 #' Add an area-of-interest to your dataset, based on x-y coordinates and the AOI rectangle.
 #' 
-#' Takes two dataframes: (1) your original data, (2) a dataframe specifying the bounding box for the AOI. The 
-#' latter can specify a different bounding box for each trial, each subject, each image, or even each
-#' video-frame-- anything you like. The two dataframes are simply joined by matching any columns they have in
-#' common (case sensitive!)
+#' Eyetracking-R requires that there is a column for each area-of-interest, specifying whether the gaze is 
+#' within that area for each sample. This function creates an AOI column if needed.
+#' 
+#' Many eyetracking software packages export your data with a column corresponding to each AOI; however, if
+#' your software does not do this, or if you had to define or revise your AOIs after running the experiment,
+#' then this function will add the necessary AOI columns for you. The function takes two dataframes: (1) your
+#' original data, (2) a dataframe specifying the bounding box for the AOI. The latter can specify a different
+#' bounding box for each trial, each subject, each image, or even each video-frame-- anything you like. The
+#' two dataframes are simply joined by matching any columns they have in common (case sensitive!), so if
+#' there's a unique AOI for each "Trial" in the \code{aoi_dataframe}, and there's a "Trial" column in the
+#' \code{data} dataframe, then the unique AOI coordinates for each trial will be used.
 #' 
 #' @param data Your data
 #' @param aoi_dataframe A dataframe specifying the bounding-box for the AOI
@@ -134,7 +141,7 @@ add_aoi <- function(data, aoi_dataframe,
 #' One of the more annoying aspects of preparing raw eyetracking data is filtering data down into the relevant
 #' window within the trial, since for many experiments the precise start and end time of this window can vary 
 #' from trial to trial. This function allows for several approaches to subsetting data into the relevant time-
-#' window.
+#' window-- see 'Details' below.
 #' 
 #' (1) The trial start/end times can be indicated by a message that is sent (e.g., TRIAL_START) in a 
 #' particular row for each trial. In this case, the timestamp of that row is used.
@@ -517,8 +524,8 @@ describe_data <- function(data, data_options = NULL, describe_column, group_colu
   summarize_expr <- list(Mean = interp( ~mean(DV_COL, na.rm=TRUE),     DV_COL = as.name(describe_column) ),
                        SD   = interp( ~sd(DV_COL, na.rm=TRUE),       DV_COL = as.name(describe_column) ),
                        Var  = interp( ~var(DV_COL, na.rm=TRUE),      DV_COL = as.name(describe_column) ),
-                       Min  = interp( ~mean(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) ),
-                       Max  = interp( ~mean(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) )
+                       Min  = interp( ~min(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) ),
+                       Max  = interp( ~max(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) )
   )
   if (data_options$trial_column %in% colnames(data)) summarize_expr$NumTrials = interp( ~n_distinct(TRIAL_COL), TRIAL_COL = as.name(data_options$trial_column))
 

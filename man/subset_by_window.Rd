@@ -45,7 +45,7 @@ Subsetted data
 One of the more annoying aspects of preparing raw eyetracking data is filtering data down into the relevant
 window within the trial, since for many experiments the precise start and end time of this window can vary
 from trial to trial. This function allows for several approaches to subsetting data into the relevant time-
-window.
+window-- see 'Details' below.
 }
 \details{
 (1) The trial start/end times can be indicated by a message that is sent (e.g., TRIAL_START) in a

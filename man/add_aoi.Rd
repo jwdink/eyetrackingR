@@ -26,9 +26,17 @@ Default "T","B"}
 Dataset with a new column indicating whether gaze is in the AOI
 }
 \description{
-Takes two dataframes: (1) your original data, (2) a dataframe specifying the bounding box for the AOI. The
-latter can specify a different bounding box for each trial, each subject, each image, or even each
-video-frame-- anything you like. The two dataframes are simply joined by matching any columns they have in
-common (case sensitive!)
+Eyetracking-R requires that there is a column for each area-of-interest, specifying whether the gaze is
+within that area for each sample. This function creates an AOI column if needed.
+}
+\details{
+Many eyetracking software packages export your data with a column corresponding to each AOI; however, if
+your software does not do this, or if you had to define or revise your AOIs after running the experiment,
+then this function will add the necessary AOI columns for you. The function takes two dataframes: (1) your
+original data, (2) a dataframe specifying the bounding box for the AOI. The latter can specify a different
+bounding box for each trial, each subject, each image, or even each video-frame-- anything you like. The
+two dataframes are simply joined by matching any columns they have in common (case sensitive!), so if
+there's a unique AOI for each "Trial" in the \code{aoi_dataframe}, and there's a "Trial" column in the
+\code{data} dataframe, then the unique AOI coordinates for each trial will be used.
 }
 
