@@ -305,6 +305,7 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
   summarize_arg <- list(interp(~mean(DV, na.rm=TRUE), DV = as.name(dv)))
   names(summarize_arg) <- dv
   df_plot <- summarize_(df_plot, .dots = summarize_arg)
+  df_plot$AOI <- paste("AOI: ", df_plot$AOI) # for facetting
 
   ## Check condition predictor
   if ( length(predictor_column) > 1 ) {
@@ -328,13 +329,17 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
       stat_summary(fun.dat=mean_se, geom='ribbon', alpha=.2, colour=NA) +
       guides(color= guide_legend(title= predictor_column)) +
       xlab('Time in Trial')
-    if (length(unique(df_plot$AOI))>1) g <- g + facet_wrap( ~ AOI)
+    if (length(unique(df_plot$AOI))>1) {
+      g <- g + facet_wrap( ~ AOI)
+    }
   } else {
     g <- ggplot(df_plot, aes_string(x = "Time", y=dv, group=predictor_column, color=predictor_column, fill=predictor_column)) +
       stat_summary(fun.y='mean', geom='line') +
       stat_summary(fun.dat=mean_se, geom='ribbon', alpha=.2, colour=NA) +
       xlab('Time in Trial')
-    if (length(unique(df_plot$AOI))>1) g <- g + facet_wrap( ~ AOI)
+    if (length(unique(df_plot$AOI))>1) {
+      g <- g + facet_wrap( ~ AOI)
+    }
   }
   
   return(g)

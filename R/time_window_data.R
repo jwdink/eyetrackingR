@@ -60,24 +60,31 @@ make_time_window_data <- function(data,
 }
 
 #' Plot a time-window dataset
-#'
-#' Plots the data returned from make_time_window_data. Data are collapsed by-participants for plotting.
-#'
+#' 
+#' Plots the data returned from make_time_window_data. Data can be plotted against (up to two)
+#' predictor columns. If no predictor columns are supplied, AOI is placed on the x-axis; otherwise,
+#' data for each AOI is set in a separate facet.
+#' 
+#' Data are collapsed by-participants for plotting.
+#' 
 #' @param data The data returned by make_time_window_data()
-#' @param predictor_columns Up to two columns indicating predictors. The first maps to the X-axis, the second
-#'  to group/color. If the latter is numeric, a median split is performed.
-#' @param dv  Which dv should be used in plotting? Raw proportion-looking ("Prop"), empirical logit ("Elog"),
-#'  or "ArcSin"?
+#' @param predictor_columns Up to two columns indicating predictors. The first maps to the X-axis,
+#'   the second to group/color. If the latter is numeric, a median split is performed.
+#' @param dv  Which dv should be used in plotting? Raw proportion-looking ("Prop"), empirical logit
+#'   ("Elog"), or "ArcSin"?
 #' @export
 #' @return A ggplot object
 
-plot.time_window_data <- function(data, predictor_columns, dv = "Prop") {
+plot.time_window_data <- function(data, predictor_columns = NULL, dv = "Prop") {
 
   # Prelims:
   data_options = attr(data, "eyetrackingR")$data_options
   dv = match.arg(dv, c("Elog","Prop","ArcSin"))
 
   # Organize Vars:
+  if (is.null(predictor_columns)) {
+    predictor_columns <- "AOI"
+  }
   x_axis_column = predictor_columns[1]
   if (length(predictor_columns)>1) {
     group_column = predictor_columns[2]
@@ -96,26 +103,34 @@ plot.time_window_data <- function(data, predictor_columns, dv = "Prop") {
     }
   }
   color_var = group_column
-  group_var = ifelse( is.null(group_column), 1, group_column)
+  
 
   # Summarize by Participants:
   df_grouped = group_by_(data, .dots = c(data_options$participant_column, x_axis_column, group_column, "AOI"))
   summarize_arg <- list(interp(~mean(DV, na.rm=TRUE), DV = as.name(dv)))
   names(summarize_arg) <- dv
-  df_summarized = summarize_(df_grouped, .dots = summarize_arg )
+  df_plot = summarize_(df_grouped, .dots = summarize_arg )
+  if (x_axis_column!="AOI") df_plot$AOI <- paste("AOI: ", df_plot$AOI)
 
   # Plot:
-  if ( is.numeric(df_summarized[[x_axis_column]]) ) {
-    g <- ggplot(df_summarized, aes_string(x = x_axis_column, y = dv, group= group_var, color= color_var)) +
+  if ( is.numeric(df_plot[[x_axis_column]]) ) {
+    group_var = ifelse( is.null(group_column), 1, group_column)
+    g <- ggplot(df_plot, aes_string(x = x_axis_column, y = dv, group= group_var, color= color_var)) +
       geom_point() +
       stat_smooth(method="lm")
-    if (length(unique(df_summarized$AOI))>1) g <- g + facet_wrap( ~ AOI)
+    if (length(unique(df_plot$AOI))>1 & !all(predictor_columns=="AOI")) {
+      g <- g + facet_wrap( ~ AOI)
+    }
   } else {
-    g <- ggplot(df_summarized, aes_string(x = x_axis_column, y = dv, group= group_var, color= color_var)) +
+    group_var = group_column
+    g <- ggplot(df_plot, aes_string(x = x_axis_column, y = dv, group= group_var, color= color_var)) +
       geom_point(position = position_jitter(width = .025, height=0), alpha= .75) +
-      stat_summary(fun.y = mean, geom='line') +
-      stat_summary(fun.dat = mean_cl_boot)
-      if (length(unique(df_summarized$AOI))>1) g <- g + facet_wrap( ~ AOI)
+      geom_boxplot(alpha = .05)
+      #stat_summary(fun.y = mean, geom='line') +
+      #stat_summary(fun.dat = mean_cl_boot)
+      if (length(unique(df_plot$AOI))>1  & !all(predictor_columns=="AOI")) {
+        g <- g + facet_wrap( ~ AOI)
+      }
   }
   return(g)
 

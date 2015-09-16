@@ -4,21 +4,26 @@
 \alias{plot.time_window_data}
 \title{Plot a time-window dataset}
 \usage{
-\method{plot}{time_window_data}(data, predictor_columns, dv = "Prop")
+\method{plot}{time_window_data}(data, predictor_columns = NULL, dv = "Prop")
 }
 \arguments{
 \item{data}{The data returned by make_time_window_data()}
 
-\item{predictor_columns}{Up to two columns indicating predictors. The first maps to the X-axis, the second
-to group/color. If the latter is numeric, a median split is performed.}
+\item{predictor_columns}{Up to two columns indicating predictors. The first maps to the X-axis,
+the second to group/color. If the latter is numeric, a median split is performed.}
 
-\item{dv}{Which dv should be used in plotting? Raw proportion-looking ("Prop"), empirical logit ("Elog"),
-or "ArcSin"?}
+\item{dv}{Which dv should be used in plotting? Raw proportion-looking ("Prop"), empirical logit
+("Elog"), or "ArcSin"?}
 }
 \value{
 A ggplot object
 }
 \description{
-Plots the data returned from make_time_window_data. Data are collapsed by-participants for plotting.
+Plots the data returned from make_time_window_data. Data can be plotted against (up to two)
+predictor columns. If no predictor columns are supplied, AOI is placed on the x-axis; otherwise,
+data for each AOI is set in a separate facet.
+}
+\details{
+Data are collapsed by-participants for plotting.
 }
 
