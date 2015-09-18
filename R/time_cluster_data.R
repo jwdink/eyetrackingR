@@ -252,16 +252,7 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
                                                      threshold = NULL,
                                                      formula = NULL,
                                                      ...) {
-  ## Helper:
-  .label_clusters <- function(vec) {
-    vec = c(0,vec)
-    vec[is.na(vec)] = 0
-    out = c(cumsum(diff(vec)==1))
-    vec = vec[-1]
-    out[!vec] = NA
-    out
-  }
-
+  
   data_options <- attr(data, "eyetrackingR")$data_options
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
 
@@ -303,7 +294,7 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
     time_bin_summary$CritStatisticPos <- time_bin_summary$CritStatistic
     time_bin_summary$Significant <- time_bin_summary$Statistic < time_bin_summary$CritStatistic
   }
-  time_bin_summary$Cluster = .label_clusters(time_bin_summary$Significant)
+  time_bin_summary$Cluster = .label_consecutive(time_bin_summary$Significant)
 
   # Compute Sum Statistic for each Cluster
   sum_stat <- c()

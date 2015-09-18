@@ -15,6 +15,21 @@ plot.data.frame <- function(data) {
   )
 }
 
+#' .label_consecutive()
+#'
+#' A helper function to label/enumerate runs of TRUEs in a logical vector, with NA for falses.
+#'
+#' @param vec Logical
+#' @return A numeric vector
+.label_consecutive <- function(vec) {
+  vec = c(0,vec)
+  vec[is.na(vec)] = 0
+  out = c(cumsum(diff(vec)==1))
+  vec = vec[-1]
+  out[!vec] = NA
+  out
+}
+
 #' .make_proportion_looking_summary()
 #'
 #' A helper function for make_time_window_data and make_time_sequence_data. Takes a dataframe, groups it, and

@@ -1,6 +1,3 @@
-
-
-
 generate_a_trial = function(participant, experiment) {
 
   # Time Vector:
@@ -43,28 +40,29 @@ generate_a_trial = function(participant, experiment) {
   actual_look
 }
 
-set.seed(7)
+set.seed(10)
 library(dplyr); library(ggplot2); library(pbapply);library(broom)
 data = data.frame(stringsAsFactors = FALSE, Participant = c(), Trial = c(), AOI = c(), Gender = c(), VocabSize=c(), Time = c())
 experiment = list(trial_start = 0,
                   trial_end = 1000,
                   true_lookshift = 250)
+participants = list()
 for (sub_i in 1:12) {
   cat('.')
-  participant = list(init_look_bias = rbeta(1, 3, 3),
+  participants[[sub_i]] = list(init_look_bias = rbeta(1, 3, 3),
                      look_shift_delay = rnorm(1, 350, sd = 50),
                      focus_level = rbeta(1,5,3),
                      gender = sample(x = c("M","F"), size = 1))
-  participant$vocab_size = round(10^(participant$focus_level + rbeta(1, 5, 5)))
+  participants[[sub_i]]$vocab_size = round(10^(participants[[sub_i]]$focus_level + rbeta(1, 5, 5)))
   for (trial_i in 1:5) {
-    aoi_vec = generate_a_trial(participant, experiment)
+    aoi_vec = generate_a_trial(participants[[sub_i]], experiment)
     data = bind_rows(data,
                      data.frame(stringsAsFactors = FALSE,
                                 Participant = sub_i,
                                 Trial = trial_i,
                                 AOI = aoi_vec,
-                                Gender = participant$gender,
-                                VocabSize = participant$vocab_size,
+                                Gender = participants[[sub_i]]$gender,
+                                VocabSize = participants[[sub_i]]$vocab_size,
                                 Time = seq(from = experiment$trial_start, to = experiment$trial_end) ))
   }
 
@@ -73,30 +71,45 @@ for (sub_i in 1:12) {
 data$Target = data$AOI == "Target"
 data$Trackloss = is.na(data$Target)
 
-source("../analyze-eyetracking.R")
+library("eyetrackingR")
 dopts= set_data_options("Participant", "Trackloss", "Time", "Trial", aoi_columns = "Target")
 
 # Window Analysis:
-df_window = make_time_window_data(data, dopts, aoi = "Target", predictor_columns = c("VocabSize", "Gender"))
-plot(df_window, dopts, predictor_columns = c("VocabSize", "Gender"))
+df_window = make_time_window_data(data, dopts, aoi = "Target", predictor_columns = c("VocabSize"), summarize_by = "Participant")
+plot(df_window, predictor_columns = c("VocabSize"))
 
-# Time Analysis:
-df_time = make_time_sequence_data(data, dopts, time_bin_size = 100, aoi = "Target", predictor_columns = "VocabSize",
+fit = lm(Prop~VocabSize, df_window)
+summary(fit)
+
+
+# Time Data:
+df_time = make_time_sequence_data(data, dopts, time_bin_size = 75, aoi = "Target", predictor_columns = "VocabSize",
                                   summarize_by = "Participant")
-plot(df_time, dopts) +
+plot(df_time) +
   coord_cartesian(ylim = c(0,1))
-plot(df_time, dopts, predictor_column = "VocabSize") +
+plot(df_time, predictor_column = "VocabSize") +
   coord_cartesian(ylim = c(0,1))
+
+# Time analysis with MCP
+df_timebins_mcp = analyze_time_bins(df_time, predictor_column = "VocabSize", test = "lm", alpha = .05)
+plot(df_timebins_mcp) + coord_cartesian(ylim = c(0,5))
+summary(df_timebins_mcp)
+
+# Time analysis with bonferonni
+num_tests = length(unique(df_timebins$Time))
+df_timebins_bonf = analyze_time_bins(df_time, predictor_column = "VocabSize", test = "lm", alpha = .05 / num_tests)
+plot(df_timebins_bonf) + coord_cartesian(ylim = c(0,5))
+summary(df_timebins_bonf)
 
 # Cluster analysis
-df_clust = make_time_cluster_data(data = df_time, data_options = dopts,
+df_clust = make_time_cluster_data(data = df_time,
                                   predictor_column = "VocabSize",
                                   aoi = "Target",
                                   test = "lm",
-                                  threshold = -.5)
+                                  threshold = 2)
 summary(df_clust)
-plot(df_clust)
-cluster_analysis = analyze_time_clusters(df_clust, data_options = dopts, within_subj = FALSE, samples = 1000)
-plot(cluster_analysis)
+plot(df_clust) + coord_cartesian(ylim = c(0,5))
+cluster_analysis = analyze_time_clusters(df_clust, within_subj = FALSE, samples = 1000)
+plot(cluster_analysis) + xlab("Shuffled distribution of test-statistics")
 summary(cluster_analysis)
 

@@ -278,13 +278,74 @@ analyze_time_bins.time_sequence_data <- function(data,
                     Time = unique(data$Time)) # same order as for loop that built models
   out$AOI <- data$AOI[1]
   if (return_model) out$Model <- models
+  
+  # Compute Information about Runs:
+  out$PositiveRuns <- .label_consecutive(out$Statistic>out$CritStatisticPos)
+  out$NegativeRuns <- .label_consecutive(out$Statistic<out$CritStatisticNeg)
+  
+  positive_runs = lapply(unique(na.omit(out$PositiveRuns)), function(run) {
+    list(start_time = with(out, min(Time[which(PositiveRuns==run)], na.rm=TRUE)),
+         stop_time  = with(out, max(Time[which(PositiveRuns==run)], na.rm=TRUE)) + attr(data, "eyetrackingR")$time_bin_size
+    )
+  })
+  negative_runs = lapply(unique(na.omit(out$NegativeRuns)), function(run) {
+    list(start_time = with(out, min(Time[which(NegativeRuns==run)], na.rm=TRUE)),
+         stop_time  = with(out, max(Time[which(NegativeRuns==run)], na.rm=TRUE)) + attr(data, "eyetrackingR")$time_bin_size
+    )
+  })
 
+  # Rename Class, add attributes
   out <- as.data.frame(out)
   class(out) <- c('bin_analysis', class(out))
-  attr(out,"eyetrackingR") <- list(formula= formula)
+  attr(out,"eyetrackingR") <- c(
+    attr(data, "eyetrackingR"),
+    list(formula= formula,
+         test = test,
+         predictor = predictor_column,
+         positive_runs = positive_runs,
+         negative_runs = negative_runs)
+  )
   out = out[order(out$Time),] # arrange chronologically if not already
   out
 }
+
+#' Summary Method for Time-bin Analysis
+#' @param  data The output of the \code{analyze_time_bins} function
+#' @export
+#' @return Prints information about each run of statistically significant time-bins, separately for
+#'   positive and negative
+summary.bin_analysis <- function(df_timebins) {
+  
+  attrs <- attr(df_timebins, "eyetrackingR")
+  positive_runs <- seq_along(attrs$positive_runs)
+  negative_runs <- seq_along(attrs$negative_runs)
+  df_pos <- bind_rows(lapply(attrs$positive_runs, as.data.frame))
+  df_neg <- bind_rows(lapply(attrs$negative_runs, as.data.frame))
+  
+  p1 <- paste("Test Type:\t", attrs$test,
+              "\nPredictor:\t", attrs$predictor_column,
+              "\nFormula:\t", Reduce(paste, deparse(attrs$formula)),
+              "\nRuns of Significant Time Bins:")
+  if (length(positive_runs) > 0) {
+    p2 <- paste(
+      "\nPositive Run", positive_runs, " =====",
+      "\n\tTime:\t\t", df_pos$start_time, "-", df_pos$stop_time
+    )
+  } else {
+    p2 <- ""
+  }
+  if (length(negative_runs) > 0) {
+    p3 <- paste(
+      "\nNegative Run", negative_runs, " =====",
+      "\n\tTime:\t\t", df_neg$start_time, "-", df_neg$stop_time
+    )
+  } else {
+    p3 <- ""
+  }
+  cat(p1,p2,p3)
+  invisible(df_timebins)
+}
+
 
 #' Plot time-sequence data
 #'
