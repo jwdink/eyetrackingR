@@ -12,14 +12,14 @@ add_aoi(data, aoi_dataframe, x_col, y_col, aoi_name, xmin_col = "L",
 
 \item{aoi_dataframe}{A dataframe specifying the bounding-box for the AOI}
 
-\item{x_col,}{y_col What are the column names for the x and y coordinates in your dataset?}
+\item{x_col,y_col}{What are the column names for the x and y coordinates in your dataset?}
 
 \item{aoi_name}{What is the name of this AOI?}
 
-\item{x_min_col,}{x_max_col What are the column names for the left and right edge of the AOI-bounding box?
+\item{x_min_col,x_max_col}{What are the column names for the left and right edge of the AOI-bounding box?
 Default "L","R"}
 
-\item{y_min_col,}{y_max_col What are the column names for the top and bottom edge of the AOI-bounding box?
+\item{y_min_col,y_max_col}{What are the column names for the top and bottom edge of the AOI-bounding box?
 Default "T","B"}
 }
 \value{

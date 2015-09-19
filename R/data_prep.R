@@ -88,11 +88,11 @@ verify_dataset <- function(data, data_options) {
 #' 
 #' @param data Your data
 #' @param aoi_dataframe A dataframe specifying the bounding-box for the AOI
-#' @param x_col, y_col What are the column names for the x and y coordinates in your dataset?
+#' @param x_col,y_col What are the column names for the x and y coordinates in your dataset?
 #' @param aoi_name What is the name of this AOI?
-#' @param x_min_col, x_max_col What are the column names for the left and right edge of the AOI-bounding box?
+#' @param x_min_col,x_max_col What are the column names for the left and right edge of the AOI-bounding box?
 #'   Default "L","R"
-#' @param y_min_col, y_max_col What are the column names for the top and bottom edge of the AOI-bounding box?
+#' @param y_min_col,y_max_col What are the column names for the top and bottom edge of the AOI-bounding box?
 #'   Default "T","B"
 #' @export
 #' @return Dataset with a new column indicating whether gaze is in the AOI
