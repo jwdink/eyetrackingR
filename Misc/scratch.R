@@ -96,7 +96,7 @@ plot(df_timebins_mcp) + coord_cartesian(ylim = c(0,5))
 summary(df_timebins_mcp)
 
 # Time analysis with bonferonni
-num_tests = length(unique(df_timebins$Time))
+num_tests = length(unique(df_timebins_mcp$Time))
 df_timebins_bonf = analyze_time_bins(df_time, predictor_column = "VocabSize", test = "lm", alpha = .05 / num_tests)
 plot(df_timebins_bonf) + coord_cartesian(ylim = c(0,5))
 summary(df_timebins_bonf)
