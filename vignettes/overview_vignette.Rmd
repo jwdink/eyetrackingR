@@ -1,6 +1,6 @@
 ---
 title: "A Brief Overview of EyetrackingR"
-author: "Brock Ferguson & Jacob Dink"
+author: "Jacob Dink & Brock Ferguson"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
@@ -8,6 +8,12 @@ vignette: >
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
+
+This vignette will use the entire *eyetrackingR* toolbox to analyze real data from a simple 2-alternative forced choice (2AFC) word recognition task administered to 19- and 24-month-olds.
+
+On each trial, infants were shown a picture of an animate object (e.g., a horse) and an inanimate object (e.g., a spoon). After inspecting the images, they disappeared and they heard a label referring to one of them (e.g., "The horse is nearby!"). Finally, the objects re-appeared on the screen and they were prompted to look at the target (e.g., "Look at the horse!").
+
+We want to ask whether infants looked to the named target. That is, when the animate was named, did they look at the animate? And, when the inanimate was named, did they look at the inanimate?
 
 ## Load dataset and dependencies
 
@@ -18,6 +24,8 @@ library(ggplot2)
 ```
 
 ## Load and set data options for **eyetrackingR** library.
+
+Each data option specifies the name of a column (or columns, in the case of `aoi_columns`) in your dataset.
 
 ```{r results='hide'}
 library("eyetrackingR")
@@ -34,19 +42,21 @@ data_options = set_data_options(
 
 ## Verify state of each relevant column.
 
+If any of our columns are improperly formatted, this function will (1) notify us and, (2) attempt to fix it.
+
 ```{r}
 data <- verify_dataset(word_recognition, data_options)
 ```
 
 ## Subset data to examine "response" window, and deal with trackloss.
 
-We are going to:
+These functions span a host of data preparation steps. Here's what we are going to do:
 
-* Subset the data into the time window of interest
-* Treat looks outside of our AOI as if they are trackloss
-* Calculate the amount of trackloss in each trial
-* Remove trials with over 50% trackloss
-* Remove all remaining trackloss samples from our dataset (so that, in each sample, the toddler is looking either to one AOI or the other)
+1) Subset the data to focus on our time window of interest (a "response window" beginning 500ms pre-word-onset, 15500ms after the start of the trial, and ending at the end of the trial 5500ms later)
+2) Treat looks outside of our AOIs as if they are trackloss (we don't care if infants looked at the screen unless they were looking at one of our AOIs)
+3) Calculate the amount of trackloss in each trial
+4) Remove trials with over 50% trackloss
+5) Remove all remaining trackloss samples from our dataset (so that, in each sample, the infant is looking either to one AOI or the other)
 
 ```{r}
 # subset to response window
@@ -80,9 +90,15 @@ response_window_clean$Target <- factor(response_window_clean$Target)
 
 ## Describe and visualize results
 
+Summarize the data such that, for each subject, we have a mean proportion of looking to the `Animate` AOI for each type of `Target` trial within our response window.
+
 ```{r}
 (data_summary <- describe_data(response_window_clean, data_options, describe_column='Animate', group_columns=c('ParticipantName','Target')))
+```
 
+Collapse across subjects within a series of 100ms time-bins, and plot the timecourse of looking.
+
+```{r}
 # aggregate across trials within subjects in time analysis
 response_time <- make_time_sequence_data(response_window_clean, data_options, time_bin_size = 100, 
                                  predictor_columns = c("Target"),
@@ -93,29 +109,37 @@ response_time <- make_time_sequence_data(response_window_clean, data_options, ti
 plot(response_time, predictor_column = "Target") + 
   ylab("Proportion Looking to Animate") + theme_light() +
   coord_cartesian(ylim = c(0,1))
+```
 
+Aggregate across our response window for each subject, calculating a mean proportion of looking to the `Animate` AOI for each type of `Target` trial.
+
+```{r}
 # aggregate by subject across the response window
 response_window_agg_by_sub <- make_time_window_data(response_window_clean, 
                                              data_options, 
+                                             aois='Animate',
                                              predictor_columns=c('Target','Age','MCDI_Total'),
                                              summarize_by = "ParticipantName")
 
 # take a quick peek at data
-plot(response_window_agg_by_sub)
 plot(response_window_agg_by_sub, predictor_columns="Target")
 
 # show condition means
 describe_data(response_window_agg_by_sub, describe_column = "Prop", group_columns = "Target")
 ```
 
-## Simple t-test
+## Simple paired t-test
+
+Perform a simple t-test on the condition means within each subject.
 
 ```{r}
 # simple t-test between conditions
 t.test(ArcSin ~ Target, data=response_window_agg_by_sub, paired=TRUE)
 ```
 
-## Mixed-effects models on windowed data
+## Mixed-effects model windowed data
+
+Create a trial-by-trial dataset (*not* summarizing across participants) and then fit a linear mixed-effects model using `lmer` predicting infants' looking to the `Animate` AOI based on the `Target` condition of each trial while accounting for random intercept and slope across `Trial` (i.e., items) and `ParticipantName` (i.e., subjects).
 
 ```{r}
 library("lme4")
@@ -136,6 +160,8 @@ drop1(model,~.,test="Chi")
 
 ## Growth curve analysis
 
+Take advantage of the `response_time` dataframe's orthogonal polynomial timecodes to perform a growth curve analysis. Plot the growth curve model's best fit alongside the raw data's means.
+
 ```{r}
 # growth curve analysis on time series
 response_time$TargetC <- ifelse(response_time$Target == 'Animate', .5, -.5)
@@ -155,6 +181,13 @@ ggplot(response_time, aes(x=Time, y=Elog, color=Target)) +
 
 ## Onset-contingent analysis
 
+Compare the time it took for infants to switch to a new AOI depending on:
+
+* whether they began the trial looking at the Target or not and,
+* which type of trial they were participating in (i.e., whether the target was the Animate or the Inanimate)
+
+The size of the gap between the solid line (switching from the non-Target) and the dashed line (switching from the Target) documents infants' performance in identifying the target: Infants should switch more quickly and more frequently *to* the Target than *from* it (but they also may be hesitant to *ever* shift from their preferred, animate targets...).
+
 ```{r}
 # recode AOIs to target & distractor
 response_window_clean$TrialTarget <- 
@@ -166,24 +199,27 @@ onsets <- make_onset_data(response_window_clean, data_options, onset_time = 1550
 
 plot(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=5))
 
-# compare switch times
+# compare switch times in a mixed-effects model
 onset_switches <- make_switch_data(onsets, predictor_columns = "Target")
 
+# visualize subject's switch times
 plot(onset_switches, predictor_columns = "Target") 
 
 # center predictor:
 onset_switches$FirstAOIC <- ifelse(onset_switches$FirstAOI == 'TrialTarget', .5, -.5)
 onset_switches$FirstAOIC <- scale(onset_switches$FirstAOIC, center=TRUE, scale=FALSE)
+onset_switches$TargetC <- ifelse(onset_switches$Target == 'Animate', .5, -.5)
+onset_switches$TargetC <- scale(onset_switches$TargetC, center=TRUE, scale=FALSE)
 
-model <- lmer(FirstSwitch ~ FirstAOIC + 
-                (1 + FirstAOIC | Trial) + (1 + FirstAOIC | ParticipantName), data=onset_switches, REML=FALSE)
+model <- lmer(FirstSwitch ~ FirstAOIC*TargetC + 
+                (1 | Trial) + (1 | ParticipantName), data=onset_switches, REML=FALSE)
 summary(model)
 drop1(model,~.,test="Chi")
 ```
 
-## Bootstrapped splines analysis.
+## Bootstrapped splines analysis
 
-Do a proper within-subjects analysis for the familiar trials.
+Resample smoothing splines fit to the data to estimate the best-fitting smoothing spline with 95% confidence intervals. This is a useful technique for estimating the timepoints of divergence between two-conditions while smoothing over minor deviations in fixations. Returns a list of divergences between your two conditions based on time windows in which the 95% confidence intervals did not include 0 (i.e., *p* < .05).
 
 ```{r}
 bootstrapped_familiar <- make_boot_splines_data(response_time, 
@@ -205,11 +241,11 @@ summary(bootstrap_analysis_familiar)
 ```
 
 
-## Cluster Analysis
+## Bootstrapped cluster analysis
 
-Perform a different type of bootstrapping analyses (Maris & Oostenveld, 2007), sometimes referred to as a cluster analysis. This analysis takes a summed statistic for each cluster of time bins that pass some level of significance, and compares each to the "null" distribution of sum statistics (obtained by bootstrap resampling data within the largest of the clusters).
+Perform a different type of bootstrapping analyses (Maris & Oostenveld, 2007) referred to as a cluster analysis. This analysis takes a summed statistic for each cluster of time bins that pass some level of significance, and compares each to the "null" distribution of sum statistics (obtained by bootstrap resampling data within the largest of the clusters).
 
-This type of analysis should often give similar results to the above, with the main advantage is that it can be used with several types of statistical techniques (t.test, wilcox.test, lm, and lmer), so that continuous predictors, covariates, etc. can be included in the model being tested; and the main disadvantage is that it is slower.
+This type of analysis should often give similar results to the above, with the main advantage is that it can be used with several types of statistical techniques (`t.test`, `wilcox.test`, `lm`, and `lmer`), so that continuous predictors, covariates, etc. can be included in the model being tested; and the main disadvantage is that it is slower.
 
 ```{r}
 response_time_by_subj <- make_time_sequence_data(response_window_clean, data_options, time_bin_size = 225, 
