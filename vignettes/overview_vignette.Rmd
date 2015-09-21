@@ -52,11 +52,11 @@ data <- verify_dataset(word_recognition, data_options)
 
 These functions span a host of data preparation steps. Here's what we are going to do:
 
-1) Subset the data to focus on our time window of interest (a "response window" beginning 500ms pre-word-onset, 15500ms after the start of the trial, and ending at the end of the trial 5500ms later)
-2) Treat looks outside of our AOIs as if they are trackloss (we don't care if infants looked at the screen unless they were looking at one of our AOIs)
-3) Calculate the amount of trackloss in each trial
-4) Remove trials with over 50% trackloss
-5) Remove all remaining trackloss samples from our dataset (so that, in each sample, the infant is looking either to one AOI or the other)
+1. Subset the data to focus on our time window of interest (a "response window" beginning 500ms pre-word-onset, 15500ms after the start of the trial, and ending at the end of the trial 5500ms later)
+2. Treat looks outside of our AOIs as if they are trackloss (we don't care if infants looked at the screen unless they were looking at one of our AOIs)
+3. Calculate the amount of trackloss in each trial
+4. Remove trials with over 50% trackloss
+5. Remove all remaining trackloss samples from our dataset (so that, in each sample, the infant is looking either to one AOI or the other)
 
 ```{r}
 # subset to response window
