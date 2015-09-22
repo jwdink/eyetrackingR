@@ -90,8 +90,7 @@ plot(df_time) +
 df_timebins_one_sample = analyze_time_bins(df_time, predictor_column = "intercept", formula = Prop - .5 ~ 1, test = "lm", alpha = .05)
 
 plot(df_time, predictor_column = "VocabSize") +
-  coord_cartesian(ylim = c(0,1)) + 
-  ylab("Proportion Looking to Target")
+  coord_cartesian(ylim = c(0,1)) 
 ggsave(width = 8.6, height = 4.19, "clust/timecourse.png")
 
 

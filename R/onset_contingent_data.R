@@ -159,14 +159,14 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
   df_summarized <- summarize(df_summarized, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
 
   # compute grayed area:
-  df_graph <- group_by_(df_summarized, .dots = c(".Time", predictor_columns) )
-  df_graph <- mutate(df_graph,
+  df_plot <- group_by_(df_summarized, .dots = c(".Time", predictor_columns) )
+  df_plot <- mutate(df_plot,
                     Max= max(SwitchAOI),
                     Min= min(SwitchAOI),
                     Top= ifelse(length(which(FirstAOI==onset_attr$distractor_aoi)), SwitchAOI[FirstAOI==onset_attr$distractor_aoi], 0)
                     )
-  df_graph$Max <- with(df_graph, ifelse(Max==Top, Max, NA))
-  df_graph$Min <- with(df_graph, ifelse(Max==Top, Min, NA))
+  df_plot$Max <- with(df_plot, ifelse(Max==Top, Max, NA))
+  df_plot$Min <- with(df_plot, ifelse(Max==Top, Min, NA))
 
   ## Graph:
   if (is.null(predictor_columns)) {
@@ -174,12 +174,12 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
   } else {
     color_factor <- predictor_columns[1]
   }
-  g <- ggplot(df_graph, aes_string(x = ".Time", y = "SwitchAOI",
+  g <- ggplot(df_plot, aes_string(x = ".Time", y = "SwitchAOI",
                                   group = "FirstAOI",
                                   color = color_factor)) +
     geom_line(size=1.5, aes(linetype=FirstAOI)) +
     geom_ribbon(aes(ymin= Min, ymax= Max), fill= "gray", alpha= .2, colour= NA) +
-    coord_cartesian(xlim=c(onset_attr$onset_time, max(df_graph$.Time) )) +
+    coord_cartesian(xlim=c(onset_attr$onset_time, max(df_plot$.Time) )) +
     ylab("Proportion Switch Looking") +
     xlab("Time") +
     guides(colour=FALSE)
