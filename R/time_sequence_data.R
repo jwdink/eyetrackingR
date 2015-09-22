@@ -105,17 +105,18 @@ analyze_time_bins = function(data, ...) {
 #'
 #' @param data   The output of the 'make_time_sequence_data' function
 #' @param data_options
-#' @param predictor_column  The variable whose test statistic you are interested in
-#' @param test              What type of test should be performed in each time bin? Supports \code{t.test},
-#'   \code{wilcox.test}, \code{lm}, and \code{lmer}.
+#' @param predictor_column  The variable whose test statistic you are interested in. If you are not
+#'   interested in a predictor, but the intercept, you can enter "intercept" for this argument.
+#' @param test              What type of test should be performed in each time bin? Supports
+#'   \code{t.test}, \code{wilcox.test}, \code{lm}, and \code{lmer}.
 #' @param threshold         Value of statistic used in determining significance
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given
-#' @param formula           What formula should be used for the test? Optional for all but \code{lmer}, if unset will
-#'   use \code{Prop ~ [predictor_column]}
-#' @param return_model      In the returned dataframe, should a model be given for each time bin, or just the
-#'   summary of those models?
-#' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
-#'   var.equal, etc.)
+#' @param formula           What formula should be used for the test? Optional for all but
+#'   \code{lmer}, if unset will use \code{Prop ~ [predictor_column]}
+#' @param return_model      In the returned dataframe, should a model be given for each time bin, or
+#'   just the summary of those models?
+#' @param ...               Any other arguments to be passed to the selected 'test' function (e.g.,
+#'   paired, var.equal, etc.)
 #' @export
 #' @return A dataframe indicating the results of the test at each time-bin.
 analyze_time_bins.time_sequence_data <- function(data,
@@ -143,6 +144,10 @@ analyze_time_bins.time_sequence_data <- function(data,
 
   # Prelims:
   data_options <- attr(data, "eyetrackingR")$data_options
+  if (grepl("intercept", predictor_column, ignore.case = TRUE)) {
+    if (is.null(formula)) stop("If testing intercept, please manually specify formula")
+    predictor_column <- "(Intercept)"
+  }
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   if (!requireNamespace("pbapply", quietly = TRUE)) {
     pblapply <- lapply
@@ -206,7 +211,11 @@ analyze_time_bins.time_sequence_data <- function(data,
     model <- failsafe_test(formula = formula, data = temp_dat, ... = ...)
     # get N:
     if (test=="wilcox.test" | test=="lm") {
-      predictor_col_is_na <- is.na(temp_dat[[predictor_column]])
+      if (predictor_column == "(Intercept)") {
+        predictor_col_is_na <- FALSE
+      } else {
+        predictor_col_is_na <- is.na(temp_dat[[predictor_column]])
+      }
       model$sample_size <- length(unique( temp_dat[[data_options$participant_column]][!predictor_col_is_na] ))
     }
     model
@@ -391,7 +400,9 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
       guides(color= guide_legend(title= predictor_column)) +
       xlab('Time in Trial')
     if (length(unique(df_plot$AOI))>1) {
-      g <- g + facet_wrap( ~ AOI)
+      g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
+    } else {
+      g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
     }
   } else {
     g <- ggplot(df_plot, aes_string(x = "Time", y=dv, group=predictor_column, color=predictor_column, fill=predictor_column)) +
@@ -399,7 +410,9 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
       stat_summary(fun.dat=mean_se, geom='ribbon', alpha=.2, colour=NA) +
       xlab('Time in Trial')
     if (length(unique(df_plot$AOI))>1) {
-      g <- g + facet_wrap( ~ AOI)
+      g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
+    } else {
+      g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
     }
   }
   

@@ -14,23 +14,24 @@ analyze_time_bins(data, ...)
 \arguments{
 \item{data}{The output of the 'make_time_sequence_data' function}
 
-\item{...}{Any other arguments to be passed to the selected 'test' function (e.g., paired,
-var.equal, etc.)}
+\item{...}{Any other arguments to be passed to the selected 'test' function (e.g.,
+paired, var.equal, etc.)}
 
-\item{predictor_column}{The variable whose test statistic you are interested in}
+\item{predictor_column}{The variable whose test statistic you are interested in. If you are not
+interested in a predictor, but the intercept, you can enter "intercept" for this argument.}
 
-\item{test}{What type of test should be performed in each time bin? Supports \code{t.test},
-\code{wilcox.test}, \code{lm}, and \code{lmer}.}
+\item{test}{What type of test should be performed in each time bin? Supports
+\code{t.test}, \code{wilcox.test}, \code{lm}, and \code{lmer}.}
 
 \item{threshold}{Value of statistic used in determining significance}
 
 \item{alpha}{Alpha value for determining significance, ignored if threshold is given}
 
-\item{formula}{What formula should be used for the test? Optional for all but \code{lmer}, if unset will
-use \code{Prop ~ [predictor_column]}}
+\item{formula}{What formula should be used for the test? Optional for all but
+\code{lmer}, if unset will use \code{Prop ~ [predictor_column]}}
 
-\item{return_model}{In the returned dataframe, should a model be given for each time bin, or just the
-summary of those models?}
+\item{return_model}{In the returned dataframe, should a model be given for each time bin, or
+just the summary of those models?}
 
 \item{data_options}{}
 }

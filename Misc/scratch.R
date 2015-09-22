@@ -40,7 +40,7 @@ generate_a_trial = function(participant, experiment) {
   actual_look
 }
 
-set.seed(10)
+set.seed(7)
 library(dplyr); library(ggplot2); library(pbapply);library(broom)
 data = data.frame(stringsAsFactors = FALSE, Participant = c(), Trial = c(), AOI = c(), Gender = c(), VocabSize=c(), Time = c())
 experiment = list(trial_start = 0,
@@ -51,7 +51,7 @@ for (sub_i in 1:12) {
   cat('.')
   participants[[sub_i]] = list(init_look_bias = rbeta(1, 3, 3),
                      look_shift_delay = rnorm(1, 350, sd = 50),
-                     focus_level = rbeta(1,5,3),
+                     focus_level = rbeta(1,7,4),
                      gender = sample(x = c("M","F"), size = 1))
   participants[[sub_i]]$vocab_size = round(10^(participants[[sub_i]]$focus_level + rbeta(1, 5, 5)))
   for (trial_i in 1:5) {
@@ -77,28 +77,36 @@ dopts= set_data_options("Participant", "Trackloss", "Time", "Trial", aoi_columns
 # Window Analysis:
 df_window = make_time_window_data(data, dopts, aoi = "Target", predictor_columns = c("VocabSize"), summarize_by = "Participant")
 plot(df_window, predictor_columns = c("VocabSize"))
+ggsave(width = 8.6, height = 4.19, "clust/corr.png")
 
 fit = lm(Prop~VocabSize, df_window)
 summary(fit)
-
 
 # Time Data:
 df_time = make_time_sequence_data(data, dopts, time_bin_size = 75, aoi = "Target", predictor_columns = "VocabSize",
                                   summarize_by = "Participant")
 plot(df_time) +
   coord_cartesian(ylim = c(0,1))
+df_timebins_one_sample = analyze_time_bins(df_time, predictor_column = "intercept", formula = Prop - .5 ~ 1, test = "lm", alpha = .05)
+
 plot(df_time, predictor_column = "VocabSize") +
-  coord_cartesian(ylim = c(0,1))
+  coord_cartesian(ylim = c(0,1)) + 
+  ylab("Proportion Looking to Target")
+ggsave(width = 8.6, height = 4.19, "clust/timecourse.png")
+
+
 
 # Time analysis with MCP
 df_timebins_mcp = analyze_time_bins(df_time, predictor_column = "VocabSize", test = "lm", alpha = .05)
-plot(df_timebins_mcp) + coord_cartesian(ylim = c(0,5))
+plot(df_timebins_mcp) + coord_cartesian(ylim = c(0,4))
+ggsave(width = 8.6, height = 4.19, "clust/mcp.png")
 summary(df_timebins_mcp)
 
 # Time analysis with bonferonni
 num_tests = length(unique(df_timebins_mcp$Time))
 df_timebins_bonf = analyze_time_bins(df_time, predictor_column = "VocabSize", test = "lm", alpha = .05 / num_tests)
-plot(df_timebins_bonf) + coord_cartesian(ylim = c(0,5))
+plot(df_timebins_bonf) + coord_cartesian(ylim = c(0,4))
+ggsave(width = 8.6, height = 4.19, "clust/bonf.png")
 summary(df_timebins_bonf)
 
 # Cluster analysis
@@ -106,10 +114,20 @@ df_clust = make_time_cluster_data(data = df_time,
                                   predictor_column = "VocabSize",
                                   aoi = "Target",
                                   test = "lm",
-                                  threshold = 2)
+                                  threshold = qt(p = 1-.025, df = length(participants)))
 summary(df_clust)
-plot(df_clust) + coord_cartesian(ylim = c(0,5))
+plot(df_clust) + coord_cartesian(ylim = c(0,4))
+ggsave(width = 8.6, height = 4.19, "clust/clust.png")
 cluster_analysis = analyze_time_clusters(df_clust, within_subj = FALSE, samples = 1000)
-plot(cluster_analysis) + xlab("Shuffled distribution of test-statistics")
+plot(cluster_analysis) + xlab("Summed Test-Statistic")
+ggsave(width = 8.6, height = 4.19, "clust/clust_dist.png")
 summary(cluster_analysis)
+
+
+data_window = subset_by_window(data, data_options = dopts, rezero=FALSE, remove=TRUE, window_start_time = 675, window_end_time = 1000)
+df_window_late = make_time_window_data(data_window, dopts, aoi = "Target", predictor_columns = c("VocabSize"), summarize_by = "Participant")
+plot(df_window_late, predictor_columns = "VocabSize")
+
+fit2 = lm(Prop~VocabSize, df_window_late)
+summary(fit2)
 

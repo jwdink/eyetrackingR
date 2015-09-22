@@ -119,7 +119,9 @@ plot.time_window_data <- function(data, predictor_columns = NULL, dv = "Prop") {
       geom_point() +
       stat_smooth(method="lm")
     if (length(unique(df_plot$AOI))>1 & !all(predictor_columns=="AOI")) {
-      g <- g + facet_wrap( ~ AOI)
+      g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
+    } else {
+      g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
     }
   } else {
     group_var = group_column
@@ -129,7 +131,9 @@ plot.time_window_data <- function(data, predictor_columns = NULL, dv = "Prop") {
       #stat_summary(fun.y = mean, geom='line') +
       #stat_summary(fun.dat = mean_cl_boot)
       if (length(unique(df_plot$AOI))>1  & !all(predictor_columns=="AOI")) {
-        g <- g + facet_wrap( ~ AOI)
+        g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
+      } else {
+        g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
       }
   }
   return(g)
