@@ -5,18 +5,28 @@
 \title{Plot time-sequence data}
 \usage{
 \method{plot}{time_sequence_data}(data, predictor_column = NULL,
-  dv = "Prop")
+  dv = "Prop", model = NULL)
 }
 \arguments{
-\item{data}{}
+\item{data}{Your data from \code{make_time_sequence_data}. Will be collapsed by
+subject for plotting.}
 
-\item{predictor_column}{}
+\item{predictor_column}{Data can be grouped by a predictor column (median split is performed if
+numeric)}
+
+\item{dv}{What measure of gaze do you want to use? (\code{Prop}, \code{Elog}, or
+\code{ArcSin})}
+
+\item{model}{(Optional) A growth-curve mixed effects model (from \code{lmer}) that
+was used on the \code{time_sequence_data}. If model is given, this function will overlay the
+predictions of that model on the data}
 }
 \value{
 A ggplot object
 }
 \description{
-Plot the timecourse of looking. Each AOI will be plotted in a separate pane, and data can be split into
-groups by a predictor column (median split if numeric).
+Plot the timecourse of looking. Each AOI will be plotted in a separate pane, and data can be
+split into groups by a predictor column. Data is collapsed by subject for plotting. Supports
+overlaying the predictions of a growth-curve mixed effects model on the data
 }
 

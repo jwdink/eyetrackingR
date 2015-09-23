@@ -355,25 +355,43 @@ summary.bin_analysis <- function(df_timebins) {
   invisible(df_timebins)
 }
 
-
 #' Plot time-sequence data
-#'
-#' Plot the timecourse of looking. Each AOI will be plotted in a separate pane, and data can be split into
-#' groups by a predictor column (median split if numeric).
-#'
-#' @param data
-#' @param predictor_column
-#'
+#' 
+#' Plot the timecourse of looking. Each AOI will be plotted in a separate pane, and data can be 
+#' split into groups by a predictor column. Data is collapsed by subject for plotting. Supports
+#' overlaying the predictions of a growth-curve mixed effects model on the data
+#' 
+#' @param data              Your data from \code{make_time_sequence_data}. Will be collapsed by
+#'   subject for plotting.
+#' @param predictor_column  Data can be grouped by a predictor column (median split is performed if
+#'   numeric)
+#' @param dv                What measure of gaze do you want to use? (\code{Prop}, \code{Elog}, or
+#'   \code{ArcSin})
+#' @param model             (Optional) A growth-curve mixed effects model (from \code{lmer}) that
+#'   was used on the \code{time_sequence_data}. If model is given, this function will overlay the
+#'   predictions of that model on the data
 #' @export
 #' @return A ggplot object
-plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
+plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', model = NULL) {
 
+  # Prelims:
   data_options = attr(data, "eyetrackingR")$data_options
+  dv = match.arg(dv, c("Prop", "Elog", "ArcSin"))
+  
+  # Add model predictions to dataframe:
+  if (!is.null(model)) {
+    formula_as_character <- Reduce(paste, deparse(formula(model)))
+    if (!grepl(dv, formula_as_character, fixed = TRUE)) {
+      stop("Your model appears to use a different DV than the one you are attempting to plot. Change the 'dv' arg in plot.")
+    }
+    data$.Predicted = predict(model, data, re.form = NA)
+  } 
 
   ## Collapse by-subject for plotting
   df_plot <- group_by_(data, .dots = c(data_options$participant_column, "Time", "AOI", predictor_column))
   summarize_arg <- list(interp(~mean(DV, na.rm=TRUE), DV = as.name(dv)))
   names(summarize_arg) <- dv
+  if (!is.null(model)) summarize_arg[[".Predicted"]] <- ~mean(.Predicted, na.rm=TRUE)
   df_plot <- summarize_(df_plot, .dots = summarize_arg)
   df_plot$AOI <- paste("AOI: ", df_plot$AOI) # for facetting
 
@@ -393,27 +411,27 @@ plot.time_sequence_data <- function(data, predictor_column=NULL, dv='Prop') {
     df_plot[["GroupFactor"]] <- ifelse(df_plot[[predictor_column]] > the_median,
                                       paste0("High (>", round(the_median,2), ")"),
                                       "Low")
-
+    
     g <- ggplot(df_plot, aes_string(x = "Time", y=dv, group="GroupFactor", color="GroupFactor")) +
-      stat_summary(fun.y='mean', geom='line') +
-      stat_summary(fun.dat=mean_se, geom='ribbon', alpha=.2, colour=NA) +
       guides(color= guide_legend(title= predictor_column)) +
       xlab('Time in Trial')
-    if (length(unique(df_plot$AOI))>1) {
-      g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
-    } else {
-      g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
-    }
   } else {
     g <- ggplot(df_plot, aes_string(x = "Time", y=dv, group=predictor_column, color=predictor_column, fill=predictor_column)) +
-      stat_summary(fun.y='mean', geom='line') +
-      stat_summary(fun.dat=mean_se, geom='ribbon', alpha=.2, colour=NA) +
       xlab('Time in Trial')
-    if (length(unique(df_plot$AOI))>1) {
-      g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
-    } else {
-      g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
-    }
+  }
+  
+  g <- g + 
+    stat_summary(fun.y='mean', geom='line', linetype = 'F1') + 
+    stat_summary(fun.dat=mean_se, geom='ribbon', alpha= .25, colour=NA)
+  
+  if (!is.null(model)) {
+    g <- g +
+      stat_summary(aes(y = .Predicted), fun.y = 'mean', geom="line", size= 1.2) 
+  }
+  if (length(unique(df_plot$AOI))>1) {
+    g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
+  } else {
+    g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
   }
   
   return(g)
