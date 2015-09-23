@@ -121,11 +121,12 @@ make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_
 }
 
 #' Plot onset-contingent data
-#'
+#' 
 #' Divide trials into which AOI participants started on; plot proportion looking away from that AOI.
-#'
+#' 
 #' @param data The output of the \code{make_onset_data} function
-#' @param predictor_columns Column(s) by which to facet the data. Does NOT perform median split if numeric.
+#' @param predictor_columns Column(s) by which to facet the data. Maximum two columns. Will perform
+#'   median split if numeric.
 #' @export
 #' @return A ggplot object
 
@@ -137,15 +138,25 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   onset_attr <- attrs$onset_contingent
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
+  if (length(predictor_columns)>2) stop("Maximum two predictor columns.")
 
   # set smoothing_window_size based on fixation_window_length in attr's
   smoothing_window_size <- onset_attr$fixation_window_length / 4
 
-  # clean out unknown first AOIs:
+  # clean out unknown first AOIs, perform median splits if necessary:
   df_clean <- data[ !is.na(data[["FirstAOI"]]) , ]
-  for (predictor_col in predictor_columns) {
-    if (! identical(TRUE, predictor_col %in% colnames(df_clean)) ) stop("The column ", predictor_col, " is not in the dataset.")
-    df_clean <- df_clean[ !is.na(df_clean[[predictor_col]]) , ]
+  numeric_predictor_cols <- sapply(predictor_columns, function(col) is.numeric(df_clean[[col]]))
+  for (i in seq_along(predictor_columns)) {
+    if (! identical(TRUE, predictor_columns[i] %in% colnames(df_clean)) ) stop("The column ", predictor_columns[i], " is not in the dataset.")
+    df_clean <- df_clean[ !is.na(df_clean[[predictor_columns[i]]]) , ]
+    if (numeric_predictor_cols[i]) {
+      message("Column '", predictor_columns[i], "' is numeric, performing median split for visualization.")
+      the_median <- median(df_clean[[predictor_columns[i]]], na.rm=TRUE)
+      df_clean[[predictor_columns[i]]] <- ifelse(df_clean[[predictor_columns[i]]] > the_median, 
+                                                yes = paste0("High (>",the_median,")"),
+                                                no = "Low")
+    }
+    df_clean[[predictor_columns[i]]] <- paste(predictor_columns[i], ":", df_clean[[predictor_columns[i]]])
   }
 
   # summarize by time bin:
@@ -192,11 +203,13 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
 }
 
 #' Plot mean switch-from-initial-AOI times.
-#'
-#' Boxplot of mean switch time aggregated by subjects within each FirstAOI, potentially faceted by predictor_columns.
-#'
+#' 
+#' Boxplot of mean switch time aggregated by subjects within each FirstAOI, potentially faceted by
+#' predictor_columns.
+#' 
 #' @param data The output of the \code{make_switch_data} function
-#' @param predictor_columns Column(s) by which to facet the data. Does NOT perform median split if numeric.
+#' @param predictor_columns Column(s) by which to facet the data. Maximum two columns. Will perform
+#'   median split if numeric.
 #' @export
 #' @return A ggplot object
 
@@ -212,16 +225,31 @@ plot.switch_data <- function(data, predictor_columns=NULL) {
   ## Prepare for Graphing:
   data <- filter(data, !is.na(FirstAOI))
   df_grouped <- group_by_(data, .dots = c(data_options$participant_column, predictor_columns, "FirstAOI"))
-  df_summarized <- summarize(df_grouped, MeanFirstSwitch = mean(FirstSwitch))
+  df_plot <- summarize(df_grouped, MeanFirstSwitch = mean(FirstSwitch))
 
-  ## Graph:
+  ## Figure out predictor columns: 
+  # color:
   if (is.null(predictor_columns)) {
     color_factor <- NULL
   } else {
     color_factor <- predictor_columns[1]
   }
-
-  g <- ggplot(df_summarized, aes_string(x = "FirstAOI", y = "MeanFirstSwitch",
+  # numeric/relabel:
+  numeric_predictor_cols = sapply(predictor_columns, function(col) is.numeric(df_plot[[col]]))
+  for (i in seq_along(predictor_columns)) {
+    if (! identical(TRUE, predictor_columns[i] %in% colnames(data)) ) stop("The column ", predictor_columns[i], " is not in the dataset.")
+    if (numeric_predictor_cols[i]) {
+      message("Column '", predictor_columns[i], "' is numeric, performing median split for visualization.")
+      the_median <- median(df_plot[[predictor_columns[i]]], na.rm=TRUE)
+      df_plot[[predictor_columns[i]]] <- ifelse(df_plot[[predictor_columns[i]]] > the_median, 
+                                                yes = paste0("High (>",the_median,")"),
+                                                no = "Low")
+    }
+    df_plot[[predictor_columns[i]]] <- paste(predictor_columns[i], ":", df_plot[[predictor_columns[i]]])
+  }
+  
+  ## Graph:
+  g <- ggplot(df_plot, aes_string(x = "FirstAOI", y = "MeanFirstSwitch",
                              color = color_factor)) +
     geom_boxplot() +
     geom_point(position = position_jitter(.1)) +

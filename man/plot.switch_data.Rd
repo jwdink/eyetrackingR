@@ -9,12 +9,14 @@
 \arguments{
 \item{data}{The output of the \code{make_switch_data} function}
 
-\item{predictor_columns}{Column(s) by which to facet the data. Does NOT perform median split if numeric.}
+\item{predictor_columns}{Column(s) by which to facet the data. Maximum two columns. Will perform
+median split if numeric.}
 }
 \value{
 A ggplot object
 }
 \description{
-Boxplot of mean switch time aggregated by subjects within each FirstAOI, potentially faceted by predictor_columns.
+Boxplot of mean switch time aggregated by subjects within each FirstAOI, potentially faceted by
+predictor_columns.
 }
 

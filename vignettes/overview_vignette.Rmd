@@ -196,19 +196,24 @@ response_window_clean$TrialDistractor <-
 
 onsets <- make_onset_data(response_window_clean, data_options, onset_time = 15500, fixation_window_length = 100, target_aoi='TrialTarget')
 
+# participants' ability to orient to the trial target overall:
+plot(onsets) + theme(legend.text=element_text(size=5))
+# participants' ability to orient to the trial target, split by which target:
 plot(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=5))
+# we can also visualize numeric predictors:
+plot(onsets, predictor_columns = "MCDI_Total") + theme(legend.text=element_text(size=5))
 
 # compare switch times in a mixed-effects model
-onset_switches <- make_switch_data(onsets, predictor_columns = "Target")
+onset_switches <- make_switch_data(onsets, predictor_columns = c("Target","MCDI_Total"))
 
 # visualize subject's switch times
-plot(onset_switches, predictor_columns = "Target") 
+plot(onset_switches, predictor_columns = c("Target"))
 
 # center predictor:
 onset_switches$FirstAOIC <- ifelse(onset_switches$FirstAOI == 'TrialTarget', .5, -.5)
-onset_switches$FirstAOIC <- scale(onset_switches$FirstAOIC, center=TRUE, scale=FALSE)
+onset_switches$FirstAOIC <- as.numeric( scale(onset_switches$FirstAOIC, center=TRUE, scale=FALSE) ) # use as.numeric with scale or dplyr rebels
 onset_switches$TargetC <- ifelse(onset_switches$Target == 'Animate', .5, -.5)
-onset_switches$TargetC <- scale(onset_switches$TargetC, center=TRUE, scale=FALSE)
+onset_switches$TargetC <- as.numeric( scale(onset_switches$TargetC, center=TRUE, scale=FALSE) )
 
 model <- lmer(FirstSwitch ~ FirstAOIC*TargetC + 
                 (1 | Trial) + (1 | ParticipantName), data=onset_switches, REML=FALSE)

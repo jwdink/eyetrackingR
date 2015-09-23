@@ -9,7 +9,8 @@
 \arguments{
 \item{data}{The output of the \code{make_onset_data} function}
 
-\item{predictor_columns}{Column(s) by which to facet the data. Does NOT perform median split if numeric.}
+\item{predictor_columns}{Column(s) by which to facet the data. Maximum two columns. Will perform
+median split if numeric.}
 }
 \value{
 A ggplot object
