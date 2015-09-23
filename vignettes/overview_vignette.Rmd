@@ -100,16 +100,15 @@ Collapse across subjects within a series of 100ms time-bins, and plot the timeco
 
 ```{r, warning=FALSE}
 # aggregate across trials within subjects in time analysis
-response_time_both_aoi <- make_time_sequence_data(response_window_clean, data_options, time_bin_size = 100, 
-                                 predictor_columns = c("Target")
+response_time <- make_time_sequence_data(response_window_clean, data_options, time_bin_size = 100, 
+                                 predictor_columns = c("Target"),
+                                 aois = "Animate"
                             )
 
 # visualize time results
-plot(response_time_both_aoi, predictor_column = "Target") + 
+plot(response_time, predictor_column = "Target") + 
   theme_light() +
   coord_cartesian(ylim = c(0,1))
-
-response_time <- dplyr::filter(response_time_both_aoi, AOI == "Animate")
 ```
 
 Aggregate across our response window for each subject, calculating a mean proportion of looking to the `Animate` AOI for each type of `Target` trial.
