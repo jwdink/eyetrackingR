@@ -61,7 +61,7 @@ make_time_window_data <- function(data,
 
 #' Plot a time-window dataset
 #' 
-#' Plots the data returned from make_time_window_data. Data can be plotted against (up to two)
+#' Plots the data returned from \code{make_time_window_data}. Data can be mapped onto (up to two)
 #' predictor columns. If no predictor columns are supplied, AOI is placed on the x-axis; otherwise,
 #' data for each AOI is set in a separate facet.
 #' 
