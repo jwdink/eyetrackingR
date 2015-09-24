@@ -148,7 +148,7 @@ describe_data(response_window_agg_by_sub, describe_column = "Prop", group_column
 
 ### Time-Course
 
-Here, we'll visualize the time-course of looking. To do this, we use eyetrackingR's `time_sequence_data` type. This bins our data into time-bins of our choosing. Here, we use 100ms time-bins. We use the 'arcsin square root' transformation on proportion-looking.
+Here, we'll visualize the time-course of looking. To do this, we use eyetrackingR's `time_sequence_data` type. This bins our data into time-bins of our choosing. Here, we use 100ms time-bins. 
 
 ```{r, warning=FALSE}
 # aggregate across trials within subjects in time analysis
@@ -171,7 +171,7 @@ Our data is ready for some analyses.
 
 #### Simple paired t-test
 
-The simplest test we can do aggregates across the entire time-window, and compares the proportion-looking across conditions using a simple t-test on participants' means. 
+The simplest test we can do aggregates across the entire time-window, and compares the proportion-looking across conditions using a simple t-test on participants' means. We use the 'arcsin square root' transformation on proportion-looking.
 
 ```{r, warning=FALSE}
 # simple t-test between conditions
