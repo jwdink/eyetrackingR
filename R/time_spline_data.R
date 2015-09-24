@@ -22,7 +22,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
                                                        predictor_column,
                                                        aoi = NULL,
                                                        within_subj = FALSE,
-                                                       smoother = 'smooth.spline',
+                                                       smoother,
                                                        samples = 1000,
                                                        resolution = 10,
                                                        alpha = .05) {
@@ -56,13 +56,9 @@ make_boot_splines_data.time_sequence_data <- function (data,
     sampled_subject_rows <- unlist(sample(run_subjects_rows, length(run_subjects_rows), replace = TRUE))
     run_data <- run_original[sampled_subject_rows,]
 
-    # get timepoints
-    run_times <- unique(run_original$Time)
-    run_times <- run_times[order(run_times)]
-
     if (smoother == "none") {
       # use straight linear approximation on the values
-      run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
+      run_predicted_times <- seq(min(run_original$Time), max(run_original$Time), by=resolution)
 
       run_predictions <- with(run_data,
                               approx(run_data$Time, run_data$Prop, xout=run_predicted_times))
@@ -75,7 +71,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
                          smooth.spline(Time, Prop, cv=FALSE))
 
       # get interpolated spline predictions for total time at *resolution*
-      run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
+      run_predicted_times <- seq(min(run_original$Time), max(run_original$Time), by=resolution)
       run_predictions <- predict(run_spline, run_predicted_times)
 
       return(run_predictions$y)
@@ -86,7 +82,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
                         loess(Prop ~ Time))
 
       # get interpolated loess predictions for total time at *resolution*
-      run_predicted_times <- seq(min(run_times), max(run_times), by=resolution)
+      run_predicted_times <- seq(min(run_original$Time), max(run_original$Time), by=resolution)
       run_predictions <- predict(run_loess, run_predicted_times)
 
       return (run_predictions)
@@ -162,7 +158,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
     colnames(bootstrapped_data) <- sample_rows
 
     bootstrapped_data <- data.frame(
-      Time = seq(min(data$Time), max(data$Time), by=resolution),
+      Time = seq(min(df_diff$Time), max(df_diff$Time), by=resolution),
       bootstrapped_data
     )
 
@@ -220,8 +216,8 @@ analyze_boot_splines.boot_splines_data <- function(data) {
       Time = data[['Time']],
       MeanDiff = apply(samples, 1, mean),
       SE = apply(samples, 1, sd),
-      CI_low = round(apply(samples, 1, function (x) { quantile(x,probs=low_prob) }),5),
-      CI_high = round(apply(samples, 1, function (x) { quantile(x,probs=high_prob) }),5)
+      CI_low = round(apply(samples, 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5),
+      CI_high = round(apply(samples, 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5)
     )
 
     bootstrapped_data <- mutate(bootstrapped_data,
@@ -284,7 +280,7 @@ summary.boot_splines_analysis <- function(data) {
                                                 # instead of current behavior of start_first_bin -> start_last_bin
 
   if (sum(divergences$values) == 0) {
-    message("No Divergences.")
+    cat("No Divergences.")
   }
   else {
     # convert to time ranges
@@ -296,7 +292,7 @@ summary.boot_splines_analysis <- function(data) {
                           ' - ',
                           divergences$timestamps[which(divergences$values == TRUE)])
 
-    message("Divergences:\n")
+    cat("Divergences:\n")
     cat(paste(divergences, collapse="\n"))
   }
 }
@@ -364,7 +360,8 @@ plot.boot_splines_analysis <- function(data) {
   g <- ggplot(data, aes(x=Time, y=MeanDiff)) +
     geom_line() +
     geom_ribbon(aes(ymax=CI_high, ymin=CI_low), mult=1, alpha=.2, colour=NA) +
-    xlab('Time')
+    xlab('Time') +
+    geom_hline(yintercept = 0, linetype="dashed")
 
   if (bootstrap_attr$within_subj == TRUE) {
     g <- g + ylab('Difference Score (within-subjects)')

@@ -187,7 +187,8 @@ subset_by_window <- function(data, data_options,
                              remove = TRUE,
                              window_start_msg = NULL, window_end_msg = NULL, msg_col = NULL,
                              window_start_col = NULL, window_end_col = NULL,
-                             window_start_time= NULL, window_end_time= NULL
+                             window_start_time= NULL, window_end_time= NULL,
+                             quiet = FALSE
                              ) {
   
   ## Helper:
@@ -273,7 +274,9 @@ subset_by_window <- function(data, data_options,
   }
   
   #
-  message("Avg. window length in new data will be ", round(mean(data$.WindowEnd - data$.WindowStart, na.rm=TRUE),2) )
+  if (!quiet) {
+    message("Avg. window length in new data will be ", round(mean(data$.WindowEnd - data$.WindowStart, na.rm=TRUE),2) ) 
+  }
   
   # Subset
   df_subsetted <- filter(.data = data,
@@ -281,7 +284,7 @@ subset_by_window <- function(data, data_options,
                          !is.na(.WindowStart))
   if (remove) {
     df_subsetted <- filter_(.data = df_subsetted,
-                          .dots = list(interp(~TIME_COL >= .WindowStart & TIME_COL <= .WindowEnd, TIME_COL = time_col)))
+                          .dots = list(interp(~TIME_COL >= .WindowStart & TIME_COL < .WindowEnd, TIME_COL = time_col)))
   } 
   
   # Rezero
@@ -349,24 +352,30 @@ trackloss_analysis <- function(data, data_options) {
 #' Clean data by removing high-trackloss trials/subjects.
 #'
 #' Remove trials/participants with too much trackloss, with a customizable threshold.
-#'
+#' 
 #' @param data
 #' @param data_options
-#' @param participant_prop_thresh Maximum proportion of trackloss for participants
-#' @param trial_prop_thresh Maximum proportion of trackloss for trials
+#' @param participant_prop_thresh            Maximum proportion of trackloss for participants
+#' @param trial_prop_thresh                  Maximum proportion of trackloss for trials
+#' @param window_start_time,window_end_time  Time-window within-which you want trackloss analysis to
+#'   be based. Allows you to keep the entire trial window for data, but clean based on the trackloss
+#'   within a subset of it
 #' @export
 #' @return Cleaned data
 
 clean_by_trackloss <- function(data, data_options,
                               participant_prop_thresh = 1,
-                              trial_prop_thresh = 1) {
+                              trial_prop_thresh = 1,
+                              window_start_time = -Inf, window_end_time = Inf) {
 
   # Helpful Column:
   data$.TrialID <- paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
 
   # Trackloss Analysis:
   message("Performing Trackloss Analysis...")
-  tl <- trackloss_analysis(data, data_options)
+  data_tl <- subset_by_window(data = data, data_options, quiet=TRUE,
+                              window_start_time = window_start_time, window_end_time = window_end_time )
+  tl <- trackloss_analysis(data_tl, data_options)
 
   # Bad Trials:
   if (trial_prop_thresh < 1) {

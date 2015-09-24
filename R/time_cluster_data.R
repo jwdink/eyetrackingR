@@ -82,8 +82,6 @@ analyze_time_clusters.time_cluster_data <-function(data,
   } else {
     df_biggclust <- filter(df_biggclust, Cluster == which.min(attrs$clusters["SumStat",]))
   }
-  cat(dim(df_biggclust))
-
   
   # Resample this data and get sum statistic each time, creating null distribution
   if (within_subj) {

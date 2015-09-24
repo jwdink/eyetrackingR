@@ -5,7 +5,7 @@
 \title{Clean data by removing high-trackloss trials/subjects.}
 \usage{
 clean_by_trackloss(data, data_options, participant_prop_thresh = 1,
-  trial_prop_thresh = 1)
+  trial_prop_thresh = 1, window_start_time = -Inf, window_end_time = Inf)
 }
 \arguments{
 \item{data}{}
@@ -15,6 +15,10 @@ clean_by_trackloss(data, data_options, participant_prop_thresh = 1,
 \item{participant_prop_thresh}{Maximum proportion of trackloss for participants}
 
 \item{trial_prop_thresh}{Maximum proportion of trackloss for trials}
+
+\item{window_start_time,window_end_time}{Time-window within-which you want trackloss analysis to
+be based. Allows you to keep the entire trial window for data, but clean based on the trackloss
+within a subset of it}
 }
 \value{
 Cleaned data
