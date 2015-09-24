@@ -299,7 +299,6 @@ bootstrapped_familiar <- make_boot_splines_data(response_time,
                                               predictor_column = 'Target', 
                                               within_subj = TRUE, 
                                               samples = 1000, 
-                                              resolution = 100, 
                                               alpha = .05,
                                               smoother = "smooth.spline") 
 

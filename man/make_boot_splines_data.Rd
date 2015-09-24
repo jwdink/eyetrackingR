@@ -9,21 +9,23 @@ make_boot_splines_data(data, ...)
 
 \method{make_boot_splines_data}{time_sequence_data}(data, predictor_column,
   aoi = NULL, within_subj = FALSE, smoother = "smooth.spline",
-  samples = 1000, resolution = 10, alpha = 0.05)
+  samples = 1000, resolution = NULL, alpha = 0.05)
 }
 \arguments{
 \item{data}{}
 
 \item{predictor_column}{What predictor var to split by? Maximum two conditions}
 
+\item{aoi}{Which AOI do you wish to perform the analysis on?}
+
 \item{within_subj}{Are the two conditions within or between subjects?}
 
 \item{smoother}{Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing}
 
-\item{samples}{How many (re)samples to take?}
+\item{samples}{How many iterations to run bootstrap resampling? Default 1000}
 
-\item{resolution}{What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals
-per second, or hundredths of a second}
+\item{resolution}{What resolution should we return predicted splines at, in ms? e.g., 10ms = 100
+intervals per second, or hundredths of a second. Default is the same size as time-bins.}
 
 \item{alpha}{p-value when the groups are sufficiently "diverged"}
 }

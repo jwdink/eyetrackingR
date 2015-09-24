@@ -21,7 +21,7 @@ A dataframe giving descriptive statistics for the \code{describe_column}, includ
 min, max, and number of trials
 }
 \description{
-Returns descriptive statistics about a column of choice. A simple wrapper around dplyr:group_by/
-dplyr::summarize that allows a quick glance at the data.
+Returns descriptive statistics about a column of choice. A simple convenience function that wraps
+\code{dplyr::group_by} and \code{dplyr::summarize}, allowing a quick glance at the data.
 }
 

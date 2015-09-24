@@ -10,21 +10,22 @@ make_boot_splines_data = function(data, ...) {
 #'
 #' @param data
 #' @param predictor_column What predictor var to split by? Maximum two conditions
+#' @param aoi Which AOI do you wish to perform the analysis on?
 #' @param within_subj Are the two conditions within or between subjects?
-#' @param samples How many (re)samples to take?
-#' @param resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100 intervals
-#'   per second, or hundredths of a second
-#' @param alpha p-value when the groups are sufficiently "diverged"
 #' @param smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing
+#' @param samples How many iterations to run bootstrap resampling? Default 1000
+#' @param resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100
+#'   intervals per second, or hundredths of a second. Default is the same size as time-bins.
+#' @param alpha p-value when the groups are sufficiently "diverged"
 #' @export
 #' @return A bootstrapped distribution of samples for each time-bin
 make_boot_splines_data.time_sequence_data <- function (data,
                                                        predictor_column,
                                                        aoi = NULL,
                                                        within_subj = FALSE,
-                                                       smoother,
+                                                       smoother = "smooth.spline",
                                                        samples = 1000,
-                                                       resolution = 10,
+                                                       resolution = NULL,
                                                        alpha = .05) {
   if (!requireNamespace("pbapply", quietly = TRUE)) {
     pbreplicate <- function(n, expr, simplify) replicate(n, expr, simplify)
@@ -32,12 +33,17 @@ make_boot_splines_data.time_sequence_data <- function (data,
   } else {
     pbreplicate <- pbapply::pbreplicate
   }
+  
+  # get attrs:
+  attrs <- attr(data, "eyetrackingR")
+  data_options <- attrs$data_options
 
   # validate arguments
   if ( length(levels(as.factor(data[[predictor_column]]))) != 2 ) {
     stop('make_boot_splines_data requires a predictor_column with exactly 2 levels.')
   }
   smoother <- match.arg(smoother, c('smooth.spline','loess','none'))
+  if (is.null(resolution)) resolution = attrs$time_bin_size
 
   # Pre-prep data
   if (is.null(aoi)) {

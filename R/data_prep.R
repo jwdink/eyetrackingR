@@ -510,10 +510,10 @@ remove_trackloss <- function(data, data_options, delete_rows = FALSE) {
 }
 
 #' Describe dataset
-#'
-#' Returns descriptive statistics about a column of choice. A simple wrapper around dplyr:group_by/
-#' dplyr::summarize that allows a quick glance at the data.
-#'
+#' 
+#' Returns descriptive statistics about a column of choice. A simple convenience function that wraps
+#' \code{dplyr::group_by} and \code{dplyr::summarize}, allowing a quick glance at the data.
+#' 
 #' @param data
 #' @param data_options
 #' @param describe_column The column to return descriptive statistics about.
@@ -530,13 +530,15 @@ describe_data <- function(data, data_options = NULL, describe_column, group_colu
   if (is.null(data_options)) stop("Please supply data_options.")
 
   # Build Summarize Expression
-  summarize_expr <- list(Mean = interp( ~mean(DV_COL, na.rm=TRUE),     DV_COL = as.name(describe_column) ),
-                       SD   = interp( ~sd(DV_COL, na.rm=TRUE),       DV_COL = as.name(describe_column) ),
-                       Var  = interp( ~var(DV_COL, na.rm=TRUE),      DV_COL = as.name(describe_column) ),
+  summarize_expr <- list(Mean = interp( ~mean(DV_COL, na.rm=TRUE),  DV_COL = as.name(describe_column) ),
+                       SD   = interp( ~sd(DV_COL, na.rm=TRUE),      DV_COL = as.name(describe_column) ),
+                       Var  = interp( ~var(DV_COL, na.rm=TRUE),     DV_COL = as.name(describe_column) ),
                        Min  = interp( ~min(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) ),
                        Max  = interp( ~max(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) )
   )
-  if (data_options$trial_column %in% colnames(data)) summarize_expr$NumTrials = interp( ~n_distinct(TRIAL_COL), TRIAL_COL = as.name(data_options$trial_column))
+  if (data_options$trial_column %in% colnames(data)) {
+    summarize_expr$NumTrials = interp( ~n_distinct(TRIAL_COL), TRIAL_COL = as.name(data_options$trial_column))
+  }
 
   # Group, Summarize
   df_grouped <- group_by_(data, .dots = as.list(group_columns))
