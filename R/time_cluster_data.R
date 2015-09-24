@@ -253,7 +253,9 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
                                                      formula = NULL,
                                                      ...) {
   
-  data_options <- attr(data, "eyetrackingR")$data_options
+  
+  attrs <- attr(data, "eyetrackingR")
+  data_options <- attrs$data_options
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
 
   # Check Arg:
@@ -304,7 +306,7 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
 
   # Merge cluster info into original data
   df_timeclust <- left_join(data, time_bin_summary[,c('Time','AOI','Cluster')], by=c('Time','AOI'))
-
+  
   # Collect info about each cluster:
   start_times <- sapply(seq_along(sum_stat),
                        FUN = function(clust) time_bin_summary$Time[first(which(time_bin_summary$Cluster==clust))]
@@ -312,7 +314,6 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
   end_times <- sapply(seq_along(sum_stat),
                      FUN = function(clust) time_bin_summary$Time[last(which(time_bin_summary$Cluster==clust))]
   )
-  attrs <- attr(df_timeclust, "eyetrackingR")
   clusters <- sapply(seq_along(sum_stat), function(i) {
     c(Cluster = i, SumStat = sum_stat[i], StartTime = start_times[i], EndTime = end_times[i]+attrs$time_bin_size)
   })
