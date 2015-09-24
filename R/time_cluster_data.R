@@ -231,12 +231,13 @@ make_time_cluster_data <-function(data, ...) {
 }
 #' @describeIn make_time_cluster_data
 #' @param data   The output of the \code{make_time_sequence_data} function
-#' @param predictor_column  The predictor variable whose test statistic you are interested in
+#' @param predictor_column  The variable whose test statistic you are interested in. Testing the
+#'   intercept and interaction terms not currently supported
 #' @param aoi               If this dataframe has multiple AOIs, you must specify which to analyze
-#' @param test              What type of test should be performed in each time bin? Supports \code{t.test},
-#'   \code{wilcox}, \code{lm}, or \code{lmer}.
-#' @param threshold         Value of statistic used in determining significance. Note the sign! This test is
-#'   directional.
+#' @param test              What type of test should be performed in each time bin? Supports
+#'   \code{t.test}, \code{wilcox}, \code{lm}, or \code{lmer}.
+#' @param threshold         Value of statistic used in determining significance. Note the sign! This
+#'   test is directional.
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given
 #' @param formula           What formula should be used for test? Optional (for all but \code{lmer}), if unset
 #'   uses \code{Prop ~ [predictor_column]}

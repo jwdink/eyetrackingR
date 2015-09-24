@@ -105,9 +105,10 @@ analyze_time_bins = function(data, ...) {
 #'
 #' @param data   The output of the 'make_time_sequence_data' function
 #' @param data_options
-#' @param predictor_column  The variable whose test statistic you are interested in. If you are not
+#' @param predictor_column  The variable whose test statistic you are interested in. If you are not 
 #'   interested in a predictor, but the intercept, you can enter "intercept" for this argument.
-#' @param test              What type of test should be performed in each time bin? Supports
+#'   Interaction terms are not currently supported.
+#' @param test              What type of test should be performed in each time bin? Supports 
 #'   \code{t.test}, \code{wilcox.test}, \code{lm}, and \code{lmer}.
 #' @param threshold         Value of statistic used in determining significance
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given

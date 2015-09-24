@@ -17,15 +17,16 @@ make_time_cluster_data(data, ...)
 \item{...}{Any other arguments to be passed to the selected 'test' function (e.g., paired,
 var.equal, etc.)}
 
-\item{predictor_column}{The predictor variable whose test statistic you are interested in}
+\item{predictor_column}{The variable whose test statistic you are interested in. Testing the
+intercept and interaction terms not currently supported}
 
 \item{aoi}{If this dataframe has multiple AOIs, you must specify which to analyze}
 
-\item{test}{What type of test should be performed in each time bin? Supports \code{t.test},
-\code{wilcox}, \code{lm}, or \code{lmer}.}
+\item{test}{What type of test should be performed in each time bin? Supports
+\code{t.test}, \code{wilcox}, \code{lm}, or \code{lmer}.}
 
-\item{threshold}{Value of statistic used in determining significance. Note the sign! This test is
-directional.}
+\item{threshold}{Value of statistic used in determining significance. Note the sign! This
+test is directional.}
 
 \item{formula}{What formula should be used for test? Optional (for all but \code{lmer}), if unset
 uses \code{Prop ~ [predictor_column]}}

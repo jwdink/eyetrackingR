@@ -18,7 +18,8 @@ analyze_time_bins(data, ...)
 paired, var.equal, etc.)}
 
 \item{predictor_column}{The variable whose test statistic you are interested in. If you are not
-interested in a predictor, but the intercept, you can enter "intercept" for this argument.}
+interested in a predictor, but the intercept, you can enter "intercept" for this argument.
+Interaction terms are not currently supported.}
 
 \item{test}{What type of test should be performed in each time bin? Supports
 \code{t.test}, \code{wilcox.test}, \code{lm}, and \code{lmer}.}
