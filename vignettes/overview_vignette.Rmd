@@ -334,10 +334,13 @@ plot(df_timeclust) +
   ylab("T-Statistic")
 summary(df_timeclust)
 
-clust_analysis = analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=250)
-clust_analysis
-
-plot(clust_analysis) 
+# only bootstrap for p-values if we actually have clusters identified
+if (length(unique(df_timeclust$Cluster)) > 1) {
+	clust_analysis = analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=250)
+	clust_analysis
+	
+	plot(clust_analysis) 
+}
 ```
 
 
