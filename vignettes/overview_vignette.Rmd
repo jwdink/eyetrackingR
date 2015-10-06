@@ -235,7 +235,7 @@ Another way of looking at our data is asking how participants switch between AOI
 
 ### Visualize Proportion Switching Over the Trial
 
-Here, we create an 'onset-contingent' plot (e.g., Fernald, 1998). The size of the gap between the solid line (switching from the non-Target) and the dashed line (switching from the Target) documents infants' performance in identifying the target: Infants should switch more quickly and more frequently *to* the Target than *from* it (but they also may be hesitant to *ever* shift from their preferred, animate targets...).
+Here, we create an 'onset-contingent' plot (e.g., Fernald, 1998; style adapted from Yurovksy & Frank, 2015). The size of the gap between the solid line (switching from the non-Target) and the dashed line (switching from the Target) documents infants' performance in identifying the target: Infants should switch more quickly and more frequently *to* the Target than *from* it (but they also may be hesitant to *ever* shift from their preferred, animate targets...).
 
 ```{r, warning=FALSE}
 # recode AOIs to target & distractor
