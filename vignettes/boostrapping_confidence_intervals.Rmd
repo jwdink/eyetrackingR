@@ -22,11 +22,11 @@ data_options = set_data_options(
 )
 data <- verify_dataset(word_recognition, data_options)
 response_window <- subset_by_window(data, data_options, 
-                                    window_start_time = 15000, # slightly earlier
+                                    window_start_time = 15500, 
                                     window_end_time = 21000, 
                                     rezero = FALSE)
 response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
-response_window_clean <- clean_by_trackloss(data = response_window,window_start_time = 15500,
+response_window_clean <- clean_by_trackloss(data = response_window,
                                             data_options = data_options, 
                                             trial_prop_thresh = .25)
 response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', response_window_clean$Trial), 
@@ -63,34 +63,47 @@ No problem, let's just make a rolling window. For each timebin, calculate whethe
 
 Based on this smoothed measure, we pick the first point of divergence for each subject.
 
-First thing I see as awkward about this procedure comes up here. How to deal with participants whose diff in looking between conditions never went above zero? Never actually comes up in this dataset, but still. If it were to come up: Here I just set the "first point of divergence" to be the end of the trial. I can see potential problems here, will think about this more.
-
 ```{r, warning=FALSE}
 width = 5 #  this time bin and his 4 neighbors (2 on each side)
-when_never_diverge_time_equals = 21000
 df_diff_summary = df_diff %>%
   group_by(ParticipantName) %>%
-  mutate(AllDiff = zoo::rollapply(ElogDiff, function(x) all(x>0), width = width, fill=FALSE)) %>%
-  summarise(FirstDiff = first(Time[which(AllDiff==TRUE)], order_by = Time, default=when_never_diverge_time_equals) )
+  mutate(AllDiff = zoo::rollapply(ElogDiff, function(x) all(x>0), width = width, fill=FALSE, align="left")) %>%
+  summarise(FirstDiff = first(Time[which(AllDiff==TRUE)], order_by = Time, default=NA) )
+
+num_subs_to_eventually_diverge = length(which(!is.na(df_diff_summary$FirstDiff)))
+cat(num_subs_to_eventually_diverge, "out of", length(unique(df_diff_summary$ParticipantName)), "subjects eventually diverged.")
 
 g + geom_vline(data = df_diff_summary, aes(xintercept=FirstDiff), linetype="dashed")
 ```
 
 Seems like the procedure works fairly well. Only one too early false alarm? ANCAT90.
 
-Of course, now that we have a single number for each subject, we can get a confidence interval.
+And now that we have a single number for each subject, we can get a confidence interval.
 
 ```{r, warning=FALSE}
-ggplot(df_diff_summary, aes(x = 0, y = FirstDiff)) +
-  stat_summary(fun.dat = mean_cl_boot) +
-  coord_flip(ylim = c(15000, 21000)) 
-  
-  
 distr = sapply(X = 1:5000, FUN = function(x) {
   mean(sample(df_diff_summary$FirstDiff, size = length(df_diff_summary$FirstDiff), replace = TRUE), na.rm=TRUE)
 })
-quantile(distr, probs = c(.025, .50, .975) )
+(conf = c(quantile(distr, probs = .025), Mean = mean(distr), quantile(distr, probs = .975)))
+
+plot(df_time, predictor_column="Target") +
+  geom_vline(xintercept = conf, linetype = c(3,2,3), alpha = .8)
 ```
 
-One thing I'm thinking about is whether it would make sense to look the timepoint for the beginning of the *most stable* divergence, rather than the timepoint for the beginning of the first divergence that passes the rolling-neighbors threshold I did above.
+This might seem like a surprisingly late estimate, relative to what we're seeing in the graph. It seems to be due to the skew in the data: the majority of the subjects diverge early, but the ones who diverge late can diverge very late:
 
+```{r, warning=FALSE}
+quickplot(x= df_diff_summary$FirstDiff)
+plot(df_time, predictor_column="Target") +
+  geom_vline(xintercept = df_diff_summary$FirstDiff, alpha = .5) +
+  xlab("Time (each line = a subject's first divergence)")
+```
+
+I'll have to think more about whether this sensitivity to late-divergers is a virtue or vice of this design. Need to think about the underlying process that generates a divergence...
+
+
+#### Some thoughts:
+
+* What should be done for subjects who _never_ diverge in looking? Could do something like give them a first-diff time corresponding to the end of the trial. But I think it might be better just to exclude them in first-diff time calculations, and be explicit about what's being calculated. E.g., in a results section "of 40 subjects, 38 showed heightened looking to X at some point in the trial in condition A compared to condition B. Of these 38, the average time at which this preference emerged was 500ms(+/- 84ms)."
+* This method could also be used for looking at a single AOI, regardless of condition/study-design. When is looking at AOI X reliably above some threshold? This analysis is probably *only* appropriate if its guaranteed at start time that they aren't looking at the AOI. Otherwise the estimate is biased, because some subjects will start by chance on the AOI. Have to think about this more.
+* There are lots of ways of estimating the first point of divergence per subject. Here I use a moving window. Could also just pick the biggest/longest divergence. Or, could do something akin to the cluster analysis: take each subject's divergences, bootstrap the biggest one, use that to determine whether the smaller divergences for that subject are reliable. Take the first reliable divergence. Since we're bootstrap resampling within each subject, this bootstrap method only works if there are lots of trials per subject.
