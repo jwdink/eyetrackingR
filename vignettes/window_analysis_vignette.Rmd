@@ -104,7 +104,7 @@ response_window_agg_by_sub$AgeC <- response_window_agg_by_sub$Age - mean(respons
 response_window_agg_by_sub$MCDI_TotalC <- response_window_agg_by_sub$MCDI_Total - mean(response_window_agg_by_sub$MCDI_Total)
 
 model <- lm(ArcSin ~ Target*AgeC*MCDI_TotalC, data=response_window_agg_by_sub)
-summary(model)
+broom::tidy(model)
 ```
 
 This linear model shows no main effects or interactions of Target with those predictors, but confirms the large effect of Target.
@@ -129,9 +129,7 @@ response_window_agg$TargetC <- as.numeric(scale(response_window_agg$TargetC, cen
 # mixed-effects linear model on subject*trial data
 model_time_window <- lmer(Elog ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), 
                           data = response_window_agg, REML = FALSE)
-summary(model_time_window)
-
-# cleanly show estimates
+# cleanly show important parts of model (see `summary()` for more)
 broom::tidy(model_time_window, effects="fixed")
 
 # use model comparison to attain p-values
@@ -169,10 +167,7 @@ response_window_agg$MCDI_TotalC <- response_window_agg$MCDI_Total - mean(respons
 
 model_time_window_add_predictors <- lmer(Elog ~ TargetC*AgeC*MCDI_TotalC + (1 + TargetC | Trial) + (1 | ParticipantName), 
               data = response_window_agg, REML = FALSE)
-
-summary(model_time_window_add_predictors)
-
-# cleanly show p-values
+# cleanly show important parts of model (see `summary()` for more)
 broom::tidy(model_time_window_add_predictors, effects="fixed")
 
 # use model comparison to attain p-values

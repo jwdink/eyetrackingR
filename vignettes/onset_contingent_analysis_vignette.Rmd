@@ -125,8 +125,7 @@ onset_switches$TargetC <- scale(onset_switches$TargetC, center=TRUE, scale=FALSE
 # build model:
 model_switches <- lmer(FirstSwitch ~ FirstAOIC*TargetC + 
                 (1 | Trial) + (1 | ParticipantName), data=onset_switches, REML=FALSE)
-summary(model_switches)
-
+# cleanly show important parts of model (see `summary()` for more)
 broom::tidy(model_switches, effects="fixed")
 drop1(model_switches,~.,test="Chi")
 ```

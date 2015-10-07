@@ -121,8 +121,8 @@ response_time$TargetC <- as.numeric(scale(response_time$TargetC, center=TRUE, sc
 # Construct model
 model_time_sequence <- lmer(Elog ~ TargetC*(ot1) + (1 + ot1 | Trial) + (1 + ot1 | ParticipantName), 
               data = response_time, REML = FALSE)
-summary(model_time_sequence)
 
+# cleanly show important parts of model (see `summary()` for more)
 broom::tidy(model_time_sequence, effects = "fixed")
 drop1(model_time_sequence, ~., test="Chi")
 ```
@@ -144,8 +144,7 @@ model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + (1 | Trial)
 # commented out because this many random slopes takes too long to fit for a vignette
 # model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + (1 + ot1 + ot2 + ot3 + ot4 | Trial) + (1 + ot1 + ot2 + ot3 + ot4 | ParticipantName), data = response_time, REML = FALSE)
 
-summary(model_time_sequence)
-
+# cleanly show important parts of model (see `summary()` for more)
 broom::tidy(model_time_sequence, effects = "fixed")
 drop1(model_time_sequence, ~., test="Chi")
 
@@ -159,7 +158,7 @@ This model better captures our data because it shows critical interactions betwe
 
 GCA can tell you that your conditions/predictors had some predictive value (i.e., changed differently) over time. They can also tell you the form of that change by seeing the polynomials with which they reliably interacted. However, they can't tell you at what time these predictors had an effect.
 
-In the case of ascertainign reaction times, one way to answer this question is by using [onset-contingent analyses](onset_contingent_analysis_vignette.html).
+In the case of ascertaining reaction times, one way to answer this question is by using [onset-contingent analyses](onset_contingent_analysis_vignette.html).
 
 For more general approaches to estimating time windows of divergence (estimating both the onset and offset of divergences), take a look at the [divergence vignette](divergence_vignette.html).
 
