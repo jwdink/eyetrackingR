@@ -20,59 +20,37 @@ In this vignette, we want to examine our data *without* throwing out time as a p
 Before performing this analysis, we'll need to prepare and clean our dataset. Here we will to do this quickly and with few notes but, for more information, see the vignette on [preparing your data](preparing_your_data_vignette.html).
 
 ```{r results='hide'}
-set.seed(42)
 library("Matrix")
 library("lme4")
 library("ggplot2")
 library("eyetrackingR")
-data("word_recognition")
 
-# set data options
-data_options = set_data_options( 
-  participant_column = "ParticipantName",
-  trial_column = "Trial",
-  time_column = "TimeFromTrialOnset",
-  trackloss_column = "TrackLoss",
-  aoi_columns = c('Animate','Inanimate')
+data("word_recognition")
+data <- make_eyetrackingr_data(word_recognition, 
+                       participant_column = "ParticipantName",
+                       trial_column = "Trial",
+                       time_column = "TimeFromTrialOnset",
+                       trackloss_column = "TrackLoss",
+                       aoi_columns = c('Animate','Inanimate'),
+                       treat_non_aoi_looks_as_missing = TRUE
 )
 
-# verify dataset columns
-data <- verify_dataset(word_recognition, data_options)
-
 # subset to response window post word-onset
-response_window <- subset_by_window(data, data_options, 
+response_window <- subset_by_window(data, 
                                     window_start_time = 15500, 
                                     window_end_time = 21000, 
                                     rezero = FALSE)
 
-# convert non-AOI looks to trackloss
-response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
-
 # analyze amount of trackloss by subjects and trials
-(trackloss <- trackloss_analysis(data = response_window,
-                                data_options = data_options))
+(trackloss <- trackloss_analysis(data = response_window))
 
 # remove trials with > 25% of trackloss
-response_window_clean <- clean_by_trackloss(data = response_window,
-                                            data_options = data_options, 
-                                            trial_prop_thresh = .25)
+response_window_clean <- clean_by_trackloss(data = response_window, trial_prop_thresh = .25)
 
 # create Target condition column
 response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', response_window_clean$Trial), 
                                        yes = 'Inanimate', 
                                        no  = 'Animate') )
-```
-
-We will also perform a few sanity checks (as always). For more information on these, look at the [window analysis vignette](window_analysis_vignette.html).
-
-```{r, warning=FALSE}
-# plot each participant's condition means
-(data_summary <- describe_data(response_window_clean, data_options, 
-                               describe_column='Animate', group_columns=c('ParticipantName','Target')))
-
-ggplot(data_summary, aes(x=Target, y=Mean, group=ParticipantName)) +
-              stat_summary(fun.y='mean', geom='point') +
-              stat_summary(fun.y='mean', geom='line')
 ```
 
 ## Visualize the timecourse
@@ -83,7 +61,7 @@ To do so, we can use eyetrackingR's `time_sequence_data` type to create a datase
 
 ```{r, warning=FALSE}
 # aggregate across trials within subjects in time analysis
-response_time <- make_time_sequence_data(response_window_clean, data_options, time_bin_size = 100, 
+response_time <- make_time_sequence_data(response_window_clean, time_bin_size = 100, 
                                  predictor_columns = c("Target"),
                                  aois = "Animate"
                             )

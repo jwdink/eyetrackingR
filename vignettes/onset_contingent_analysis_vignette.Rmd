@@ -30,53 +30,31 @@ library("lme4")
 library("ggplot2")
 library("eyetrackingR")
 data("word_recognition")
-
-# set data options
-data_options = set_data_options( 
-  participant_column = "ParticipantName",
-  trial_column = "Trial",
-  time_column = "TimeFromTrialOnset",
-  trackloss_column = "TrackLoss",
-  aoi_columns = c('Animate','Inanimate')
+data <- make_eyetrackingr_data(word_recognition, 
+                       participant_column = "ParticipantName",
+                       trial_column = "Trial",
+                       time_column = "TimeFromTrialOnset",
+                       trackloss_column = "TrackLoss",
+                       aoi_columns = c('Animate','Inanimate'),
+                       treat_non_aoi_looks_as_missing = TRUE
 )
 
-# verify dataset columns
-data <- verify_dataset(word_recognition, data_options)
-
 # subset to response window post word-onset
-response_window <- subset_by_window(data, data_options, 
+response_window <- subset_by_window(data, 
                                     window_start_time = 15500, 
                                     window_end_time = 21000, 
                                     rezero = FALSE)
 
-# convert non-AOI looks to trackloss
-response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
-
 # analyze amount of trackloss by subjects and trials
-(trackloss <- trackloss_analysis(data = response_window,
-                                data_options = data_options))
+(trackloss <- trackloss_analysis(data = response_window))
 
 # remove trials with > 25% of trackloss
-response_window_clean <- clean_by_trackloss(data = response_window,
-                                            data_options = data_options, 
-                                            trial_prop_thresh = .25)
+response_window_clean <- clean_by_trackloss(data = response_window, trial_prop_thresh = .25)
 
 # create Target condition column
 response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', response_window_clean$Trial), 
                                        yes = 'Inanimate', 
                                        no  = 'Animate') )
-```
-
-We will also perform a few sanity checks (as always). For more information on these, look at the [window analysis vignette](window_analysis_vignette.html).
-
-```{r, warning=FALSE}
-# plot each participant's condition means
-(data_summary <- describe_data(response_window_clean, data_options, 
-                               describe_column='Animate', group_columns=c('ParticipantName','Target')))
-
-ggplot(data_summary, aes(x=Target, y=Mean, group=ParticipantName)) +
-              stat_summary(fun.y='mean', geom='point') +
-              stat_summary(fun.y='mean', geom='line')
 ```
 
 ## Adding new columns
@@ -98,7 +76,7 @@ response_window_clean$TrialDistractor <- ifelse(test = response_window_clean$Tar
 Next, we can use `make_onset_data` to calculate whether, at each point in the trial, the participant has switched from their onset AOI. We can `plot` this new dataframe showing the proportion of participants who had switched from their onset AOI at each point (style adapted from Yurovsky & Frank, 2015). The size of the gap between the solid line (switching from the non-Target) and the dashed line (switching from the Target) documents infants' performance in identifying the target: Infants should switch more quickly and more frequently *to* the Target than *from* it:
 
 ```{r, warning=FALSE}
-onsets <- make_onset_data(response_window_clean, data_options, onset_time = 15500, 
+onsets <- make_onset_data(response_window_clean, onset_time = 15500, 
                           fixation_window_length = 100, target_aoi='TrialTarget')
 # participants' ability to orient to the trial target overall:
 plot(onsets) + theme(legend.text=element_text(size=5))
@@ -108,7 +86,7 @@ If we specify a predictor for this plot, we can examine visually whether infants
 
 ```{r, warning=FALSE}
 # participants' ability to orient to the trial target, split by which target:
-plot(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=5))
+plot(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=6))
 ```
 
 Infants were definitely more consistent and faster at switching *to* the Animate when it was named than away from it when the Inanimate was named, as expected.
@@ -117,7 +95,7 @@ Finally, we can ask whether infants with higher vocabularies outperformed infant
 
 ```{r, warning=FALSE}
 # we can also visualize numeric predictors:
-plot(onsets, predictor_columns = "MCDI_Total") + theme(legend.text=element_text(size=5))
+plot(onsets, predictor_columns = "MCDI_Total") + theme(legend.text=element_text(size=6))
 ```
 
 As one would expect, infants with larger vocabularies were faster (and more consistent) at identifying the Target AOI.

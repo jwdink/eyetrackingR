@@ -21,40 +21,32 @@ Before performing this analysis, we'll need to prepare and clean our dataset. He
 
 ```{r results="hide"}
 set.seed(42)
+
 library("Matrix")
 library("lme4")
 library("ggplot2")
 library("eyetrackingR")
+
 data("word_recognition")
-
-# set data options
-data_options = set_data_options( 
-  participant_column = "ParticipantName",
-  trial_column = "Trial",
-  time_column = "TimeFromTrialOnset",
-  trackloss_column = "TrackLoss",
-  aoi_columns = c('Animate','Inanimate')
+data <- make_eyetrackingr_data(word_recognition, 
+                       participant_column = "ParticipantName",
+                       trial_column = "Trial",
+                       time_column = "TimeFromTrialOnset",
+                       trackloss_column = "TrackLoss",
+                       aoi_columns = c('Animate','Inanimate'),
+                       treat_non_aoi_looks_as_missing = TRUE
 )
-
-# verify dataset columns
-data <- verify_dataset(word_recognition, data_options)
-
 # subset to response window post word-onset
 response_window <- subset_by_window(data, data_options, 
                                     window_start_time = 15500, 
                                     window_end_time = 21000, 
                                     rezero = FALSE)
 
-# convert non-AOI looks to trackloss
-response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
-
 # analyze amount of trackloss by subjects and trials
-(trackloss <- trackloss_analysis(data = response_window,
-                                data_options = data_options))
+(trackloss <- trackloss_analysis(data = response_window))
 
 # remove trials with > 25% of trackloss
 response_window_clean <- clean_by_trackloss(data = response_window,
-                                            data_options = data_options, 
                                             trial_prop_thresh = .25)
 
 # create Target condition column
@@ -63,16 +55,13 @@ response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)',
                                        no  = 'Animate') )
 ```
 
-We will also perform a few sanity checks (as always). For more information on these, look at the [window analysis vignette](window_analysis_vignette.html).
+We will also perform a few sanity checks. For more information on these, look at the [window analysis vignette](window_analysis_vignette.html).
 
 ```{r, warning=FALSE}
 # plot each participant's condition means
-(data_summary <- describe_data(response_window_clean, data_options, 
-                               describe_column='Animate', group_columns=c('ParticipantName','Target')))
-
-ggplot(data_summary, aes(x=Target, y=Mean, group=ParticipantName)) +
-              stat_summary(fun.y='mean', geom='point') +
-              stat_summary(fun.y='mean', geom='line')
+(data_summary <- describe_data(response_window_clean, 
+                               describe_column='Animate', group_columns=c('Target','ParticipantName')))
+plot(data_summary)
 ```
 
 ## Bootstrapped smoothed divergence analysis
@@ -91,7 +80,6 @@ To begin, we need to use `make_time_sequence_data` to generate a time-binned dat
 
 ```{r, warning=FALSE}
 response_time <- make_time_sequence_data(response_window_clean,
-                                  data_options,
                                   time_bin_size = 100, 
                                   predictor_columns = c("Target"),
                                   aois = "Animate",
@@ -152,7 +140,6 @@ To perform this procedure using eyetrackingR, we'll first create a time sequence
 
 ```{r, warning=FALSE}
 response_time_by_subj <- make_time_sequence_data(data = response_window_clean, 
-                        data_options = data_options, 
                         time_bin_size = 100, 
                         aois= "Animate", 
                         predictor_columns = "Target",
@@ -193,6 +180,6 @@ plot(clust_analysis)
 
 ## References
 
-Maris, E., Oostenveld, R., 2007. Nonparametric statistical testing of EEG- and MEG-data. Journal of Neuroscience Methods 164 (1), 177–190.
+Maris, E., Oostenveld, R., (2007). Nonparametric statistical testing of EEG- and MEG-data. Journal of Neuroscience Methods 164 (1), 177–190.
 
 Wendt, D., Brand, T., & Kollmeier, B. (2014). An Eye-Tracking Paradigm for Analyzing the Processing Time of Sentences with Different Linguistic Complexities. PLoS ONE, 9(6), e100186. http://doi.org/10.1371/journal.pone.0100186.t003
