@@ -21,40 +21,29 @@ Before performing this analysis, we'll need to prepare and clean our dataset. He
 
 ```{r results='hide'}
 set.seed(42)
+
 library("Matrix")
 library("lme4")
 library("ggplot2")
 library("eyetrackingR")
+
 data("word_recognition")
-
-# set data options
-data_options = set_data_options( 
-  participant_column = "ParticipantName",
-  trial_column = "Trial",
-  time_column = "TimeFromTrialOnset",
-  trackloss_column = "TrackLoss",
-  aoi_columns = c('Animate','Inanimate')
+data <- make_eyetrackingr_data(word_recognition, 
+                       participant_column = "ParticipantName",
+                       trial_column = "Trial",
+                       time_column = "TimeFromTrialOnset",
+                       trackloss_column = "TrackLoss",
+                       aoi_columns = c('Animate','Inanimate'),
+                       treat_non_aoi_looks_as_missing = TRUE
 )
-
-# verify dataset columns
-data <- verify_dataset(word_recognition, data_options)
-
 # subset to response window post word-onset
-response_window <- subset_by_window(data, data_options, 
+response_window <- subset_by_window(data, 
                                     window_start_time = 15500, 
                                     window_end_time = 21000, 
                                     rezero = FALSE)
 
-# convert non-AOI looks to trackloss
-response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
-
-# analyze amount of trackloss by subjects and trials
-(trackloss <- trackloss_analysis(data = response_window,
-                                data_options = data_options))
-
 # remove trials with > 25% of trackloss
 response_window_clean <- clean_by_trackloss(data = response_window,
-                                            data_options = data_options, 
                                             trial_prop_thresh = .25)
 
 # create Target condition column
@@ -71,12 +60,9 @@ Here, we'll inspect the descriptive statistics for our data, and make some initi
 * quickly visualize these differences by plotting a line for each subject. We expect they should all slope in the same direction, with lower mean looking to the Animate when the Inanimate was named than when the Animate was named.
 
 ```{r, warning=FALSE}
-(data_summary <- describe_data(response_window_clean, data_options, 
-                               describe_column='Animate', group_columns=c('ParticipantName','Target')))
-
-ggplot(data_summary, aes(x=Target, y=Mean, group=ParticipantName)) +
-              stat_summary(fun.y='mean', geom='point') +
-              stat_summary(fun.y='mean', geom='line')
+(data_summary <- describe_data(response_window_clean, 
+                               describe_column='Animate', group_columns=c('Target','ParticipantName')))
+plot(data_summary)
 ```
 
 ## Performing a simple paired t-test
@@ -96,7 +82,6 @@ While the first DV is the most intuitive, you might consider using the latter tw
 ```{r, warning=FALSE}
 # aggregate by subject across the response window
 response_window_agg_by_sub <- make_time_window_data(response_window_clean, 
-                                             data_options, 
                                              aois='Animate',
                                              predictor_columns=c('Target','Age','MCDI_Total'),
                                              summarize_by = "ParticipantName")
@@ -122,7 +107,7 @@ model <- lm(ArcSin ~ Target*AgeC*MCDI_TotalC, data=response_window_agg_by_sub)
 summary(model)
 ```
 
-This linear model shows no main effects or interactions of Target with those predictors, but confirms the huge effect of Target.
+This linear model shows no main effects or interactions of Target with those predictors, but confirms the large effect of Target.
 
 ## Using mixed-effects models
 
@@ -134,7 +119,6 @@ Note that the `make_time_window_data` call no longer summarizes by Participant. 
 
 ```{r, warning=FALSE}
 response_window_agg <- make_time_window_data(response_window_clean, 
-                                             data_options, 
                                              aois='Animate', 
                                              predictor_columns=c('Target','Age','MCDI_Total'))
 
@@ -144,8 +128,7 @@ response_window_agg$TargetC <- as.numeric(scale(response_window_agg$TargetC, cen
 
 # mixed-effects linear model on subject*trial data
 model_time_window <- lmer(Elog ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), 
-              data = response_window_agg, REML = FALSE)
-
+                          data = response_window_agg, REML = FALSE)
 summary(model_time_window)
 
 # cleanly show estimates

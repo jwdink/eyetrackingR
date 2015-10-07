@@ -520,6 +520,26 @@ describe_data <- function(data, describe_column, group_columns) {
   # Group, Summarize
   df_grouped <- group_by_(data, .dots = as.list(group_columns))
   df_summarized <- summarize_(df_grouped, .dots =summarize_expr )
+  class(df_summarized) <- c("eyetrackingR_data_summary", "data.frame")
+  attr(df_summarized, "eyetrackingR") <- list(data_options = data_options, 
+                                             describe_column = describe_column,
+                                             group_columns = group_columns)
   return(df_summarized)
 
+}
+
+#' Plot some summarized data from eyetrackingR
+#' 
+#' Plots the data returned from \code{describe_data}. Like that function, this is a convenient 
+#' wrapper good for sanity checks.
+#' #' 
+#' @param data The data returned by make_time_window_data()
+#' @export
+#' @return A ggplot object
+plot.eyetrackingR_data_summary <- function(data_summary) {
+  attrs <- attr(data_summary, "eyetrackingR")
+  
+  ggplot(data_summary, aes_string(x=attrs$group_columns[1], y="Mean", group=attrs$group_columns[2])) +
+    stat_summary(fun.y='mean', geom='point') +
+    stat_summary(fun.y='mean', geom='line')
 }

@@ -48,7 +48,6 @@ library("ggplot2")
 library("eyetrackingR")
 
 data("word_recognition")
-
 data <- make_eyetrackingr_data(word_recognition, 
                        participant_column = "ParticipantName",
                        trial_column = "Trial",
