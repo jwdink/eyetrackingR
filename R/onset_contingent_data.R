@@ -1,6 +1,8 @@
 #' Make onset-contingent data.
 #'
-#' Divide trials into which AOI they started on; augment with column indicating switch away from that AOI
+#' Divide trials into which AOI participants started on. Calculate switches away from this AOI, using
+#' a rolling window to determine what length consitutes a switch. Augment original data with a column
+#' indicating whether each row is a switch-away sample.
 #'
 #' @param data            The original (verified) data
 #' @param data_options

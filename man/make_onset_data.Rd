@@ -25,6 +25,8 @@ average. This is the width of window for rolling average.}
 Original dataframe augmented with column indicating switch away from target AOI
 }
 \description{
-Divide trials into which AOI they started on; augment with column indicating switch away from that AOI
+Divide trials into which AOI participants started on. Calculate switches away from this AOI, using
+a rolling window to determine what length consitutes a switch. Augment original data with a column
+indicating whether each row is a switch-away sample.
 }
 
