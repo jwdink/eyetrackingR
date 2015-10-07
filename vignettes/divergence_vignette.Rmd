@@ -37,7 +37,7 @@ data <- make_eyetrackingr_data(word_recognition,
                        treat_non_aoi_looks_as_missing = TRUE
 )
 # subset to response window post word-onset
-response_window <- subset_by_window(data, data_options, 
+response_window <- subset_by_window(data, 
                                     window_start_time = 15500, 
                                     window_end_time = 21000, 
                                     rezero = FALSE)

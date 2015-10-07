@@ -520,7 +520,7 @@ describe_data <- function(data, describe_column, group_columns) {
   # Group, Summarize
   df_grouped <- group_by_(data, .dots = as.list(group_columns))
   df_summarized <- summarize_(df_grouped, .dots =summarize_expr )
-  class(df_summarized) <- c("eyetrackingR_data_summary", "data.frame")
+  class(df_summarized) <- c("eyetrackingR_data_summary", class(df_summarized))
   attr(df_summarized, "eyetrackingR") <- list(data_options = data_options, 
                                              describe_column = describe_column,
                                              group_columns = group_columns)
