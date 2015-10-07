@@ -100,11 +100,6 @@ response_window_clean <- clean_by_trackloss(data = response_window,
                                             trial_prop_thresh = .25)
 ```
 
-Finally, we remove all remaining trackloss samples from our dataset (so that, in each sample, the infant is looking either to one AOI or the other)
-
-```{r, warning=FALSE}
-response_window_clean <- remove_trackloss(response_window_clean, data_options, delete_rows=TRUE)
-```
 
 ### Create "Target" condition based on TrialName
 
@@ -190,7 +185,7 @@ response_window_agg <- make_time_window_data(response_window_clean,
 
 # you should almost always center your predictors when performing regression analyses
 response_window_agg$TargetC <- ifelse(response_window_agg$Target == 'Animate', .5, -.5)
-response_window_agg$TargetC <- scale(response_window_agg$TargetC, center=TRUE, scale=FALSE)
+response_window_agg$TargetC <- as.numeric(scale(response_window_agg$TargetC, center=TRUE, scale=FALSE))
 
 # mixed-effects linear model on subject*trial data
 model_time_window <- lmer(Elog ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), 
@@ -210,7 +205,7 @@ EyetrackingR sets us up nicely for a growth-curve-analysis. Above, we used eyetr
 ```{r, warning=FALSE}
 # again, center our predictor:
 response_time$TargetC <- ifelse(response_time$Target == 'Animate', .5, -.5)
-response_time$TargetC <- scale(response_time$TargetC, center=TRUE, scale=FALSE)
+response_time$TargetC <- as.numeric(scale(response_time$TargetC, center=TRUE, scale=FALSE))
 
 # Construct model
 model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4 + ot5) + (1 | Trial) + (1 | ParticipantName), 
