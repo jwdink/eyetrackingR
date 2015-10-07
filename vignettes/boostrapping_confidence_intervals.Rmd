@@ -1,0 +1,96 @@
+---
+title: "Confidence Interval for Divergence"
+author: "Jacob Dink"
+date: "October 7, 2015"
+output: html_document
+---
+
+### Load our data in, etc.
+
+```{r, warning=FALSE}
+library("eyetrackingR")
+library("dplyr")
+data("word_recognition")
+
+# set data options
+data_options = set_data_options( 
+  participant_column = "ParticipantName",
+  trial_column = "Trial",
+  time_column = "TimeFromTrialOnset",
+  trackloss_column = "TrackLoss",
+  aoi_columns = c('Animate','Inanimate')
+)
+data <- verify_dataset(word_recognition, data_options)
+response_window <- subset_by_window(data, data_options, 
+                                    window_start_time = 15000, # slightly earlier
+                                    window_end_time = 21000, 
+                                    rezero = FALSE)
+response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
+response_window_clean <- clean_by_trackloss(data = response_window,window_start_time = 15500,
+                                            data_options = data_options, 
+                                            trial_prop_thresh = .25)
+response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', response_window_clean$Trial), 
+                                                  yes = 'Inanimate', 
+                                                  no  = 'Animate') )
+response_window_clean$TrialTarget <- with(response_window_clean, ifelse(Target == "Animate", Animate, Inanimate))
+df_time = make_time_sequence_data(response_window_clean,data_options, time_bin_size = 100, aois = "Animate", predictor_columns = "Target")
+```
+
+### Difference Across Conditions
+
+For each subject, take the mean difference between conditions for each timebin
+
+```{r, warning=FALSE}
+df_diff = df_time %>%
+  group_by(ParticipantName, Target, Time) %>%
+  summarise(Elog = mean(Elog, na.rm=TRUE)) %>%
+  tidyr::spread(Target, Elog) %>%
+  mutate(ElogDiff = Animate - Inanimate)
+
+library("ggplot2")
+(g <- ggplot(df_diff, aes(x = Time, y = ElogDiff)) +
+  stat_summary(fun.y = mean, geom="line") +
+  facet_wrap(~ ParticipantName)  +
+  geom_hline(yintercept= 0, linetype="dotted") )
+```
+
+
+### Calculate Initial Divergence Based on a Rolling Window
+
+We want to know when conditions first diverge. A bit sketchy to just assume any divergence counts (see e.g. ANCAT72).
+
+No problem, let's just make a rolling window. For each timebin, calculate whether difference across conditions was above zero for not only that time bin, but *also its neighbors*. We only count it as a real divergence if its sticks around for enough timebins. Some experimenter degrees of freedom here (how big is the window?) but not so different than degrees of freedom for time-bin size.
+
+Based on this smoothed measure, we pick the first point of divergence for each subject.
+
+First thing I see as awkward about this procedure comes up here. How to deal with participants whose diff in looking between conditions never went above zero? Never actually comes up in this dataset, but still. If it were to come up: Here I just set the "first point of divergence" to be the end of the trial. I can see potential problems here, will think about this more.
+
+```{r, warning=FALSE}
+width = 5 #  this time bin and his 4 neighbors (2 on each side)
+when_never_diverge_time_equals = 21000
+df_diff_summary = df_diff %>%
+  group_by(ParticipantName) %>%
+  mutate(AllDiff = zoo::rollapply(ElogDiff, function(x) all(x>0), width = width, fill=FALSE)) %>%
+  summarise(FirstDiff = first(Time[which(AllDiff==TRUE)], order_by = Time, default=when_never_diverge_time_equals) )
+
+g + geom_vline(data = df_diff_summary, aes(xintercept=FirstDiff), linetype="dashed")
+```
+
+Seems like the procedure works fairly well. Only one too early false alarm? ANCAT90.
+
+Of course, now that we have a single number for each subject, we can get a confidence interval.
+
+```{r, warning=FALSE}
+ggplot(df_diff_summary, aes(x = 0, y = FirstDiff)) +
+  stat_summary(fun.dat = mean_cl_boot) +
+  coord_flip(ylim = c(15000, 21000)) 
+  
+  
+distr = sapply(X = 1:5000, FUN = function(x) {
+  mean(sample(df_diff_summary$FirstDiff, size = length(df_diff_summary$FirstDiff), replace = TRUE), na.rm=TRUE)
+})
+quantile(distr, probs = c(.025, .50, .975) )
+```
+
+One thing I'm thinking about is whether it would make sense to look the timepoint for the beginning of the *most stable* divergence, rather than the timepoint for the beginning of the first divergence that passes the rolling-neighbors threshold I did above.
+
