@@ -132,9 +132,10 @@ analyze_time_bins.time_sequence_data <- function(data,
 {
 
   ## Helper:
-  .fix_unpaired = function(data, data_options, predictor_column) {
+  .fix_unpaired = function(data, data_options, predictor_column, dv) {
     lvl1 <- levels(data[[predictor_column]])[1]
-    df_grouped <- group_by_(data, .dots = c(data_options$participant_column))
+    df_no_na   <- filter_(data, interp(~!is.na(DV), DV = as.name(dv)))
+    df_grouped <- group_by_(df_no_na, .dots = c(data_options$participant_column))
     df_mutated <- mutate_(df_grouped,
                           .dots = list(PairedObs = interp(~length(which(COND_COL == lvl1)) > 0 & length(which(COND_COL != lvl1)) > 0,
                                                           COND_COL = as.name(predictor_column)))
@@ -191,6 +192,9 @@ analyze_time_bins.time_sequence_data <- function(data,
   if (is.null(formula)) {
     if (test=="lmer") stop("Must specify a formula if using lmer.")
     formula <- as.formula(paste("Prop ~", predictor_column))
+    dv <- "Prop"
+  } else {
+    dv <- gsub(formula[2], pattern = "()", replacement = "", fixed = TRUE)
   }
 
   # Run a model for each time-bin
@@ -207,7 +211,7 @@ analyze_time_bins.time_sequence_data <- function(data,
     # get data:
     temp_dat <- filter(data, Time==tb)
     # Make paired test more robust to unpaired observations within a bin:
-    if (identical(paired, TRUE)) temp_dat <- .fix_unpaired(temp_dat, data_options, predictor_column)
+    if (identical(paired, TRUE)) temp_dat <- .fix_unpaired(temp_dat, data_options, predictor_column, dv)
     # make model:
     model <- failsafe_test(formula = formula, data = temp_dat, ... = ...)
     # get N:
