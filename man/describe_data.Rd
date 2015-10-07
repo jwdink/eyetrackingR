@@ -4,12 +4,10 @@
 \alias{describe_data}
 \title{Describe dataset}
 \usage{
-describe_data(data, data_options = NULL, describe_column, group_columns)
+describe_data(data, describe_column, group_columns)
 }
 \arguments{
 \item{data}{}
-
-\item{data_options}{}
 
 \item{describe_column}{The column to return descriptive statistics about.}
 

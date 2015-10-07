@@ -4,15 +4,13 @@
 \alias{subset_by_window}
 \title{Extract a subset of the dataset within a time-window in each trial.}
 \usage{
-subset_by_window(data, data_options, rezero = TRUE, remove = TRUE,
+subset_by_window(data, rezero = TRUE, remove = TRUE,
   window_start_msg = NULL, window_end_msg = NULL, msg_col = NULL,
   window_start_col = NULL, window_end_col = NULL,
   window_start_time = NULL, window_end_time = NULL, quiet = FALSE)
 }
 \arguments{
 \item{data}{Your original dataset}
-
-\item{data_options}{Information about your data created by \code{set_data_options}.}
 
 \item{rezero}{Should the beginning of the window be considered the zero point of the timestamp?
 Default TRUE}

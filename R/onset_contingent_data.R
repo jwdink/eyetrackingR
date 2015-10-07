@@ -5,7 +5,6 @@
 #' indicating whether each row is a switch-away sample.
 #'
 #' @param data            The original (verified) data
-#' @param data_options
 #' @param onset_time        When to check for participants' "starting" AOI?
 #' @param fixation_window_length       Which AOI is currently being fixated is determined by taking a rolling
 #'   average. This is the width of window for rolling average.
@@ -14,7 +13,7 @@
 #' @export
 #' @return Original dataframe augmented with column indicating switch away from target AOI
 
-make_onset_data <- function(data, data_options, onset_time, fixation_window_length, target_aoi, distractor_aoi = NULL) {
+make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi, distractor_aoi = NULL) {
   ## Helper Function:
   na_replace_rollmean <- function(col) {
     col <- ifelse(is.na(col), 0, col)
@@ -22,6 +21,14 @@ make_onset_data <- function(data, data_options, onset_time, fixation_window_leng
   }
 
   ## Prelims:
+  data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) {
+    stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
+         "Did you run `make_eyetracking_r` data on it originally?",
+         "If so, this information has been removed. This can happen when using functions that ",
+         "transform your data significantly, like dplyr::summarise or dplyr::select.")
+  }
+  
   if (is.null(distractor_aoi)) {
     distractor_aoi <- paste0("Not_", target_aoi)
     data[[distractor_aoi]] <- !data[[target_aoi]]

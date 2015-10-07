@@ -4,13 +4,11 @@
 \alias{make_time_sequence_data}
 \title{make_time_sequence_data()}
 \usage{
-make_time_sequence_data(data, data_options, time_bin_size, aois = NULL,
+make_time_sequence_data(data, time_bin_size, aois = NULL,
   predictor_columns = NULL, summarize_by = NULL)
 }
 \arguments{
 \item{data}{}
-
-\item{data_options}{}
 
 \item{time_bin_size}{}
 

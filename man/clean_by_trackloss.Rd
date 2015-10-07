@@ -4,13 +4,11 @@
 \alias{clean_by_trackloss}
 \title{Clean data by removing high-trackloss trials/subjects.}
 \usage{
-clean_by_trackloss(data, data_options, participant_prop_thresh = 1,
-  trial_prop_thresh = 1, window_start_time = -Inf, window_end_time = Inf)
+clean_by_trackloss(data, participant_prop_thresh = 1, trial_prop_thresh = 1,
+  window_start_time = -Inf, window_end_time = Inf)
 }
 \arguments{
 \item{data}{}
-
-\item{data_options}{}
 
 \item{participant_prop_thresh}{Maximum proportion of trackloss for participants}
 

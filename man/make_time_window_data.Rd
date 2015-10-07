@@ -4,13 +4,11 @@
 \alias{make_time_window_data}
 \title{Make a dataset collapsing over a time-window}
 \usage{
-make_time_window_data(data, data_options, aois = NULL,
-  predictor_columns = NULL, summarize_by = NULL)
+make_time_window_data(data, aois = NULL, predictor_columns = NULL,
+  summarize_by = NULL)
 }
 \arguments{
 \item{data}{}
-
-\item{data_options}{}
 
 \item{aois}{Which AOIs are of interest? Defaults to all in 'data_options'}
 

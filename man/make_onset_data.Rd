@@ -4,13 +4,11 @@
 \alias{make_onset_data}
 \title{Make onset-contingent data.}
 \usage{
-make_onset_data(data, data_options, onset_time, fixation_window_length,
-  target_aoi, distractor_aoi = NULL)
+make_onset_data(data, onset_time, fixation_window_length, target_aoi,
+  distractor_aoi = NULL)
 }
 \arguments{
 \item{data}{The original (verified) data}
-
-\item{data_options}{}
 
 \item{onset_time}{When to check for participants' "starting" AOI?}
 

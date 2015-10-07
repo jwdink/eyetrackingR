@@ -1,50 +1,94 @@
 # Loading/Cleaning/Describing Data ------------------------------------------------------------------------
 
-#' Set data options.
+#' Treat gaze data outside of all AOIs as missing
 #'
-#' Create a list which describes the important aspects of your data, to be used by most other functions in
-#' this package.
+#' Should gaze outside of any AOI be considered trackloss? 
 #'
+#' @param data The data
+#' @param data_options The data options
+#' @return Data with correct AOIs
+
+.convert_non_aoi_to_missing <- function(data, data_options) {
+  
+  # Create version of AOIs with no NAs:
+  .narepl <- function(x) ifelse(is.na(x), 0, x)
+  data_no_na <- mutate_each_(data, funs(.narepl), vars = sapply(data_options$aoi_columns, as.name))
+  
+  # Find all rows which have no AOIs in them:
+  data_no_na[[".AOISum"]] <- 0
+  for (aoi in data_options$aoi_columns) {
+    data_no_na[[".AOISum"]] <- data_no_na[[".AOISum"]] + data_no_na[[aoi]]
+  }
+
+  # Set these rows as trackloss:
+  data[[data_options$trackloss_column]] <- ifelse(data_no_na[[".AOISum"]] == 0, TRUE, data_no_na[[data_options$trackloss_column]])
+  
+  return(data)
+}
+
+#' Convert raw data for use in eyetrackingR
+#' 
+#' This should be the first function you use when using eyetrackingR for a project.
+#' 
+#' This takes your raw dataframe, as well as a list of information about your dataframe. It confirms
+#' that all the columns are the right format, and outputs a dataframe that is ready to used with
+#' eyetrackingR's functions.
+#' 
+#' @param data
 #' @param participant_column Column name for participant identifier
 #' @param trackloss_column   Column name indicating trackloss
 #' @param time_column        Column name indicating time
 #' @param trial_column       Column name indicating trial identifier
-#' @param item_columns       Column names indicating items (can be same as trial_column)
+#' @param item_columns       Column names indicating items (optional)
 #' @param aoi_columns        Names of AOIs
+#' @param treat_non_aoi_looks_as_missing This is a logical indicating how you would like to
+#'   perform "proportion-looking" calculations, which are critical to any eyetracking analysis. If
+#'   set to TRUE, any samples that are not in any of the AOIs (defined with the \code{aoi_columns}
+#'   argument) are treated as missing data; when it comes time for eyetrackingR to calculate
+#'   proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by
+#'   time looking to all other AOIs." In contrast, if this parameter is set to FALSE, proportion
+#'   looking to an AOI will be calculated as "time looking to that AOI divided by total time
+#'   looking."
 #' @export
-#' @return list of configuration options
+#' @return Dataframe ready for use in eyetrackingR.
 
-set_data_options <- function(participant_column,
-                             trackloss_column,
-                             time_column,
-                             trial_column,
-                             item_columns = NULL,
-                             aoi_columns) {
-  list(participant_column = participant_column,
-       trackloss_column = trackloss_column,
-       time_column = time_column,
-       trial_column = trial_column,
-       item_columns = item_columns,
-       aoi_columns = aoi_columns)
-}
-
-
-#' Verify the dataset
-#'
-#' Use data_options to verify that the columns in your dataset are of the correct type
-#'
-#' @param data Your data
-#' @param data_options Created by \code{set_data_options}
-#' @export
-#' @return Dataset with verified column types.
-
-verify_dataset <- function(data, data_options) {
+make_eyetrackingr_data <- function(data, 
+                                   participant_column,
+                                   trackloss_column,
+                                   time_column,
+                                   trial_column,
+                                   aoi_columns,
+                                   treat_non_aoi_looks_as_missing,
+                                   item_columns = NULL) {
+  
+  ## Data Options:
+  data_options = list(participant_column = participant_column,
+                        trackloss_column = trackloss_column,
+                        time_column = time_column,
+                        trial_column = trial_column,
+                        item_columns = item_columns,
+                        aoi_columns = aoi_columns,
+                        treat_non_aoi_looks_as_missing = treat_non_aoi_looks_as_missing)
+  
   out <- data
-
+  
+  ## Check AOI
   if (!all(data_options$aoi_columns %in% colnames(data))) {
-    stop("Not all of the AOI columns specified in data_options are in the data.")
+    warning("Not all of the AOI columns specified in data_options are in the data.")
   }
-
+  
+  ## Check for Reserved Column Name:
+  if (data_options$time_column == "Time") {
+    stop("We apologize for the inconvenience, but your `time_column` cannot be called 'Time' ",
+         "(this is a reserved name that eyetrackingR uses). Please change.")
+  } 
+  if ("Time" %in% colnames(data)) {
+    warning("Your dataset has a column called 'Time', but this column name is reserved for eyetrackingR. Will rename to 'TimeOriginal'...")
+    data$TimeOriginal <- data$Time
+    data$Time <- NULL
+  }
+  
+  ## Verify Columns:
   as.numeric2 <- function(x) as.numeric(as.character(x))
   check_then_convert <- function(x, checkfunc, convertfunc, colname) {
     if (!checkfunc(x)) {
@@ -60,7 +104,7 @@ verify_dataset <- function(data, data_options) {
                              trackloss_column = function(x) check_then_convert(x, is.logical, as.logical, "Trackloss"),
                              item_columns = function(x) check_then_convert(x, is.factor, as.factor, "Item"),
                              aoi_columns = function(x) check_then_convert(x, is.logical, as.logical, "AOI"))
-
+  
   for (col in names(col_type_converter)) {
     for (i in seq_along(data_options[[col]])) {
       if (is.null(out[[data_options[[col]][i]]]))
@@ -68,8 +112,16 @@ verify_dataset <- function(data, data_options) {
       out[[data_options[[col]][i]]] <- col_type_converter[[col]](out[[data_options[[col]][i]]])
     }
   }
-
+  
+  ## Deal with NonAOI looks:
+  if (treat_non_aoi_looks_as_missing) {
+    data <- .convert_non_aoi_to_missing(data, data_options)
+  }
+  
+  ## Assign attribute:
+  attr(out, "eyetrackingR") <- list(data_options = data_options)
   return(out)
+  
 }
 
 #' Add an area-of-interest to your dataset, based on x-y coordinates and the AOI rectangle.
@@ -163,7 +215,6 @@ add_aoi <- function(data, aoi_dataframe,
 #' portion).
 #' 
 #' @param data               Your original dataset
-#' @param data_options       Information about your data created by \code{set_data_options}.
 #' @param rezero             Should the beginning of the window be considered the zero point of the timestamp?
 #'   Default TRUE
 #' @param remove             Should everything before the beginning and after the end of the window be removed? 
@@ -182,7 +233,7 @@ add_aoi <- function(data, aoi_dataframe,
 #' @export
 #' @return Subsetted data
 
-subset_by_window <- function(data, data_options, 
+subset_by_window <- function(data, 
                              rezero = TRUE,
                              remove = TRUE,
                              window_start_msg = NULL, window_end_msg = NULL, msg_col = NULL,
@@ -204,6 +255,13 @@ subset_by_window <- function(data, data_options,
   }
   
   # Prelims:
+  data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) {
+    stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
+         "Did you run `make_eyetracking_r` data on it originally?",
+         "If so, this information has been removed. This can happen when using functions that ",
+         "transform your data significantly, like dplyr::summarise or dplyr::select.")
+  }
   time_col <- as.name(data_options$time_column)
   ppt_col <- as.name(data_options$participant_column)
   trial_col <- as.name(data_options$trial_column)
@@ -304,6 +362,8 @@ subset_by_window <- function(data, data_options,
 
   out[[".WindowStart"]] <- NULL
   out[[".WindowEnd"]] <- NULL
+  
+  attr(out, "eyetrackingR") <- list(data_options = data_options)
 
   out
 }
@@ -313,12 +373,19 @@ subset_by_window <- function(data, data_options,
 #' Get information on trackloss in your data.
 #'
 #' @param data
-#' @param data_options
 #' @export
 #' @return A dataframe describing trackloss by-trial and by-participant
 
-trackloss_analysis <- function(data, data_options) {
+trackloss_analysis <- function(data) {
 
+  data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) {
+    stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
+         "Did you run `make_eyetracking_r` data on it originally?",
+         "If so, this information has been removed. This can happen when using functions that ",
+         "transform your data significantly, like dplyr::summarise or dplyr::select.")
+  }
+  
   trackloss_col <- as.name(data_options$trackloss_column)
 
   # Get Trackloss-by-Trial:
@@ -354,7 +421,6 @@ trackloss_analysis <- function(data, data_options) {
 #' Remove trials/participants with too much trackloss, with a customizable threshold.
 #' 
 #' @param data
-#' @param data_options
 #' @param participant_prop_thresh            Maximum proportion of trackloss for participants
 #' @param trial_prop_thresh                  Maximum proportion of trackloss for trials
 #' @param window_start_time,window_end_time  Time-window within-which you want trackloss analysis to
@@ -363,19 +429,27 @@ trackloss_analysis <- function(data, data_options) {
 #' @export
 #' @return Cleaned data
 
-clean_by_trackloss <- function(data, data_options,
+clean_by_trackloss <- function(data,
                               participant_prop_thresh = 1,
                               trial_prop_thresh = 1,
                               window_start_time = -Inf, window_end_time = Inf) {
 
+  data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) {
+    stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
+         "Did you run `make_eyetracking_r` data on it originally?",
+         "If so, this information has been removed. This can happen when using functions that ",
+         "transform your data significantly, like dplyr::summarise or dplyr::select.")
+  }
+  
   # Helpful Column:
   data$.TrialID <- paste(data[[data_options$participant_col]], data[[data_options$trial_col]], sep = "_")
 
   # Trackloss Analysis:
   message("Performing Trackloss Analysis...")
-  data_tl <- subset_by_window(data = data, data_options, quiet=TRUE,
+  data_tl <- subset_by_window(data = data, quiet=TRUE,
                               window_start_time = window_start_time, window_end_time = window_end_time )
-  tl <- trackloss_analysis(data_tl, data_options)
+  tl <- trackloss_analysis(data_tl)
 
   # Bad Trials:
   if (trial_prop_thresh < 1) {
@@ -408,114 +482,12 @@ clean_by_trackloss <- function(data, data_options,
 
 }
 
-
-#' Treat gaze data outside of all AOIs as trackloss.
-#'
-#' Should gaze outside of any AOI be considered trackloss? This function sets trackloss to TRUE for any
-#' samples that were not inside an AOI
-#'
-#' @param data
-#' @param data_options
-#'
-#' @export
-#' @return Data where non-AOI looks are now considered trackloss.
-
-convert_non_aoi_to_trackloss <- function(data, data_options) {
-
-  # Create version of AOIs with no NAs:
-  .narepl <- function(x) ifelse(is.na(x), 0, x)
-  data_no_na <- mutate_each_(data, funs(.narepl), vars = sapply(data_options$aoi_columns, as.name))
-
-  # Find all rows which have no AOIs in them:
-  data_no_na[[".AOISum"]] <- 0
-  for (aoi in data_options$aoi_columns) {
-    data_no_na[[".AOISum"]] <- data_no_na[[".AOISum"]] + data_no_na[[aoi]]
-  }
-
-  # Set these rows as trackloss:
-  data[[data_options$trackloss_column]] <- ifelse(data_no_na[[".AOISum"]] == 0, TRUE, data_no_na[[data_options$trackloss_column]])
-
-  return(data)
-}
-
-#' Keep data with trackloss in dataset.
-#'
-#' Converts data so that, in all subsequent proportion-looking calculations, proportion_looking_at_aoi =
-#' time_looking_at_aoi / time_possible. Trackloss is *not* considered missing data, but instead is counted as
-#' time *not* spent looking at each AOI.
-#'
-#' @param data
-#' @param data_options
-#' @export
-#' @return Data with trackloss preserved
-
-keep_trackloss <- function(data, data_options) {
-  out <- data
-
-  # Create version of AOIs which = FALSE for any trackloss samples:
-  for (aoi in data_options$aoi_columns) {
-    out[[aoi]] <- ifelse(out[[data_options$trackloss_column]]==1, FALSE, out[[aoi]] )
-  }
-
-  # If there is still missing data for AOIs, warn that it's going to be ignored:
-  for (aoi in data_options$aoi_columns) {
-    if (any(is.na(data_with_trackloss[[aoi]]))) {
-      warning("NAs found for non-trackloss samples, in '", aoi,
-              "'' column. These samples will be interpreted as being outside of the ", aoi, " AOI.")
-    }
-  }
-
-  # Replace any Lingering Missing AOI Data:
-  for (aoi in data_options$aoi_columns) {
-    out[[aoi]] <- ifelse(is.na(out[[aoi]]), FALSE, out[[aoi]] )
-  }
-  return(out)
-}
-
-#' Remove data with trackloss from dataset.
-#'
-#' Converts data so that, in all subsequent proportion-looking calculations, proportion_looking_at_aoi =
-#' time_looking_at_aoi / time_looking. Trackloss *is* considered missing data, and time spent not looking at a
-#' given AOI must have been spent looking at another AOI
-#'
-#' @param data
-#' @param data_options
-#' @param delete_rows (default: FALSE) Should rows with trackloss be deleted, or simply set to NA?
-#'
-#' @export
-#' @return Data with trackloss removed
-remove_trackloss <- function(data, data_options, delete_rows = FALSE) {
-  out <- data
-
-  if (delete_rows == TRUE) {
-
-    # We want to only remove rows that are positively identified as trackloss, so we replace any trackloss=NA with trackloss=FALSE
-    out[[".TracklossBoolean"]] <- ifelse(is.na(out[[data_options$trackloss_column]]), FALSE, out[[data_options$trackloss_column]])
-
-    # Remove all rows with Trackloss:
-    out <- filter(out, .TracklossBoolean == 0)
-    out <- out[, !(colnames(out) %in% c('.TracklossBoolean'))]
-
-  } else {
-    # Set Looking-at-AOI to NA for any samples where there is Trackloss:
-
-    # TODO: fix bug that removes all AOI looks when delete_rows == FALSE (JD: not understanding this bug)
-
-    for (aoi in data_options$aoi_columns) {
-      out[[aoi]] <- ifelse(data[[data_options$trackloss_column]]==1, NA, out[[aoi]] )
-    }
-  }
-
-  out
-}
-
 #' Describe dataset
 #' 
 #' Returns descriptive statistics about a column of choice. A simple convenience function that wraps
 #' \code{dplyr::group_by} and \code{dplyr::summarize}, allowing a quick glance at the data.
 #' 
 #' @param data
-#' @param data_options
 #' @param describe_column The column to return descriptive statistics about.
 #' @param group_columns Any columns to group by when calculating descriptive statistics (e.g., participants,
 #'  conditions, etc.)
@@ -523,12 +495,17 @@ remove_trackloss <- function(data, data_options, delete_rows = FALSE) {
 #' @return A dataframe giving descriptive statistics for the \code{describe_column}, including mean, SD, var,
 #' min, max, and number of trials
 
-describe_data <- function(data, data_options = NULL, describe_column, group_columns) {
+describe_data <- function(data, describe_column, group_columns) {
 
   # Data options:
-  if (is.null(data_options)) data_options <- attr(data, "eyetrackingR")$data_options
-  if (is.null(data_options)) stop("Please supply data_options.")
-
+  data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) {
+    stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
+         "Did you run `make_eyetracking_r` data on it originally?",
+         "If so, this information has been removed. This can happen when using functions that ",
+         "transform your data significantly, like dplyr::summarise or dplyr::select.")
+  }
+  
   # Build Summarize Expression
   summarize_expr <- list(Mean = interp( ~mean(DV_COL, na.rm=TRUE),  DV_COL = as.name(describe_column) ),
                        SD   = interp( ~sd(DV_COL, na.rm=TRUE),      DV_COL = as.name(describe_column) ),

@@ -3,7 +3,6 @@
 #' Creates time-bins and summarizes proportion-looking within each time-bin
 #'
 #' @param data
-#' @param data_options
 #' @param time_bin_size
 #' @param aois              Which AOIs are of interest? Defaults to all in 'data_options'
 #' @param predictor_columns Which columns indicate predictor vars, and therefore should be preserved in
@@ -17,12 +16,19 @@
 #'   time-polynomials for growth curve analysis
 
 make_time_sequence_data <- function (data,
-                        data_options,
                         time_bin_size,
                         aois = NULL,
                         predictor_columns = NULL,
                         summarize_by = NULL) {
 
+  data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) {
+    stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
+         "Did you run `make_eyetracking_r` data on it originally?",
+         "If so, this information has been removed. This can happen when using functions that ",
+         "transform your data significantly, like dplyr::summarise or dplyr::select.")
+  }
+  
   if (is.null(aois)) aois = data_options$aoi_columns
 
   # For Multiple AOIs:
@@ -104,7 +110,6 @@ analyze_time_bins = function(data, ...) {
 #' @describeIn analyze_time_bins
 #'
 #' @param data   The output of the 'make_time_sequence_data' function
-#' @param data_options
 #' @param predictor_column  The variable whose test statistic you are interested in. If you are not 
 #'   interested in a predictor, but the intercept, you can enter "intercept" for this argument.
 #'   Interaction terms are not currently supported.

@@ -4,12 +4,10 @@
 \alias{trackloss_analysis}
 \title{Analyze trackloss.}
 \usage{
-trackloss_analysis(data, data_options)
+trackloss_analysis(data)
 }
 \arguments{
 \item{data}{}
-
-\item{data_options}{}
 }
 \value{
 A dataframe describing trackloss by-trial and by-participant

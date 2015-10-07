@@ -3,7 +3,6 @@
 #' Collapse time across our entire window and return a dataframe ready for analyses
 #'
 #' @param data
-#' @param data_options
 #' @param aois  Which AOIs are of interest? Defaults to all in 'data_options'
 #' @param predictor_columns  Which columns indicate predictor vars, and therefore should be preserved in
 #'   grouping operations?
@@ -14,12 +13,19 @@
 #' @return Data with proportion-looking and transformations (empirical logit, arc-sin)
 
 make_time_window_data <- function(data,
-                         data_options,
                          aois = NULL,
                          predictor_columns = NULL,
                          summarize_by = NULL
 ) {
 
+  data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) {
+    stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
+         "Did you run `make_eyetracking_r` data on it originally?",
+         "If so, this information has been removed. This can happen when using functions that ",
+         "transform your data significantly, like dplyr::summarise or dplyr::select.")
+  }
+  
   if (is.null(aois)) aois = data_options$aoi_columns
 
   # For Multiple AOIs:
