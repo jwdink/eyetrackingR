@@ -5,6 +5,10 @@ date: "October 7, 2015"
 output: html_document
 ---
 
+## Confidence Intervals for Timepoint of Looking Divergence
+
+Traditional analyses can tell us whether a time window is significant, and can help us understand the trajectory of looking. However, there aren't any analyses that help us get a statistical estimate and confidence interval around *when* looking diverges (relative to baseline, or across two conditions). Below is some experimenting with a novel idea for estimating the timepoint at which looking diverges.
+
 ### Load our data in, etc.
 
 ```{r, warning=FALSE}
@@ -41,17 +45,31 @@ df_time = make_time_sequence_data(response_window_clean,data_options, time_bin_s
 For each subject, take the mean difference between conditions for each timebin
 
 ```{r, warning=FALSE}
+library("lme4")
+df_time$Predict = 0
+## try uncommenting these two lines when you've run through this whole vignette once:
+# fit = lmer(data =df_time, formula = Prop ~ Target*(ot1+ot2+ot3+ot4) + (Target*(ot1+ot2+ot3+ot4) | ParticipantName ))
+# df_time$Predict = predict(fit, df_time)
+##
+df_diff_pred = df_time %>%
+  group_by(ParticipantName, Target, Time) %>%
+  summarise(Predict = mean(Predict, na.rm=TRUE)) %>%
+  tidyr::spread(Target, Predict) %>%
+  mutate(PropDiff = Animate - Inanimate)
+
 df_diff = df_time %>%
   group_by(ParticipantName, Target, Time) %>%
-  summarise(Elog = mean(Elog, na.rm=TRUE)) %>%
-  tidyr::spread(Target, Elog) %>%
-  mutate(ElogDiff = Animate - Inanimate)
+  summarise(Prop = mean(Prop, na.rm=TRUE)) %>%
+  tidyr::spread(Target, Prop) %>%
+  mutate(PropDiff = Animate - Inanimate)
 
 library("ggplot2")
-(g <- ggplot(df_diff, aes(x = Time, y = ElogDiff)) +
+(g <- ggplot(df_diff, aes(x = Time, y = PropDiff)) +
   stat_summary(fun.y = mean, geom="line") +
+  stat_summary(fun.y = mean, geom="line", data = df_diff_pred, linetype="dashed") +
   facet_wrap(~ ParticipantName)  +
   geom_hline(yintercept= 0, linetype="dotted") )
+#df_diff$PropDiff <- df_diff_pred$PropDiff # uncomment to see below analyses with GCA smoothing
 ```
 
 
@@ -67,7 +85,7 @@ Based on this smoothed measure, we pick the first point of divergence for each s
 width = 5 #  this time bin and his 4 neighbors (2 on each side)
 df_diff_summary = df_diff %>%
   group_by(ParticipantName) %>%
-  mutate(AllDiff = zoo::rollapply(ElogDiff, function(x) all(x>0), width = width, fill=FALSE, align="left")) %>%
+  mutate(AllDiff = zoo::rollapply(PropDiff, function(x) all(x>0), width = width, fill=FALSE, align="left")) %>%
   summarise(FirstDiff = first(Time[which(AllDiff==TRUE)], order_by = Time, default=NA) )
 
 num_subs_to_eventually_diverge = length(which(!is.na(df_diff_summary$FirstDiff)))
@@ -93,17 +111,27 @@ plot(df_time, predictor_column="Target") +
 This might seem like a surprisingly late estimate, relative to what we're seeing in the graph. It seems to be due to the skew in the data: the majority of the subjects diverge early, but the ones who diverge late can diverge very late:
 
 ```{r, warning=FALSE}
-quickplot(x= df_diff_summary$FirstDiff)
+quickplot(x= df_diff_summary$FirstDiff, xlim = c(15500, 21000))
+
 plot(df_time, predictor_column="Target") +
   geom_vline(xintercept = df_diff_summary$FirstDiff, alpha = .5) +
   xlab("Time (each line = a subject's first divergence)")
 ```
 
-I'll have to think more about whether this sensitivity to late-divergers is a virtue or vice of this design. Need to think about the underlying process that generates a divergence...
+This makes sense, based on the nature of the data. We suspect that the true divergence point is around 15500-17000. We have _a priori_ knowledge about how early it could possibly be: We know it *cannot* be before 15500, so we subset the data to rule out that possibility. However, we don't have any _a priori_ knowledge about how *late* the divergence could possibly be. So our distribution will inherently be skewed.
+
+On the one hand, this skew could be due to the fact that we've allowed false-positives on the late end, while disallowing them on the early end. But allowing for early FPs seems bad: (a) we're throwing out information (our knowledge that meaningful differences won't exist there), (b) playing with that on this dataset yields a lot of spurious/early diverges, for a way too early estimate. This shouldn't be surprising, because there are hardly any checks in place to verify a divergence is real within a subject: it primarily depends on a good _a priori_ window (set in a principled way via cluster_analysis). 
+
+On the other hand, this skew could simply be a property of divergence-as-response-to-stimuli: you can't diverge early, but you can diverge late. 
+
+The problem seems to ultimately stem from poor estimates: we are estimating each subject's divergence point and this is simply too noisy.
+
+A better solution is a model based approach. Since we should already be doing a GCA on our data, we should use the information this model gives us to estimate each subject's divergence. This allows us to use the overall data to make better inferences for the trajectory of each individual subject, which in turn lets us better estimate each one's divergence point.
+
+To check this out, re-run the above code after uncommenting the two lines in the second code chunk. This gives us a much less skewed result, and therefore our estimate for the divergence point does a much better job lining up with what we see in the aggregated data.
 
 
-#### Some thoughts:
+#### Some More Thoughts:
 
 * What should be done for subjects who _never_ diverge in looking? Could do something like give them a first-diff time corresponding to the end of the trial. But I think it might be better just to exclude them in first-diff time calculations, and be explicit about what's being calculated. E.g., in a results section "of 40 subjects, 38 showed heightened looking to X at some point in the trial in condition A compared to condition B. Of these 38, the average time at which this preference emerged was 500ms(+/- 84ms)."
 * This method could also be used for looking at a single AOI, regardless of condition/study-design. When is looking at AOI X reliably above some threshold? This analysis is probably *only* appropriate if its guaranteed at start time that they aren't looking at the AOI. Otherwise the estimate is biased, because some subjects will start by chance on the AOI. Have to think about this more.
-* There are lots of ways of estimating the first point of divergence per subject. Here I use a moving window. Could also just pick the biggest/longest divergence. Or, could do something akin to the cluster analysis: take each subject's divergences, bootstrap the biggest one, use that to determine whether the smaller divergences for that subject are reliable. Take the first reliable divergence. Since we're bootstrap resampling within each subject, this bootstrap method only works if there are lots of trials per subject.
