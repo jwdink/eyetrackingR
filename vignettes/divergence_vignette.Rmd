@@ -1,0 +1,198 @@
+---
+title: "Estimating time windows of divergence using eyetrackingR"
+author: "Jacob Dink & Brock Ferguson"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+> **Our Experiment**: Each eyetrackingR vignette uses the *eyetrackingR* package to analyze real data from a simple 2-alternative forced choice (2AFC) word recognition task administered to 19- and 24-month-olds.
+> On each trial, infants were shown a picture of an animate object (e.g., a horse) and an inanimate object (e.g., a spoon). After inspecting the images, they disappeared and they heard a label referring to one of them (e.g., "The horse is nearby!"). Finally, the objects re-appeared on the screen and they were prompted to look at the target (e.g., "Look at the horse!").
+
+## Overview of this vignette
+
+In this vignette, we want to ascertain when a predictor had a significant effect during a trial. Analyses that aggregate over the trial window tell us *whether* an effect was significant, growth curve analyses tell us the trajectory of our effect over the course of the trial, and onset-contingent analyses can tell you reaction times for certain experimental designs. But none of these approaches allow you to ask: What is the onset of some predictor's effect, and how long does the effect last? eyetrackingR includes two types of analyses for answering these questions, both of which we cover here.
+
+## prerequisites
+
+Before performing this analysis, we'll need to prepare and clean our dataset. Here we will to do this quickly and with few notes but, for more information, see the vignette on [preparing your data](preparing_your_data_vignette.html).
+
+```{r results="hide"}
+set.seed(42)
+library("Matrix")
+library("lme4")
+library("ggplot2")
+library("eyetrackingR")
+data("word_recognition")
+
+# set data options
+data_options = set_data_options( 
+  participant_column = "ParticipantName",
+  trial_column = "Trial",
+  time_column = "TimeFromTrialOnset",
+  trackloss_column = "TrackLoss",
+  aoi_columns = c('Animate','Inanimate')
+)
+
+# verify dataset columns
+data <- verify_dataset(word_recognition, data_options)
+
+# subset to response window post word-onset
+response_window <- subset_by_window(data, data_options, 
+                                    window_start_time = 15500, 
+                                    window_end_time = 21000, 
+                                    rezero = FALSE)
+
+# convert non-AOI looks to trackloss
+response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
+
+# analyze amount of trackloss by subjects and trials
+(trackloss <- trackloss_analysis(data = response_window,
+                                data_options = data_options))
+
+# remove trials with > 25% of trackloss
+response_window_clean <- clean_by_trackloss(data = response_window,
+                                            data_options = data_options, 
+                                            trial_prop_thresh = .25)
+
+# create Target condition column
+response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', response_window_clean$Trial), 
+                                       yes = 'Inanimate', 
+                                       no  = 'Animate') )
+```
+
+We will also perform a few sanity checks (as always). For more information on these, look at the [window analysis vignette](window_analysis_vignette.html).
+
+```{r, warning=FALSE}
+# plot each participant's condition means
+(data_summary <- describe_data(response_window_clean, data_options, 
+                               describe_column='Animate', group_columns=c('ParticipantName','Target')))
+
+ggplot(data_summary, aes(x=Target, y=Mean, group=ParticipantName)) +
+              stat_summary(fun.y='mean', geom='point') +
+              stat_summary(fun.y='mean', geom='line')
+```
+
+## Bootstrapped smoothed divergence analysis
+
+Our first approach is to look for runs of significant differences between our conditions after smoothin the data in a series of time bins (similar to Wendt et al., 2014). This involves:
+
+1. Fitting a smoothing curve to the data (using either `smooth.spline()`, `loess()`, or a moving average)
+2. Bootstrap-resampling these fits to build a distribution
+3. Obtaining the 95% confidence intervals of this distribution in order to determine which time-bins differ significantly.
+
+This is a useful technique for estimating the timepoints of divergence between two conditions, while the smoothing helps remove minor deviations that might disrupt what would otherwise be considered a single divergent period. This can be especially helpful in infant data, which can be extremely noisy. Note that this approach does not explicitly control for Type-I error rates, and it can only deal with two-level factors.
+
+This method returns a list of divergences between your two conditions based on time windows in which the 95% confidence intervals did not include 0 (i.e., *p* < .05).
+
+To begin, we need to use `make_time_sequence_data` to generate a time-binned dataframe. Here we'll explicitly summarize_by ParticipantName but, regardless of whether you do this or leave it as trial-by-trial data, `make_boot_splines_data` (below) will summarize by ParticipantName.
+
+```{r, warning=FALSE}
+response_time <- make_time_sequence_data(response_window_clean,
+                                  data_options,
+                                  time_bin_size = 100, 
+                                  predictor_columns = c("Target"),
+                                  aois = "Animate",
+                                  summarize_by = "ParticipantName"
+                            )
+
+# visualize timecourse
+plot(response_time, predictor_column = "Target") + 
+  theme_light() +
+  coord_cartesian(ylim = c(0,1))
+```
+
+We can then use `make_boot_splines_data` to resample (`samples` times) from this dataset and fit a smoother to each sample:
+
+```{r, warning=FALSE}
+bootstrapped_familiar <- make_boot_splines_data(response_time, 
+                                              predictor_column = 'Target', 
+                                              within_subj = TRUE, 
+                                              samples = 1000, 
+                                              alpha = .05,
+                                              smoother = "smooth.spline") 
+```
+
+We can then plot this curve. Because this is a within-subjects design, we get a single curve (and CI) corresponding to the difference between conditions. Within between-subjects designs, you'll get two curves (and CIs) corresponding to the estimate of each condition.
+
+```{r, warning=FALSE}
+plot(bootstrapped_familiar)
+```
+
+Finally, we can look at each timepoint to see whether the CIs include 0 and look for runs of significant timepoints -- i.e., divergences.
+
+```{r, warning=FALSE}
+bootstrap_analysis_familiar <- analyze_boot_splines(bootstrapped_familiar)
+summary(bootstrap_analysis_familiar)
+```
+
+This analysis suggests that the effect is significant for virtually the entire time-window, starting as early as 15900ms.
+
+## Bootstrapped cluster-based permutation analysis
+
+Our second approach is to perform a different type of bootstrapping analyses, referred to as a cluster-based permutation analysis (Maris & Oostenveld, 2007). This analysis takes a summed statistic for each cluster of time bins that pass some level of significance, and compares each to the "null" distribution of sum statistics (obtained by bootstrap resampling data within the largest of the clusters).
+
+This type of analysis should often give similar results to the above, but it has two main advanatges. First, it naturally controls the false-alarm rate while sacrificing little sensitivity. Second, the implementation in eyetrackingR allows you to use this method with a variety of statistical techniques (`t.test`, `wilcox.test`, `lm`, and `lmer`), so that continuous predictors, covariates, etc. can also be included in the model being tested.
+
+Here's how it works, step-by-step:
+
+The procedure goes as follows:
+
+1. Runs a statistical test on each time-bin of your data.
+2. Take the time-bins whose test passed the necessary statistic (e.g., t > 2.26), and group them by adjacency. We will call these time-clusters.
+3. For each time-cluster, calculate the sum of the statistics for the time-bins inside it.
+4. Take the data inside the largest of these clusters. Randomly shuffle it.
+5. Recalculate the sum-statistic for each of the shuffled datasets you sampled in (4). 
+6. Repeat steps (4) and (5) hundreds of times. This will lead to a distribution of summed-statistics, each representing the results of a statistical test on shuffled data. Intuitively, this distribution represents what kind of sum-statistics we would expect to get in a cluster by chance, if no effect were present (i.e., if the data were just randomly shuffled).
+7. Compare the cluster-statistics from step (3) to the distribution found in (6) to obtain a p-value. So, for example, imagine we get a distribution of sum-statistics, and 6.4% of the sum-statistics in this distribution are greater than the sum-statistic of our cluster, then our *p*-value for this cluster is *p* = .064. 
+
+To perform this procedure using eyetrackingR, we'll first create a time sequence dataset using `make_time_sequence_data` (as we did above):
+
+```{r, warning=FALSE}
+response_time_by_subj <- make_time_sequence_data(data = response_window_clean, 
+                        data_options = data_options, 
+                        time_bin_size = 100, 
+                        aois= "Animate", 
+                        predictor_columns = "Target",
+                        summarize_by = "ParticipantName")
+```
+
+Next, we'll set the threshold for the t-statistic that will be considered a divergence. Note that this is just a threshold for grouping samples into initial clusters -- lowering this `threshold` parameter won't make your divergences any more "significant" or increase your Type I error rate. Here we'll set the threshold based on the appropriate t-statistic for a sample of this size and an alpha of .05.
+
+```{r, warning=FALSE}
+alpha = .05
+num_sub = length(unique((response_window_clean$ParticipantName)))
+threshold_t = qt(p = 1 - alpha/2, 
+                 df = num_sub-1) # pick threshold t based on alpha = .05 two tailed
+```
+
+We can then look for initial clusters:
+
+```{r, warning=FALSE}
+df_timeclust <- make_time_cluster_data(response_time_by_subj, 
+                                      test= "t.test",
+                                      paired = TRUE,
+                                      predictor_column = "Target", 
+                                      threshold = threshold_t) 
+plot(df_timeclust) +
+  ylab("T-Statistic")
+summary(df_timeclust)
+```
+
+Finally, bootstrap p-values for each of these clusters by asking how likely we are to see a cluster with that "Sum Statistic" given a permutation-based null distribution derived from our largest cluster.
+
+```{r, warning=FALSE}
+# only bootstrap for p-values if we actually have clusters identified
+clust_analysis <- analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=250)
+clust_analysis
+
+plot(clust_analysis)
+```
+
+## References
+
+Maris, E., Oostenveld, R., 2007. Nonparametric statistical testing of EEG- and MEG-data. Journal of Neuroscience Methods 164 (1), 177–190.
+
+Wendt, D., Brand, T., & Kollmeier, B. (2014). An Eye-Tracking Paradigm for Analyzing the Processing Time of Sentences with Different Linguistic Complexities. PLoS ONE, 9(6), e100186. http://doi.org/10.1371/journal.pone.0100186.t003

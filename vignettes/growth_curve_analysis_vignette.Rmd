@@ -1,0 +1,190 @@
+---
+title: "Performing a growth curve analysis using eyetrackingR"
+author: "Jacob Dink & Brock Ferguson"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+> **Our Experiment**: Each eyetrackingR vignette uses the *eyetrackingR* package to analyze real data from a simple 2-alternative forced choice (2AFC) word recognition task administered to 19- and 24-month-olds.
+> On each trial, infants were shown a picture of an animate object (e.g., a horse) and an inanimate object (e.g., a spoon). After inspecting the images, they disappeared and they heard a label referring to one of them (e.g., "The horse is nearby!"). Finally, the objects re-appeared on the screen and they were prompted to look at the target (e.g., "Look at the horse!").
+
+## Overview of this vignette
+
+In this vignette, we want to examine our data *without* throwing out time as a predictor. That is, we want to ask how are differences (if any) between the Target conditions emerged over time in each trial. To do so, we will perform a growth curve analysis.
+
+## Prerequisites
+
+Before performing this analysis, we'll need to prepare and clean our dataset. Here we will to do this quickly and with few notes but, for more information, see the vignette on [preparing your data](preparing_your_data_vignette.html).
+
+```{r results='hide'}
+set.seed(42)
+library("Matrix")
+library("lme4")
+library("ggplot2")
+library("eyetrackingR")
+data("word_recognition")
+
+# set data options
+data_options = set_data_options( 
+  participant_column = "ParticipantName",
+  trial_column = "Trial",
+  time_column = "TimeFromTrialOnset",
+  trackloss_column = "TrackLoss",
+  aoi_columns = c('Animate','Inanimate')
+)
+
+# verify dataset columns
+data <- verify_dataset(word_recognition, data_options)
+
+# subset to response window post word-onset
+response_window <- subset_by_window(data, data_options, 
+                                    window_start_time = 15500, 
+                                    window_end_time = 21000, 
+                                    rezero = FALSE)
+
+# convert non-AOI looks to trackloss
+response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
+
+# analyze amount of trackloss by subjects and trials
+(trackloss <- trackloss_analysis(data = response_window,
+                                data_options = data_options))
+
+# remove trials with > 25% of trackloss
+response_window_clean <- clean_by_trackloss(data = response_window,
+                                            data_options = data_options, 
+                                            trial_prop_thresh = .25)
+
+# create Target condition column
+response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', response_window_clean$Trial), 
+                                       yes = 'Inanimate', 
+                                       no  = 'Animate') )
+```
+
+We will also perform a few sanity checks (as always). For more information on these, look at the [window analysis vignette](window_analysis_vignette.html).
+
+```{r, warning=FALSE}
+# plot each participant's condition means
+(data_summary <- describe_data(response_window_clean, data_options, 
+                               describe_column='Animate', group_columns=c('ParticipantName','Target')))
+
+ggplot(data_summary, aes(x=Target, y=Mean, group=ParticipantName)) +
+              stat_summary(fun.y='mean', geom='point') +
+              stat_summary(fun.y='mean', geom='line')
+```
+
+## Visualize the timecourse
+
+In this analysis, we are interested in the change of our data over time. Therefore, it's very important that we visualize our data to see whether our statistical estimates make any sense at all.
+
+To do so, we can use eyetrackingR's `time_sequence_data` type to create a dataset and its `plot` function to visualize it. This function requires us to bin our data so that, within each bin, we calculate a proportion of looking to our Animate AOI. Here we use 100ms time-bins. 
+
+```{r, warning=FALSE}
+# aggregate across trials within subjects in time analysis
+response_time <- make_time_sequence_data(response_window_clean, data_options, time_bin_size = 100, 
+                                 predictor_columns = c("Target"),
+                                 aois = "Animate"
+                            )
+
+# visualize time results
+plot(response_time, predictor_column = "Target") + 
+  theme_light() +
+  coord_cartesian(ylim = c(0,1))
+```
+
+From this plot, we should expect to see some big differences between Target conditions over time. However, an ideal analysis will also be consistent with the observation that these differences emerged after ~500ms -- i.e, they were not present at window onset.
+
+## Growth curve analysis
+
+Growth curve analysis (GCA) lets us model the timecourse of attention by fitting curves to proportion-looking over the course of the trial, and statistically assessing the bends in these curves.  Our implementation of a growth curve analysis modelled after Mirman (2008).
+
+eyetrackingR sets us up nicely for GCA. Above, we used `make_time_sequence_data` to generate the `` dataframe. This dataframe includes everything we need for GCA.
+
+First, it includes the same dependent variable columns as `make_time_window_data`, giving us an option of analyzing raw proportions or two (likely more appropriate transformations):
+
+* `Prop` -- the mean of raw proportion scores
+* `Elog` -- the empirical logit for each of these proportions
+* `ArcSin` -- the arcsine-root transformation for each of these proportions
+
+Second, it gives us a series columns corresponding to 'orthogonal polynomial timecodes.' These are *uncorrelated* vectors that are matched to your trial lengths, each of which fit a growth function of a different form (e.g., linear, quadratic, cubic, quartic, ...).
+
+We can visualize each of these vectors to give you an idea, as well as demonstrate that they are uncorrelated:
+
+```{r, warning=FALSE}
+# generate dataframe summarizing values of each vector
+timecodes <- unique(response_time[, c('ot1','ot2','ot3','ot4','ot5','ot6','ot7')])
+timecodes$num <- 1:nrow(timecodes)
+
+ggplot(timecodes, aes(x=num, y=ot1)) +
+               geom_line() +
+               geom_line(aes(y=ot2), color='red') +    # quadratic
+               geom_line(aes(y=ot3), color='blue') +   # cubic
+               geom_line(aes(y=ot4), color='green') +  # quartic
+               geom_line(aes(y=ot5), color='purple') + # quintic 
+               geom_line(aes(y=ot6), color='yellow') + # sextic
+               geom_line(aes(y=ot7), color='pink') +   # septic
+               scale_x_continuous(name="") +
+               scale_y_continuous(name="")
+
+round(cor(timecodes[, c(1:7)]),5)
+```
+
+You can see the linear time code moving from the bottom left to top right corner of that plot (in black). Each of the other coloured lines corresponds to a different growth function. The idea behind GCA is that we can simulanteously regress differences between our conditions (here, Target) on each of these vectors to see which (in combination, or independently) best captures the pattern of growth in our data. Importantly, because they are uncorrelated, they are sure to capture *distinct* variance in our data.
+
+Let's fit our first GCA model, including *only* the linear time code (i.e., saying that we want to ignore non-linear change over time):
+
+```{r, warning=FALSE}
+# sum-code and center our predictor:
+response_time$TargetC <- ifelse(response_time$Target == 'Animate', .5, -.5)
+response_time$TargetC <- as.numeric(scale(response_time$TargetC, center=TRUE, scale=FALSE))
+
+# Construct model
+model_time_sequence <- lmer(Elog ~ TargetC*(ot1) + (1 + ot1 | Trial) + (1 + ot1 | ParticipantName), 
+              data = response_time, REML = FALSE)
+summary(model_time_sequence)
+
+broom::tidy(model_time_sequence, effects = "fixed")
+drop1(model_time_sequence, ~., test="Chi")
+```
+
+eyetrackingR includes a `plot` method for `time_sequence_data` that can easily overlay the predictions of this model on the raw data:
+
+```{r, warning=FALSE}
+plot(response_time, predictor_column = "Target", dv = "Elog", model = model_time_sequence) +
+  theme_light()
+```
+
+This model reveals two main effects of TargetC and ot1, respectively. These may seem OK at first, but they are actually not a great match to our data (as revealed by the plot of their predictions). The main effect of TargetC says that, on average throughout each trial, participants looked more to the Animate target when it was named than when the Inanimate was named. This is accurate. The main effect of ot1 says that, on average, participants looked away from the Animate over the course of each trial. This is also accurate. What we are missing is a result that reflects that these differences between Target *emerged* after the start of the window.
+
+To remedy this issue, we can allow for non-linear change overtime by including a few higher-order orthogonal polynomials:
+
+```{r, warning=FALSE}
+model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + (1 | Trial) + (1 | ParticipantName), data = response_time, REML = FALSE)
+
+# commented out because this many random slopes takes too long to fit for a vignette
+# model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + (1 + ot1 + ot2 + ot3 + ot4 | Trial) + (1 + ot1 + ot2 + ot3 + ot4 | ParticipantName), data = response_time, REML = FALSE)
+
+summary(model_time_sequence)
+
+broom::tidy(model_time_sequence, effects = "fixed")
+drop1(model_time_sequence, ~., test="Chi")
+
+plot(response_time, predictor_column = "Target", dv = "Elog", model = model_time_sequence) +
+  theme_light()
+```
+
+This model better captures our data because it shows critical interactions between Target and higher-order polynomials. These allow the model to capture the steep drop in the Inanimate condition as well as the bend that follows it.
+
+## But *when* did the conditions diverge?
+
+GCA can tell you that your conditions/predictors had some predictive value (i.e., changed differently) over time. They can also tell you the form of that change by seeing the polynomials with which they reliably interacted. However, they can't tell you at what time these predictors had an effect.
+
+In the case of ascertainign reaction times, one way to answer this question is by using [onset-contingent analyses](onset_contingent_analysis_vignette.html).
+
+For more general approaches to estimating time windows of divergence (estimating both the onset and offset of divergences), take a look at the [divergence vignette](divergence_vignette.html).
+
+## References
+
+Mirman, D., Dixon, J., & Magnuson, J. S. (2008). Statistical and computational models of the visual world paradigm: Growth curves and individual differences. Journal of Memory and Language, 59, 474–494.

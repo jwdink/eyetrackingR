@@ -1,0 +1,219 @@
+---
+title: "Performing a window analysis using eyetrackingR"
+author: "Jacob Dink & Brock Ferguson"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+> **Our Experiment**: Each eyetrackingR vignette uses the *eyetrackingR* package to analyze real data from a simple 2-alternative forced choice (2AFC) word recognition task administered to 19- and 24-month-olds.
+> On each trial, infants were shown a picture of an animate object (e.g., a horse) and an inanimate object (e.g., a spoon). After inspecting the images, they disappeared and they heard a label referring to one of them (e.g., "The horse is nearby!"). Finally, the objects re-appeared on the screen and they were prompted to look at the target (e.g., "Look at the horse!").
+
+## Overview of this vignette
+
+In this vignette, we want to take an initial look at our data and perform the most fundamental eye-tracking analysis there is: a window analysis. This allows us to ascertain whether, in a certain window, infants looked more to the 'animate' when it was named than when the 'inanimate' was named.
+
+## Prerequisites
+
+Before performing this analysis, we'll need to prepare and clean our dataset. Here we will to do this quickly and with few notes but, for more information, see the vignette on [preparing your data](preparing_your_data_vignette.html).
+
+```{r results='hide'}
+set.seed(42)
+library("Matrix")
+library("lme4")
+library("ggplot2")
+library("eyetrackingR")
+data("word_recognition")
+
+# set data options
+data_options = set_data_options( 
+  participant_column = "ParticipantName",
+  trial_column = "Trial",
+  time_column = "TimeFromTrialOnset",
+  trackloss_column = "TrackLoss",
+  aoi_columns = c('Animate','Inanimate')
+)
+
+# verify dataset columns
+data <- verify_dataset(word_recognition, data_options)
+
+# subset to response window post word-onset
+response_window <- subset_by_window(data, data_options, 
+                                    window_start_time = 15500, 
+                                    window_end_time = 21000, 
+                                    rezero = FALSE)
+
+# convert non-AOI looks to trackloss
+response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
+
+# analyze amount of trackloss by subjects and trials
+(trackloss <- trackloss_analysis(data = response_window,
+                                data_options = data_options))
+
+# remove trials with > 25% of trackloss
+response_window_clean <- clean_by_trackloss(data = response_window,
+                                            data_options = data_options, 
+                                            trial_prop_thresh = .25)
+
+# create Target condition column
+response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', response_window_clean$Trial), 
+                                       yes = 'Inanimate', 
+                                       no  = 'Animate') )
+```
+
+## Sanity checks
+
+Here, we'll inspect the descriptive statistics for our data, and make some initial visualizations just to make sure everything is in order. We basically want a glance at each subject's looking to the `Animate` for each condition. To do so, we'll:
+
+* use the `describe_data` function to generate a quick data summary (telling us the means and variance within each Target condition for each subject, and the number of trials contributed after cleaning above), and
+* quickly visualize these differences by plotting a line for each subject. We expect they should all slope in the same direction, with lower mean looking to the Animate when the Inanimate was named than when the Animate was named.
+
+```{r, warning=FALSE}
+(data_summary <- describe_data(response_window_clean, data_options, 
+                               describe_column='Animate', group_columns=c('ParticipantName','Target')))
+
+ggplot(data_summary, aes(x=Target, y=Mean, group=ParticipantName)) +
+              stat_summary(fun.y='mean', geom='point') +
+              stat_summary(fun.y='mean', geom='line')
+```
+
+## Performing a simple paired t-test
+
+The first way to ask our question is to get a single mean proportion score (of looking to the Animate AOI) for each Target condition (Animate, Inanimate) for each subject and perform a paired t-test.
+
+To do so, we will use the `make_time_window_data` function to aggregate by participant and calculate this mean value. We also specify a couple additional predictors (Age, MCDI_Total [vocabulary score]) that we will use in a follow-up analysis.
+
+Note that the dataframe returned by `make_time_window_data` will actually give us a few different dependent variables to choose from:
+
+* `Prop` -- the mean of raw proportion scores
+* `Elog` -- the empirical logit for each of these proportions
+* `ArcSin` -- the arcsine-root transformation for each of these proportions
+
+While the first DV is the most intuitive, you might consider using the latter two DV's to account for the bounded nature of proportions. The boundedness of proportions is an issue because it can mean that CI's around your estimates fall above 1 or below 0 (which is not possible) and that there is an inherent link between group means and variance (means closer to 0 and 1 will necessarily have lower variance than means around .5). Here we will use the ArcSin DV.
+
+```{r, warning=FALSE}
+# aggregate by subject across the response window
+response_window_agg_by_sub <- make_time_window_data(response_window_clean, 
+                                             data_options, 
+                                             aois='Animate',
+                                             predictor_columns=c('Target','Age','MCDI_Total'),
+                                             summarize_by = "ParticipantName")
+
+# take a quick peek at data
+plot(response_window_agg_by_sub, predictor_columns="Target")
+
+# show condition means
+describe_data(response_window_agg_by_sub, describe_column = "Prop", group_columns = "Target")
+
+# simple paired t-test between conditions
+t.test(ArcSin ~ Target, data= response_window_agg_by_sub, paired=TRUE)
+```
+
+That t-test looks pretty good. But we also want to know whether this effect of Target is mediated by age and vocabulary. To do so, we can fit a quick linear model:
+
+```{r, warning=FALSE}
+# you should almost always sum-code and center your predictors when performing regression analyses
+response_window_agg_by_sub$AgeC <- response_window_agg_by_sub$Age - mean(response_window_agg_by_sub$Age)
+response_window_agg_by_sub$MCDI_TotalC <- response_window_agg_by_sub$MCDI_Total - mean(response_window_agg_by_sub$MCDI_Total)
+
+model <- lm(ArcSin ~ Target*AgeC*MCDI_TotalC, data=response_window_agg_by_sub)
+summary(model)
+```
+
+This linear model shows no main effects or interactions of Target with those predictors, but confirms the huge effect of Target.
+
+## Using mixed-effects models
+
+A more rigorous approach is *not* to aggregate by participants but, instead, to aggregate by trials within participants and fit a linear mixed-effects model using lme4's `lmer` function. This predicts infants' looking to the `Animate` AOI based on the `Target` condition of each trial while accounting for random intercepts and slope across `Trial` (i.e., items) and `ParticipantName` (i.e., subjects).
+
+Here, for demonstration's sake, we'll predict the `Elog` transformed DV.
+
+Note that the `make_time_window_data` call no longer summarizes by Participant. When the `summarize_by` argument is not passed, this function will default to summarizing by trials within participants.
+
+```{r, warning=FALSE}
+response_window_agg <- make_time_window_data(response_window_clean, 
+                                             data_options, 
+                                             aois='Animate', 
+                                             predictor_columns=c('Target','Age','MCDI_Total'))
+
+# sum-code and center predictors
+response_window_agg$TargetC <- ifelse(response_window_agg$Target == 'Animate', .5, -.5)
+response_window_agg$TargetC <- as.numeric(scale(response_window_agg$TargetC, center=TRUE, scale=FALSE))
+
+# mixed-effects linear model on subject*trial data
+model_time_window <- lmer(Elog ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), 
+              data = response_window_agg, REML = FALSE)
+
+summary(model_time_window)
+
+# cleanly show estimates
+broom::tidy(model_time_window, effects="fixed")
+
+# use model comparison to attain p-values
+drop1(model_time_window,~.,test="Chi")
+```
+
+Those results look very much in line with the results of the simple t-test, though they are slightly more conservative.
+
+### Interpreting the estimates
+
+The estimates from `lmer` can be interpreted as follows:
+
+* (Intercept) -- what are the overall log-odds of looking at the Animate regardless of Target condition?
+* TargetC -- what is the difference in log-odds between our two conditions' looking at the Animate?
+
+Because we sum-coded our `TargetC` predictor before fitting the model, we can calculate the looking to the Animate in the Animate target condition by adding .5*2.48 (the TargetC estimate) to 1.15 (the Intercept estimate):
+
+```{r, warning=FALSE}
+condition_estimate <- 1.15 + .5*2.48
+```
+
+And we can convert that back into a proportion value by reversing the transformation into log-odds:
+
+```{r, warning=FALSE}
+exp(condition_estimate)/(1+exp(condition_estimate))
+```
+
+### Adding additional predictors
+
+We can also throw in some additional predictors to the model, as we did above, so long as we specified these columns when we called `make_time_window_data`. Here we will look at the effect of Age and MCDI_Total (after centering, of course):
+
+```{r, warning=FALSE}
+response_window_agg$AgeC <- response_window_agg$Age - mean(response_window_agg$Age)
+response_window_agg$MCDI_TotalC <- response_window_agg$MCDI_Total - mean(response_window_agg$MCDI_Total)
+
+model_time_window_add_predictors <- lmer(Elog ~ TargetC*AgeC*MCDI_TotalC + (1 + TargetC | Trial) + (1 | ParticipantName), 
+              data = response_window_agg, REML = FALSE)
+
+summary(model_time_window_add_predictors)
+
+# cleanly show p-values
+broom::tidy(model_time_window_add_predictors, effects="fixed")
+
+# use model comparison to attain p-values
+drop1(model_time_window_add_predictors,~.,test="Chi")
+```
+
+Here we do see an effect of MCDI_Total (the participants' productive vocabulary): participants with larger vocabularies looked less to the Animate overall (regardless of Target).
+
+### Additional information
+
+For more of a basic introduction to linear mixed-effects models, covering topics like p-values, confidence intervals, estimates, interpreting random effects, and logistic regression, see [this tutorial](http://brockferguson.com/tutorials/R-gca-workshop/tutorial3-generalized-linear-models.html).
+
+For more information on the empirical-logit transformation, see Barr (2008).
+
+For more information on the dangers of analyzing raw proportion means, see Dixon (2008) and Jaeger (2008).
+
+## A word of caution about window analyses
+
+It is important to consider what we are losing in a window analysis. By collapsing across time within trials or subjects, we are completely removing the greatest asset of eye-tracking data: time. This can mask important properties of our data. Therefore, while window analyses are attractive in terms of parsimony and computational demands -- and are often a necessary first step -- other analyses may allow you to better understand and report your data.
+
+## References
+
+Barr, D. J. (2008). Analyzing “visual world” eyetracking data using multilevel logistic regression. Journal of Memory and Language, 59, 457–474.
+
+Dixon, P. (2008). Models of accuracy in repeated-measures designs. Journal of Memory and Language, 59(4), 447–456. http://doi.org/10.1016/j.jml.2007.11.004
+
+Jaeger, T. F. (2008). Categorical data analysis: Away from ANOVAs (transformation or not) and towards logit mixed models. Journal of Memory and Language, 59(434-446). http://doi.org/10.1016/j.jml.2007.11.007

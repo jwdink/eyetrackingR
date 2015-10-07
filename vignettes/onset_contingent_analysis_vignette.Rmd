@@ -1,0 +1,162 @@
+---
+title: "Performing an onset-contingent analysis using eyetrackingR"
+author: "Jacob Dink & Brock Ferguson"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+> **Our Experiment**: Each eyetrackingR vignette uses the *eyetrackingR* package to analyze real data from a simple 2-alternative forced choice (2AFC) word recognition task administered to 19- and 24-month-olds.
+> On each trial, infants were shown a picture of an animate object (e.g., a horse) and an inanimate object (e.g., a spoon). After inspecting the images, they disappeared and they heard a label referring to one of them (e.g., "The horse is nearby!"). Finally, the objects re-appeared on the screen and they were prompted to look at the target (e.g., "Look at the horse!").
+
+## Overview of this vignette
+
+In this vignette, we want to examine how quickly participants' looked to the referent AOI (e.g., the Animate, when the Animate was named; the Inanimate, when the Inanimate was named) -- i.e., to calculate their reaction times.
+
+To do so, we can perform an onset-contingent looking analysis (e.g., Fernald et al., 2008), asking how quickly they *switched* from the AOI they were looking at from the onset of the trial when they happened to be looking at a non-target AOI. If participants were faster to switch from a distractor AOI to a target AOI than vice-verse, we can conclude that they were reliably identifying the target AOI.
+
+Moreover, we can ask if this effect of onset-AOI (switching to/from the target) interacts with another predictor. *A priori*, we suspect they will be slower to switch away from the Animate (i.e., when the Inanimate was named) than to switch to the Animate (i.e., when the Animate was named) because, all things equal, infants prefer to look at animate things.
+
+## Prerequisites
+
+Before performing this analysis, we'll need to prepare and clean our dataset. Here we will to do this quickly and with few notes but, for more information, see the vignette on [preparing your data](preparing_your_data_vignette.html).
+
+```{r results='hide'}
+set.seed(42)
+library("Matrix")
+library("lme4")
+library("ggplot2")
+library("eyetrackingR")
+data("word_recognition")
+
+# set data options
+data_options = set_data_options( 
+  participant_column = "ParticipantName",
+  trial_column = "Trial",
+  time_column = "TimeFromTrialOnset",
+  trackloss_column = "TrackLoss",
+  aoi_columns = c('Animate','Inanimate')
+)
+
+# verify dataset columns
+data <- verify_dataset(word_recognition, data_options)
+
+# subset to response window post word-onset
+response_window <- subset_by_window(data, data_options, 
+                                    window_start_time = 15500, 
+                                    window_end_time = 21000, 
+                                    rezero = FALSE)
+
+# convert non-AOI looks to trackloss
+response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
+
+# analyze amount of trackloss by subjects and trials
+(trackloss <- trackloss_analysis(data = response_window,
+                                data_options = data_options))
+
+# remove trials with > 25% of trackloss
+response_window_clean <- clean_by_trackloss(data = response_window,
+                                            data_options = data_options, 
+                                            trial_prop_thresh = .25)
+
+# create Target condition column
+response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', response_window_clean$Trial), 
+                                       yes = 'Inanimate', 
+                                       no  = 'Animate') )
+```
+
+We will also perform a few sanity checks (as always). For more information on these, look at the [window analysis vignette](window_analysis_vignette.html).
+
+```{r, warning=FALSE}
+# plot each participant's condition means
+(data_summary <- describe_data(response_window_clean, data_options, 
+                               describe_column='Animate', group_columns=c('ParticipantName','Target')))
+
+ggplot(data_summary, aes(x=Target, y=Mean, group=ParticipantName)) +
+              stat_summary(fun.y='mean', geom='point') +
+              stat_summary(fun.y='mean', geom='line')
+```
+
+## Adding new columns
+
+In order to perform this analysis, we need to add two new columns to our dataset to indicate the Target and Distractor AOIs *relative to the Target condition* for each trial.
+
+```{r, warning=FALSE}
+# recode AOIs to target & distractor
+response_window_clean$TrialTarget <- ifelse(test = response_window_clean$Target == 'Animate', 
+                                            yes = response_window_clean$Animate, 
+                                            no = response_window_clean$Inanimate)
+response_window_clean$TrialDistractor <- ifelse(test = response_window_clean$Target == 'Animate', 
+                                                yes = response_window_clean$Inanimate, 
+                                                no = response_window_clean$Animate)
+```
+
+## Visualize switches from an onset AOI to the target AOI
+
+Next, we can use `make_onset_data` to calculate whether, at each point in the trial, the participant has switched from their onset AOI. We can `plot` this new dataframe showing the proportion of participants who had switched from their onset AOI at each point (style adapted from Yurovsky & Frank, 2015). The size of the gap between the solid line (switching from the non-Target) and the dashed line (switching from the Target) documents infants' performance in identifying the target: Infants should switch more quickly and more frequently *to* the Target than *from* it:
+
+```{r, warning=FALSE}
+onsets <- make_onset_data(response_window_clean, data_options, onset_time = 15500, 
+                          fixation_window_length = 100, target_aoi='TrialTarget')
+# participants' ability to orient to the trial target overall:
+plot(onsets) + theme(legend.text=element_text(size=5))
+```
+
+If we specify a predictor for this plot, we can examine visually whether infants' performance in identifying the target varied by this predictor. Here, we want to know whether they more reliably switched to the target when the the Target was Animate versus Inanimate:
+
+```{r, warning=FALSE}
+# participants' ability to orient to the trial target, split by which target:
+plot(onsets, predictor_columns = "Target") + theme(legend.text=element_text(size=5))
+```
+
+Infants were definitely more consistent and faster at switching *to* the Animate when it was named than away from it when the Inanimate was named, as expected.
+
+Finally, we can ask whether infants with higher vocabularies outperformed infants with lower vocabularies, as indicated by their MCDI scores (note, for visualizing, the `plot` method performs a median split):
+
+```{r, warning=FALSE}
+# we can also visualize numeric predictors:
+plot(onsets, predictor_columns = "MCDI_Total") + theme(legend.text=element_text(size=5))
+```
+
+As one would expect, infants with larger vocabularies were faster (and more consistent) at identifying the Target AOI.
+
+## Analyze onset-contingent switch times
+
+In order to analyze these switch times, we can calculate the switch times for target and non-target onset trials using `make_switch_data`.
+
+We can then use a linear mixed-effects model to test three hypotheses:
+
+1. That infants were faster/slower at switching to the target than away from the target (main effect of FirstAOI)
+2. That infants were faster/slower to switch to *or* from the target when it was Animate or Inanimate (main effect of Target).
+3. That infants were faster/slower at switching to the target when it was Animate or Inanimate (interaction between FirstAOI:Target)
+
+```{r, warning= FALSE}
+onset_switches <- make_switch_data(onsets, predictor_columns = "Target")
+
+# visualize subject's switch times
+plot(onset_switches, predictor_columns = c("Target"))
+
+# center predictor:
+onset_switches$FirstAOIC <- ifelse(onset_switches$FirstAOI == 'TrialTarget', .5, -.5)
+onset_switches$FirstAOIC <- scale(onset_switches$FirstAOIC, center=TRUE, scale=FALSE) 
+onset_switches$TargetC <- ifelse(onset_switches$Target == 'Animate', .5, -.5)
+onset_switches$TargetC <- scale(onset_switches$TargetC, center=TRUE, scale=FALSE) 
+
+# build model:
+model_switches <- lmer(FirstSwitch ~ FirstAOIC*TargetC + 
+                (1 | Trial) + (1 | ParticipantName), data=onset_switches, REML=FALSE)
+summary(model_switches)
+
+broom::tidy(model_switches, effects="fixed")
+drop1(model_switches,~.,test="Chi")
+```
+
+The main effect of FirstAOIC reveals that participants were more likely to switch to the target than away from it, overall, which suggests the overall could identify the target referent of these words. The interaction here with TargetC, however, reveals that infants were faster to switch to the Animate when it was named than away from the Animate when the Inanimate was named.
+
+## References
+
+Fernald, A., Zangl, R., Portillo, A. L., & Marchman, V. A. (2008). Looking while listening: Using eye movements to monitor spoken language comprehension by infants and young children. In I. A. Sekerina, E. M. Fernández, & H. Clahsen (Eds.), Developmental Psycholinguistics: On-line methods in children's language processing (pp. 97–135). Amsterdam: John Benjamins.
+
+Yurovsky, D., & Frank, M. C. (2015). Beyond Naïve Cue Combination: Salience and Social Cues in Early Word Learning. Developmental Science, 1–38.
