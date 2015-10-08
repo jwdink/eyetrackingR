@@ -130,7 +130,7 @@ broom::tidy(model_switches, effects="fixed")
 drop1(model_switches,~.,test="Chi")
 ```
 
-The main effect of FirstAOIC reveals that participants were more likely to switch to the target than away from it, overall, which suggests the overall could identify the target referent of these words. The interaction here with TargetC, however, reveals that infants were faster to switch to the Animate when it was named than away from the Animate when the Inanimate was named.
+The main effect of FirstAOIC reveals that participants were more likely to switch to the target than away from it, overall, which suggests overall they could identify the target referent of these words. The interaction here with TargetC, however, reveals that infants were faster to switch to the Animate when it was named than away from the Animate when the Inanimate was named.
 
 ## References
 
