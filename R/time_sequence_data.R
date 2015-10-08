@@ -242,7 +242,7 @@ analyze_time_bins.time_sequence_data <- function(data,
     models_estimates  <- sapply(tidied_models, function(x) ifelse('estimate' %in% names(x), x[,'estimate'], NA) )
     
     # no std. error provided, so grab it from CI
-    models_std_err  <- sapply(tidied_models, function(x) ifelse(sum(c('conf.low','conf.high') %in% names(x)) == 2, (x[,'conf.high']-x[,'conf.low'])/(1.96*2), NA) )
+    models_std_err  <- sapply(tidied_models, function(x) ifelse(all(c('conf.low','conf.high') %in% names(x)), (x[,'conf.high']-x[,'conf.low'])/(1.96*2), NA) )
   } else {
     model_row <- lapply(tidied_models, function(x) {
       which_row <- grep(pattern = predictor_column, x = x[['term']], fixed = TRUE) # look for partially matching param (for treatment coding)
@@ -454,7 +454,7 @@ plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', mo
 #' 
 #' @param data
 #' @param type Plot the test-statistic at each time bin ("statistic"), or the parameter estimate at each time
-#'   bin ("estimate")?
+#'   bin ("estimate")? Note that estimate plots standard error, regardless of the alpha/threshold used originally
 #'   
 #' @export
 #' @return A ggplot object

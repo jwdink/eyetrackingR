@@ -10,7 +10,7 @@
 \item{data}{}
 
 \item{type}{Plot the test-statistic at each time bin ("statistic"), or the parameter estimate at each time
-  bin ("estimate")?}
+  bin ("estimate")? Note that estimate plots standard error, regardless of the alpha/threshold used originally}
 }
 \value{
 A ggplot object
