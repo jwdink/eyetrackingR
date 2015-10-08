@@ -7,8 +7,8 @@ Authors@R: c(
 	)
 Description: This package addresses tasks along the pipeline from raw data to analysis and
     visualization for eye-tracking data. It offers several popular types of analyses, including linear and 
-    growth curve time analyses, onset-contingent reaction time analyses, and cluster mass 
-    analyses, as well as novel non-parametric approaches to time-series data.
+    growth curve time analyses, onset-contingent reaction time analyses, as well as several non-parametric 
+    bootstrapping approaches.
 Depends: R (>= 3.2.1)
 License: MIT
 LazyData: true
