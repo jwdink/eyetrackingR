@@ -339,7 +339,7 @@ subset_by_window <- function(data,
   #
   if (!quiet) {
     new_len <- round(mean(data$.WindowEnd - data$.WindowStart, na.rm=TRUE),2)
-    if (!is.infinite(new_len)) message("Avg. window length in new data will be ",  ) 
+    if (!is.infinite(new_len)) message("Avg. window length in new data will be ", new_len) 
   }
   
   # Subset
