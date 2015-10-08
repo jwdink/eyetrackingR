@@ -11,6 +11,8 @@ eyetrackingR
 
 This package is designed to make dealing with eye-tracking data easier. It addresses tasks along the pipeline from raw data to analysis and visualization. It offers several popular types of analyses, including linear and growth curve time analyses, onset-contingent reaction time analyses, and bootstrapping cluster analyses, as well as novel non-parametric approaches to time-series data.
 
+www.eyetrackingr.com
+
 ## Installation
 
 Make sure you have the `devtools` package installed:
@@ -32,7 +34,7 @@ If you'd like the tutorials available for offline use (accessible with `browseVi
 devtools::install_github(build_vignettes = TRUE)
 ```
 
-These vignettes will also be available on the project website, coming soon.
+These vignettes are also available on the project website.
 
 ---
 
