@@ -66,17 +66,17 @@ plot(data_summary)
 
 ## Bootstrapped smoothed divergence analysis
 
-Our first approach is to look for runs of significant differences between our conditions after smoothin the data in a series of time bins (similar to Wendt et al., 2014). This involves:
+Our first approach is to look for runs of significant differences between our conditions after smoothing the data in a series of time bins (similar to Wendt et al., 2014). This involves:
 
 1. Fitting a smoothing curve to the data (using either `smooth.spline()`, `loess()`, or a moving average)
 2. Bootstrap-resampling these fits to build a distribution
 3. Obtaining the 95% confidence intervals of this distribution in order to determine which time-bins differ significantly.
 
-This is a useful technique for estimating the timepoints of divergence between two conditions, while the smoothing helps remove minor deviations that might disrupt what would otherwise be considered a single divergent period. This can be especially helpful in infant data, which can be extremely noisy. Note that this approach does not explicitly control for Type-I error rates, and it can only deal with two-level factors.
+This is a useful technique for estimating the timepoints of divergence between two conditions, while the smoothing helps remove minor deviations that might disrupt what would otherwise be considered a single divergent period. This can be especially helpful in infant data, which can be extremely noisy. Note that this approach does not explicitly control for Type-I error rates (i.e., it's not a replacement for something like Bonferroni correction), and it can only deal with two-level factors.
 
 This method returns a list of divergences between your two conditions based on time windows in which the 95% confidence intervals did not include 0 (i.e., *p* < .05).
 
-To begin, we need to use `make_time_sequence_data` to generate a time-binned dataframe. Here we'll explicitly summarize_by ParticipantName but, regardless of whether you do this or leave it as trial-by-trial data, `make_boot_splines_data` (below) will summarize by ParticipantName.
+To begin, we need to use `make_time_sequence_data` to generate a time-binned dataframe. Here we'll explicitly `summarize_by` ParticipantName Note that, regardless of whether you do this or leave it as trial-by-trial data, `make_boot_splines_data` (below) will automatically summarize by participant as a first step.
 
 ```{r, warning=FALSE}
 response_time <- make_time_sequence_data(response_window_clean,
@@ -122,14 +122,15 @@ This analysis suggests that the effect is significant for virtually the entire t
 
 Our second approach is to perform a different type of bootstrapping analyses, referred to as a cluster-based permutation analysis (Maris & Oostenveld, 2007). This analysis takes a summed statistic for each cluster of time bins that pass some level of significance, and compares each to the "null" distribution of sum statistics (obtained by bootstrap resampling data within the largest of the clusters).
 
-This type of analysis should often give similar results to the above, but it has two main advanatges. First, it naturally controls the false-alarm rate while sacrificing little sensitivity. Second, the implementation in eyetrackingR allows you to use this method with a variety of statistical techniques (`t.test`, `wilcox.test`, `lm`, and `lmer`), so that continuous predictors, covariates, etc. can also be included in the model being tested.
+This type of analysis should often give similar results to the above, but it has two main advanatges. 
 
-Here's how it works, step-by-step:
+1. It naturally controls the false-alarm rate while sacrificing little sensitivity. 
+2. The implementation in eyetrackingR allows you to use this method with a variety of statistical techniques (`t.test`, `wilcox.test`, `lm`, and `lmer`), so that continuous predictors, covariates, etc. can also be included in the model being tested.
 
-The procedure goes as follows:
+Here's the procedure eyetrackingR implements under the hood:
 
 1. Runs a statistical test on each time-bin of your data.
-2. Take the time-bins whose test passed the necessary statistic (e.g., t > 2.26), and group them by adjacency. We will call these time-clusters.
+2. Take the time-bins whose test passed the a threshold statistic (e.g., t > 2.26), and group them by adjacency. We will call these time-clusters.
 3. For each time-cluster, calculate the sum of the statistics for the time-bins inside it.
 4. Take the data inside the largest of these clusters. Randomly shuffle it.
 5. Recalculate the sum-statistic for each of the shuffled datasets you sampled in (4). 
