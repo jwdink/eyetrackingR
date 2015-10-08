@@ -275,6 +275,11 @@ subset_by_window <- function(data,
   }
   
   # Start Time:
+  if (!any(start_method_num)) {
+    if (rezero) stop("Rezero must be set to FALSE if no start time specified.")
+    start_method_num <- c(FALSE, FALSE, TRUE)
+    window_start_time <- -Inf
+  }
   if (which(start_method_num) == 1) {
     # Message:
     data[[msg_col]] <- as.character(data[[msg_col]])
@@ -299,11 +304,13 @@ subset_by_window <- function(data,
   } else if (which(start_method_num) == 3) {
     # Single Number:
     data$.WindowStart <- window_start_time
-  } else {
-    data$.WindowStart <- -Inf
-  }
+  } 
   
   # Stop Time:
+  if (!any(stop_method_num)) {
+    stop_method_num <- c(FALSE, FALSE, TRUE)
+    window_end_time <- Inf
+  }
   if (which(stop_method_num) == 1) {
     # Message:
     data[[msg_col]] <- as.character(data[[msg_col]])
@@ -327,13 +334,12 @@ subset_by_window <- function(data,
   } else if (which(stop_method_num) == 3) {
     # Single Number:
     data$.WindowEnd <- window_end_time
-  } else {
-    data$.WindowEnd <- Inf
-  }
+  } 
   
   #
   if (!quiet) {
-    message("Avg. window length in new data will be ", round(mean(data$.WindowEnd - data$.WindowStart, na.rm=TRUE),2) ) 
+    new_len <- round(mean(data$.WindowEnd - data$.WindowStart, na.rm=TRUE),2)
+    if (!is.infinite(new_len)) message("Avg. window length in new data will be ",  ) 
   }
   
   # Subset
