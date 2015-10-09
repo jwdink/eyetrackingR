@@ -48,7 +48,7 @@ plot.data.frame <- function(data) {
                                   SamplesInAOI = interp( ~ sum(AOI_COL, na.rm = TRUE), AOI_COL = aoi_col),
                                   SamplesTotal = interp( ~ sum(!is.na(AOI_COL)), AOI_COL = aoi_col) # ignore all NAs
                                 ))
-
+    
     # Calculate Proportion, Elog, etc.
     aoi <- as.character(aoi_col)
     out <- mutate(
@@ -62,6 +62,28 @@ plot.data.frame <- function(data) {
       ArcSin = asin(sqrt(Prop))
     )
     out <- ungroup(out)
+  }
+
+#' Run a function, return result, errors, and warnings
+#'
+#' This function is from \link{http://stackoverflow.com/a/4952908/3291744}
+#'
+#' Thanks to user Martin Morgan for this ingenious solution.
+#'
+#' @param function
+#' @return new version of that function
+.make_function_fail_informatively <- function(fun)
+  function(...) {
+    warn <- err <- NULL
+    res <- withCallingHandlers(
+      tryCatch(fun(...), error=function(e) {
+        err <<- conditionMessage(e)
+        NULL
+      }), warning=function(w) {
+        warn <<- append(warn, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      })
+    list(res, warn=warn, err=err)
   }
 
 
@@ -80,13 +102,13 @@ mutate_.time_sequence_data <- function(data, ...) {
   temp_remove <- class(data)[class(data) %in% potential_classes]
   class(data) <- class(data)[!class(data) %in% potential_classes]
   temp_attr <- attr(data, "eyetrackingR") # also attributes
-
+  
   out <- mutate_(data, ...)
-
+  
   # reapply class/attributes
   class(out) = c(temp_remove, class(out))
   attr(out, "eyetrackingR") = temp_attr
-
+  
   return(out)
 }
 
@@ -131,13 +153,13 @@ group_by_.time_sequence_data <- function(data, ...) {
   temp_remove <- class(data)[class(data) %in% potential_classes]
   class(data) <- class(data)[!class(data) %in% potential_classes]
   temp_attr <- attr(data, "eyetrackingR") # also attributes
-
+  
   out <- group_by_(data, ...)
-
+  
   # reapply class/attributes
   class(out) = c(temp_remove, class(out))
   attr(out, "eyetrackingR") = temp_attr
-
+  
   return(out)
 }
 
@@ -182,13 +204,13 @@ filter_.time_sequence_data <- function(data, ...) {
   temp_remove <- class(data)[class(data) %in% potential_classes]
   class(data) <- class(data)[!class(data) %in% potential_classes]
   temp_attr <- attr(data, "eyetrackingR") # also attributes
-
+  
   out <- filter_(data, ...)
-
+  
   # reapply class/attributes
   class(out) = c(temp_remove, class(out))
   attr(out, "eyetrackingR") = temp_attr
-
+  
   return(out)
 }
 
@@ -237,15 +259,15 @@ left_join.time_sequence_data <-
     temp_remove <- class(x)[class(x) %in% potential_classes]
     class(x) <- class(x)[!class(x) %in% potential_classes]
     temp_attr <- attr(x, "eyetrackingR") # also attributes
-
+    
     out <- left_join(
       x = x, y = y, by = by, copy = copy, ...
     )
-
+    
     # reapply class/attributes
     class(out) = c(temp_remove, class(out))
     attr(out, "eyetrackingR") = temp_attr
-
+    
     return(out)
   }
 

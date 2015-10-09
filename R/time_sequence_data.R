@@ -205,37 +205,68 @@ analyze_time_bins.time_sequence_data <- function(data,
   # Run a model for each time-bin
   cc <- match.call(expand.dots = TRUE)
   paired <- cc[["paired"]]
+  if (paired == "T") paired = TRUE # I can't even right now.
   if (!quiet) message("Computing ", test, " for each time bin...")
   if (test=="lmer") {
-    failsafe_test <- failwith(default = NA, f = lme4::lmer, quiet = quiet)
+    the_test <- .make_function_fail_informatively(lme4::lmer)
   } else {
-    failsafe_test <- failwith(default = NA, f = get(test), quiet = quiet)
+    the_test <- .make_function_fail_informatively(get(test))
   }
+  #the_test <- function(x) {warning("OMG!"); return(5)}
   if (quiet) pblapply <- lapply
+  the_errors <- list()
+  the_warnings <- list()
   models= pblapply(unique(data$Time), function(tb) {
     # get data:
     temp_dat <- filter(data, Time==tb)
     # Make paired test more robust to unpaired observations within a bin:
     if (identical(paired, TRUE)) temp_dat <- .fix_unpaired(temp_dat, data_options, predictor_column, dv)
+    
     # make model:
-    model <- failsafe_test(formula = formula, data = temp_dat, ... = ...)
-    # get N:
-    if (test=="wilcox.test" | test=="lm") {
-      if (predictor_column == "(Intercept)") {
-        predictor_col_is_na <- FALSE
-      } else {
-        predictor_col_is_na <- is.na(temp_dat[[predictor_column]])
-      }
-      model$sample_size <- length(unique( temp_dat[[data_options$participant_column]][!predictor_col_is_na] ))
+    output <- suppressWarnings( the_test(formula = formula, data = temp_dat, ... = ...) )
+    
+    # If error, log and return NA
+    if (!is.null(output$err)) {
+      the_errors[[as.character(tb)]] <<- output$err
+      return(NA)
+    } 
+    # If warning, just log 
+    if (!is.null(output$warn)) {
+      the_warnings[[as.character(tb)]] <<- output$warn
     }
-    model
+    # Return model:
+    return(output[[1]])
+    
   })
-
+  
+  # Give Errors:
+  if (length(the_errors) > 1) {
+    df_errors <- data_frame(Message = the_errors,
+                            TimeBin = sapply(names(the_errors), function(tb) as.numeric(tb))
+    )
+    for (msg in unique(df_errors$Message)) {
+      warning("\nFor the following timebins...\n\t", paste(sort(df_errors$TimeBin), collapse = ", "),
+              "\n...received the following error message: \n\t`", msg, "`",
+              "\nThis means something went wrong when running ", test, " on these timebins. ",
+              "Model results for these timebins have been replaced by `NA` in the output.")
+    }
+  }
+  # Give Warnings:
+  if (length(the_warnings) > 1) {
+    df_warnings <- data_frame(Message = the_warnings,
+                              TimeBin = sapply(names(the_warnings), function(tb) as.numeric(tb))
+    )
+    for (msg in unique(df_warnings$Message)) {
+      warning("\nFor the following timebins...\n\t", paste(sort(df_warnings$TimeBin), collapse = ", "),
+              "\n...received the following warning message: \n\t`", msg, "`")
+    }
+  }
+  
   # Get Statistic:
   if (test=="lmer") {
-    tidied_models <- lapply(models, broom::tidy, effects="fixed")
+    tidied_models <- suppressWarnings(lapply(models, broom::tidy, effects="fixed"))
   } else {
-    tidied_models <- lapply(models, broom::tidy)
+    tidied_models <- suppressWarnings(lapply(models, broom::tidy))
   }
   if (test %in% c('t.test','wilcox.test')) {
     models_statistics <- sapply(tidied_models, function(x) ifelse('statistic' %in% names(x), x[,'statistic'], NA) )
