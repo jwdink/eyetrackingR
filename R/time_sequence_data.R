@@ -417,7 +417,7 @@ plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', mo
 
   # Prelims:
   data_options = attr(data, "eyetrackingR")$data_options
-  dv = match.arg(dv, c("Prop", "Elog", "ArcSin"))
+  dv = match.arg(dv, c("Prop", "Elog", "ArcSin", "LogitAdjusted"))
   
   # Add model predictions to dataframe:
   if (!is.null(model)) {

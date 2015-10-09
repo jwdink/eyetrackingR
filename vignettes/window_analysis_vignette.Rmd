@@ -73,11 +73,14 @@ To do so, we will use the `make_time_window_data` function to aggregate by parti
 
 Note that the dataframe returned by `make_time_window_data` will actually give us a few different dependent variables to choose from:
 
-* `Prop` -- the mean of raw proportion scores
-* `Elog` -- the empirical logit for each of these proportions
-* `ArcSin` -- the arcsine-root transformation for each of these proportions
+* `Prop` -- The mean of raw proportion-looking
+* `LogitAdjusted` -- The logit is defined as `log( Prop / (1 - Prop) )`. This transformation attempts to map bounded `0,1` data to the real number line. Unfortunately, for data that is exactly 0 or 1, this is undefined. One solution is add a very small value to any datapoints that equal 0, and subtract a small value to any datapoints that equal 1 (we use 1/2 the smallest nonzero value for this adjustment).
+* `Elog` -- Another way of calculating a corrected logit transformation is to add a small value `epsilon` to both the numerator and denominator of the logit equation (we use 0.5).
+* `ArcSin` -- The arcsine-root transformation of the raw proportions, defined as `asin(sqrt(Prop))`.
 
-While the first DV is the most intuitive, you might consider using the latter two DV's to account for the bounded nature of proportions. The boundedness of proportions is an issue because it can mean that CI's around your estimates fall above 1 or below 0 (which is not possible) and that there is an inherent link between group means and variance (means closer to 0 and 1 will necessarily have lower variance than means around .5). Here we will use the ArcSin DV.
+While the first DV is the most intuitive, you might consider using the others to account for the bounded nature of proportions. The boundedness of proportions is an issue because it can mean that CI's around your estimates fall above 1 or below 0 (which is not possible) and that there is an inherent link between group means and variance (means closer to 0 and 1 will necessarily have lower variance than means around .5). These are violations of many parametric models, such as OLS regression and t-tests.
+
+We will start out by using the ArcSin DV.
 
 ```{r, warning=FALSE}
 # aggregate by subject across the response window
@@ -87,10 +90,10 @@ response_window_agg_by_sub <- make_time_window_data(response_window_clean,
                                              summarize_by = "ParticipantName")
 
 # take a quick peek at data
-plot(response_window_agg_by_sub, predictor_columns="Target")
+plot(response_window_agg_by_sub, predictor_columns="Target", dv = "ArcSin")
 
 # show condition means
-describe_data(response_window_agg_by_sub, describe_column = "Prop", group_columns = "Target")
+describe_data(response_window_agg_by_sub, describe_column = "ArcSin", group_columns = "Target")
 
 # simple paired t-test between conditions
 t.test(ArcSin ~ Target, data= response_window_agg_by_sub, paired=TRUE)
@@ -130,7 +133,7 @@ response_window_agg$TargetC <- as.numeric(scale(response_window_agg$TargetC, cen
 model_time_window <- lmer(Elog ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), 
                           data = response_window_agg, REML = FALSE)
 # cleanly show important parts of model (see `summary()` for more)
-broom::tidy(model_time_window, effects="fixed")
+(est <- broom::tidy(model_time_window, effects="fixed"))
 
 # use model comparison to attain p-values
 drop1(model_time_window,~.,test="Chi")
@@ -145,10 +148,12 @@ The estimates from `lmer` can be interpreted as follows:
 * (Intercept) -- what are the overall log-odds of looking at the Animate regardless of Target condition?
 * TargetC -- what is the difference in log-odds between our two conditions' looking at the Animate?
 
-Because we sum-coded our `TargetC` predictor before fitting the model, we can calculate the looking to the Animate in the Animate target condition by adding .5*2.48 (the TargetC estimate) to 1.15 (the Intercept estimate):
+Because we sum-coded our `TargetC` predictor before fitting the model, we can calculate the looking to the Animate in the Animate target condition by taking the intercept estimate, +/- the slope estimate divided by two.
 
 ```{r, warning=FALSE}
-condition_estimate <- 1.15 + .5*2.48
+condition_estimate <- with(est, 
+                           c(estimate[term=="(Intercept)"] + estimate[term=="TargetC"] / 2,
+                             estimate[term=="(Intercept)"] - estimate[term=="TargetC"] / 2))
 ```
 
 And we can convert that back into a proportion value by reversing the transformation into log-odds:
@@ -156,6 +161,28 @@ And we can convert that back into a proportion value by reversing the transforma
 ```{r, warning=FALSE}
 exp(condition_estimate)/(1+exp(condition_estimate))
 ```
+
+You might notice that these are higher than we might have expected, based on the raw proportions. This could suggest our choice of transformation (empirical logit) was problematic. It's important to choose a transformation that satisfies the assumptions of the model we are using. We can plot the fitted vs. residuals of our model using the `plot` method for `lmer`:
+
+
+```{r, warning=FALSE}
+plot(model_time_window)
+```
+
+The empirical-logit transformation appears to have created some problematic outliers, so we might want to consider another transformation, such as the adjusted logit.
+
+```{r, warning=FALSE}
+model_time_window_logit <- lmer(LogitAdjusted ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), 
+                          data = response_window_agg, REML = FALSE)
+plot(model_time_window_logit)
+est_logit <- broom::tidy(model_time_window_logit, effects="fixed")
+condition_estimate_logit <- with(est_logit, 
+                           c(estimate[term=="(Intercept)"] + estimate[term=="TargetC"] / 2,
+                             estimate[term=="(Intercept)"] - estimate[term=="TargetC"] / 2))
+exp(condition_estimate_logit)/(1+exp(condition_estimate_logit))
+```
+
+See Wharton & Hui (2011) for more discussion of these issues.
 
 ### Adding additional predictors
 
@@ -195,3 +222,5 @@ Barr, D. J. (2008). Analyzing “visual world” eyetracking data using multilev
 Dixon, P. (2008). Models of accuracy in repeated-measures designs. Journal of Memory and Language, 59(4), 447–456. http://doi.org/10.1016/j.jml.2007.11.004
 
 Jaeger, T. F. (2008). Categorical data analysis: Away from ANOVAs (transformation or not) and towards logit mixed models. Journal of Memory and Language, 59(434-446). http://doi.org/10.1016/j.jml.2007.11.007
+
+Warton, D. I., & Hui, F. K. (2011). The arcsine is asinine: the analysis of proportions in ecology. Ecology, 92(1), 3-10.

@@ -85,8 +85,8 @@ plot.time_window_data <- function(data, predictor_columns = NULL, dv = "Prop") {
 
   # Prelims:
   data_options = attr(data, "eyetrackingR")$data_options
-  dv = match.arg(dv, c("Elog","Prop","ArcSin"))
-
+  dv = match.arg(dv, c("Prop", "Elog", "ArcSin", "LogitAdjusted"))
+  
   # Organize Vars:
   if (is.null(predictor_columns)) {
     predictor_columns <- "AOI"

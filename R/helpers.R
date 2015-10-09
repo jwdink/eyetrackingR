@@ -41,6 +41,17 @@ plot.data.frame <- function(data) {
 #' @return dataframe
 .make_proportion_looking_summary <-
   function(data, groups, aoi_col) {
+    
+    .logit_adj <- function(prop) {
+      non_zero_ind <- which(prop!=0)
+      if (length(non_zero_ind) < 1) return(NA)
+      smallest <- min(prop[non_zero_ind], na.rm=TRUE)
+      prop_adj <- prop
+      prop_adj <- ifelse(prop_adj == 1, 1 - smallest/2, prop_adj)
+      prop_adj <- ifelse(prop_adj == 0, smallest/2, prop_adj)
+      return( log(prop_adj / (1-prop_adj)) )
+    }
+    
     # Group, summarize Samples
     df_grouped <- group_by_(data, .dots = groups)
     df_summarized <- summarize_(df_grouped,
@@ -51,17 +62,16 @@ plot.data.frame <- function(data) {
     
     # Calculate Proportion, Elog, etc.
     aoi <- as.character(aoi_col)
-    out <- mutate(
-      df_summarized,
-      AOI = aoi,
-      Elog = log((SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5)),
-      Weights = 1 / ((1 / (SamplesInAOI + .5)) / (1 / (
-        SamplesTotal - SamplesInAOI + .5
-      ))),
-      Prop = SamplesInAOI / SamplesTotal,
-      ArcSin = asin(sqrt(Prop))
+    out <- ungroup(df_summarized)
+    out <- mutate(out,
+                  AOI = aoi,
+                  Elog = log((SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5)),
+                  Weights = 1 / ( (1 / (SamplesInAOI + .5)) / (1 / (SamplesTotal - SamplesInAOI + .5)) ),
+                  Prop = SamplesInAOI / SamplesTotal,
+                  LogitAdjusted = .logit_adj(Prop),
+                  ArcSin = asin(sqrt(Prop))
     )
-    out <- ungroup(out)
+    out
   }
 
 #' Run a function, return result, errors, and warnings
