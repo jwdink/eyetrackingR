@@ -28,7 +28,8 @@
 
 #' Convert raw data for use in eyetrackingR
 #' 
-#' This should be the first function you use when using eyetrackingR for a project.
+#' This should be the first function you use when using eyetrackingR for a project (potentially with
+#' the exception of `add_aoi`, if you need to add AOIs)
 #' 
 #' This takes your raw dataframe, as well as a list of information about your dataframe. It confirms
 #' that all the columns are the right format, and outputs a dataframe that is ready to used with

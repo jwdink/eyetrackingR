@@ -17,19 +17,20 @@ This vignette will cover the basics of preparing your data for use with eyetrack
 
 ## Your Data
 
-eyetrackingR is designed to deal with data in a (relatively) raw form, where each row specifies a sample. This is in contrast to the more parsed data that the software bundled with eye-trackers can sometimes output (e.g., already parsed into saccades or fixations). For eyetrackingR, the simplest data is the best.
+eyetrackingR is designed to deal with data in a (relatively) raw form, where **each row specifies a sample.** Each row should represent an equally spaced unit of time (e.g., if your eye-tracker's sample rate is 100hz, then each row corresponds to the eye-position every 10ms). This is in contrast to the more parsed data that the software bundled with eye-trackers can sometimes output (e.g., already parsed into saccades or fixations). For eyetrackingR, the simplest data is the best.
 
 eyetrackingR just needs to the following columns:
 
 * **Participant Columns:** Specifies the unique code for each participant (e.g., 'SUBJ101')
 * **Trial Columns:** Specifies the unique name or number of each trial. For experiments in which each subject sees each item only once, this can be either a name (e.g., 'HORSE-DOG') or a number (e.g., trial 1, 2, 3, etc.). But if trials see items multiple times, this will almost always be a number.
 * **Timestamp Column:** Specifies the cumulative time passed within each trial (e.g., in milliseconds: 0, 50, 100, ..., 1500). This column specifies the time-within-trial. If you have a timestamp column, but the beginning of the timestamp doesn't correspond to the beginning of the trial in the way you'd like, the function `subset_by_window` can help fix this.
-* **AOI Column(s):** These columns specify whether the gaze is in a particular 'Area of Interest.' Each AOI should have a corresponding column. The elements of this column specify, for each sample, whether the participant's gaze was in that AOI. If you don't have columns like this, the function `add_aoi` can create them.
+* **AOI Column(s):** (Note: If you don't have these columns, the function `add_aoi` can create them-- see below.) These columns specify whether the gaze is in a particular 'Area of Interest.' Each AOI should have a corresponding column. The elements of this column specify, for each sample, whether the participant's gaze was in that AOI.
+* **Trackloss Column:** Specifies, for each sample, whether the eye-tracker lost the eyes for that sample. Helpful for cleaning data and removing unreliable trials. See `clean_by_trackloss` below.
 
 There are also some optional columns, which you might want to use depending on your analysis:
 
 * **Item column(s):** This corresponds to any 'items' in your experiment: types of stimuli presented across trials. This is likely to always be a name (e.g., 'HORSE-DOG') and, unlike the 'Trial' column, this does not need to be unique.
-* **Miscellaneous predictor column(s):** These are columns specifying predictors (e.g., Condition, Age, Sex). Unlike the types above, these are specified separately for each analysis (and not within `set_data_options` at the outset).
+* **Miscellaneous predictor column(s):** These are columns specifying predictors (e.g., Condition, Age, Sex). Unlike the types above, these are specified separately for each analysis, not at the outset).
 
 If your dataset has these columns, you're ready to begin using eyetrackingR.
 
@@ -71,7 +72,7 @@ Almost all eyetracking analyses require calculating proportion looking--across a
 * **Treat Non-AOI Looks as Missing Data.** For many visual world paradigms, this move reflects the assumption that looking to a blank portion of the screen might as well be considered trackloss. The main advantage to this technique is that it makes analyses focusing on the tradeoff between two or more AOI more easily interpretable. Without treating outside looks as trackloss, it can be difficult to interpret an increase in looking to a single AOI across conditions. Was this due to an overall increase in attention (that is, looking to _all_ AOIs, including the one of interest, increased)? Or due to an increase in preference for that AOI specifically? 
 * **Treat Non-AOI Looks as Valid Data** The tradeoff with the above is that, if we are interested in overall attention to all AOIs across conditions, then the previous approach will obscure this difference. So the alternative is to treat non-AOI looks as valid. 
 
-The argument `treat_non_aoi_looks_as_missing` lets you decide which of these options eyetrackingR will do. If set to TRUE, when it comes time for eyetrackingR to calculate proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by time looking to all other AOIs." In contrast, if this parameter is set to FALSE, proportion looking to an AOI will be calculated as "time looking to that AOI divided by total time looking."
+The argument `treat_non_aoi_looks_as_missing` lets you decide which of these options eyetrackingR will do. If set to TRUE, when it comes time for eyetrackingR to calculate proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by time looking to all other AOIs." In contrast, if this parameter is set to FALSE, proportion looking to an AOI will be calculated as "time looking to that AOI divided by total time looking (excluding actual trackloss)."
 
 ## Cleaning Up Messy Data:
 
@@ -107,6 +108,8 @@ data = add_aoi(data = data, aoi_dataframe = animate_aoi,
 ```
 
 This can be done for each AOI: just load in a csv file and run the `add_aoi` function for each.
+
+(Note that you should typically add your AOIs to your dataframe **before** running `make_eyetrackingr_data`, since that function will check your AOIs.)
 
 ### Subsetting into the Time-Window of Interest Across Trials
 
