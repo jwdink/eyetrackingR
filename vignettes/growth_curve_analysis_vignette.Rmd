@@ -80,15 +80,16 @@ Growth curve analysis (GCA) lets us model the timecourse of attention by fitting
 
 eyetrackingR sets us up nicely for GCA. Above, we used `make_time_sequence_data` to generate the `` dataframe. This dataframe includes everything we need for GCA.
 
-First, it includes the same dependent variable columns as `make_time_window_data`, giving us an option of analyzing raw proportions or two (likely more appropriate transformations):
+First, it includes the same dependent variable columns as `make_time_window_data`, giving us an option of analyzing raw proportions or its transformations (for more detail, see the documentation or the <a href="http://www.eyetracking-r.com/vignettes/window_analysis">the window analysis vignette</a>).
 
 * `Prop` -- the mean of raw proportion scores
-* `Elog` -- the empirical logit for each of these proportions
-* `ArcSin` -- the arcsine-root transformation for each of these proportions
+* `LogitAdjusted` -- the logit transformation, `log( Prop / (1-Prop) )`.
+* `Elog` -- the empirical logit transformation `log( Prop+e / (1-Prop+e) )`
+* `ArcSin` -- the arcsine-root transformation 
 
-Second, it gives us a series columns corresponding to 'orthogonal polynomial timecodes.' These are *uncorrelated* vectors that are matched to your trial lengths, each of which fit a growth function of a different form (e.g., linear, quadratic, cubic, quartic, ...).
+Second, it gives us a series columns corresponding to 'orthogonal polynomial timecodes.' You can think of these as the linear, quadratic, cubic, etc. component of our `Time` predictor (so `Time`, `Time^2`, `Time^3`, etc.). However, unlike simply taking the power, these transformations are *uncorrelated* with each other, and therefore more appropriate for multiple regression.
 
-We can visualize each of these vectors to give you an idea, as well as demonstrate that they are uncorrelated:
+If this seems confusing, it might help to simply visualize each of these vectors:
 
 ```{r, warning=FALSE}
 # generate dataframe summarizing values of each vector
@@ -109,7 +110,9 @@ ggplot(timecodes, aes(x=num, y=ot1)) +
 round(cor(timecodes[, c(1:7)]),5)
 ```
 
-You can see the linear time code moving from the bottom left to top right corner of that plot (in black). Each of the other coloured lines corresponds to a different growth function. The idea behind GCA is that we can simulanteously regress differences between our conditions (here, Target) on each of these vectors to see which (in combination, or independently) best captures the pattern of growth in our data. Importantly, because they are uncorrelated, they are sure to capture *distinct* variance in our data.
+You can see the linear time code moving from the bottom left to top right corner of that plot (in black). Each of the other coloured lines corresponds to a different growth function. 
+
+The idea behind GCA is that we can simulanteously regress differences between our conditions (here, Target) on each of these to see which (in combination, or independently) best captures the pattern of growth in our data. Importantly, because they are uncorrelated, they are sure to capture *distinct* variance in our data.
 
 Let's fit our first GCA model, including *only* the linear time code (i.e., saying that we want to ignore non-linear change over time):
 

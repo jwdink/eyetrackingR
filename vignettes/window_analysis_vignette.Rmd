@@ -164,7 +164,6 @@ exp(condition_estimate)/(1+exp(condition_estimate))
 
 You might notice that these are higher than we might have expected, based on the raw proportions. This could suggest our choice of transformation (empirical logit) was problematic. It's important to choose a transformation that satisfies the assumptions of the model we are using. We can plot the fitted vs. residuals of our model using the `plot` method for `lmer`:
 
-
 ```{r, warning=FALSE}
 plot(model_time_window)
 ```
@@ -175,6 +174,7 @@ The empirical-logit transformation appears to have created some problematic outl
 model_time_window_logit <- lmer(LogitAdjusted ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), 
                           data = response_window_agg, REML = FALSE)
 plot(model_time_window_logit)
+drop1(model_time_window_logit,~.,test="Chi")
 est_logit <- broom::tidy(model_time_window_logit, effects="fixed")
 condition_estimate_logit <- with(est_logit, 
                            c(estimate[term=="(Intercept)"] + estimate[term=="TargetC"] / 2,

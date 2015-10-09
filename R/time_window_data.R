@@ -1,6 +1,27 @@
 #' Make a dataset collapsing over a time-window
 #'
 #' Collapse time across our entire window and return a dataframe ready for analyses
+#' 
+#' Aside from proportion looking (\code{Prop}), this function returns several columns useful for subsequent
+#' analysis:
+#' 
+#' \itemize{
+#'  \item \code{LogitAdjusted} - The logit is defined as \code{log( Prop / (1 - Prop) )}. This
+#'  transformation attempts to map bounded \code{0,1} data to the real number line. Unfortunately,
+#'  for data that is exactly 0 or 1, this is undefined. One solution is add a very small value to
+#'  any datapoints that equal 0, and subtract a small value to any datapoints that equal 1 (we use
+#'  1/2 the smallest nonzero value for this adjustment).
+#'  \item \code{Elog} - Another way of calculating a corrected logit transformation is to
+#' add a small value \code{epsilon} to both the numerator and denominator of the logit equation (we
+#' use 0.5).
+#'  \item \code{Weights} - These attempt to further correct the Elog transformation, since the
+#'  variance of the logit depends on the mean. They can be used in a mixed effects model by setting
+#'  the \code{weights=Weights} in \code{lmer} (note that this is the reciprocal of the
+#' weights calculated in \href{http://talklab.psy.gla.ac.uk/tvw/elogit-wt.html}{this empirical logit
+#' walkthrough}, so you do *not* set \code{weights = 1/Weights} as done there.) 
+#'  \item \code{ArcSin} - The arcsine-root transformation of the raw proportions, defined as
+#' \code{asin(sqrt(Prop))}
+#' }
 #'
 #' @param data
 #' @param aois  Which AOIs are of interest? Defaults to all in 'data_options'
