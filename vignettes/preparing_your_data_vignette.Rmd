@@ -19,6 +19,10 @@ This vignette will cover the basics of preparing your data for use with eyetrack
 
 eyetrackingR is designed to deal with data in a (relatively) raw form, where **each row specifies a sample.** Each row should represent an equally spaced unit of time (e.g., if your eye-tracker's sample rate is 100hz, then each row corresponds to the eye-position every 10ms). This is in contrast to the more parsed data that the software bundled with eye-trackers can sometimes output (e.g., already parsed into saccades or fixations). For eyetrackingR, the simplest data is the best.
 
+Note: eyetrackingR does not handle reading your data into R. Most software bundled with your eyetracker should be capable of exporting your data to a delimited format (.csv, tab-delimited .txt), etc. From there, you can use base functions like `read.delim`, or (recommended) check out the package <a href="https://cran.r-project.org/web/packages/readr/index.html">readr</a>.
+
+***
+
 eyetrackingR just needs to the following columns:
 
 * **Participant Columns:** Specifies the unique code for each participant (e.g., 'SUBJ101')

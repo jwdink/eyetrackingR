@@ -162,7 +162,7 @@ And we can convert that back into a proportion value by reversing the transforma
 exp(condition_estimate)/(1+exp(condition_estimate))
 ```
 
-You might notice that these are higher than we might have expected, based on the raw proportions. This could suggest our choice of transformation (empirical logit) was problematic. It's important to choose a transformation that satisfies the assumptions of the model we are using. We can plot the fitted vs. residuals of our model using the `plot` method for `lmer`:
+You might notice that these are higher than we might have expected, based on the raw proportions (the actual proportion-looking for the animate condition was closer to .80). This could suggest our choice of transformation (empirical logit) was problematic. It's important to choose a transformation that satisfies the assumptions of the model we are using. We can plot the fitted vs. residuals of our model using the `plot` method for `lmer`:
 
 ```{r, warning=FALSE}
 plot(model_time_window)
