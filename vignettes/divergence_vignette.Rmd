@@ -56,15 +56,6 @@ response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)',
                                        no  = 'Animate') )
 ```
 
-We will also perform a few sanity checks. For more information on these, look at the [window analysis vignette](window_analysis_vignette.html).
-
-```{r, warning=FALSE}
-# plot each participant's condition means
-(data_summary <- describe_data(response_window_clean, 
-                               describe_column='Animate', group_columns=c('Target','ParticipantName')))
-plot(data_summary)
-```
-
 ## Bootstrapped smoothed divergence analysis
 
 Our first approach is to look for runs of significant differences between our conditions after smoothing the data in a series of time bins (similar to Wendt et al., 2014). This involves:

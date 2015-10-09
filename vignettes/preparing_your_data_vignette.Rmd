@@ -155,6 +155,40 @@ We need to decide which trials to remove (if any) due to very high trackloss. To
 response_window_clean <- clean_by_trackloss(data = response_window, trial_prop_thresh = .25)
 ```
 
+## How much data are we left with?
+
+After data cleaning, it's important to assess how much data you are ultimately left with to (a) report along with your findings and, (b) identify any problematic participants who didn't contribute enough trials from which to reliably estimate their performance.
+
+### Assess mean trackloss for each participant
+
+```{r, warning=FALSE}
+trackloss_clean <- trackloss_analysis(data = response_window_clean)
+
+(trackloss_clean_subjects <- unique(trackloss_clean[, c('ParticipantName','TracklossForParticipant')]))
+```
+
+### Summarize samples contributed per trial
+
+```{r, warning=FALSE}
+# get mean samples contributed per trials, with SD
+mean(1 - trackloss_clean_subjects$TracklossForParticipant)
+sd(1- trackloss_clean_subjects$TracklossForParticipant)
+```
+
+### Assess number of trials contributed by each participant
+
+```{r, warning=FALSE}
+# look at the NumTrials column
+(final_summary <- describe_data(response_window_clean, 'Animate', 'ParticipantName'))
+```
+
+### Summarize number of trials contributed
+
+```{r, warning=FALSE}
+mean(final_summary$NumTrials)
+sd(final_summary$NumTrials)
+```
+ 
 ## Create additional columns needed for analysis
 
 Now is the time to make sure that we have all the columns needed for our analyses, because this dataset is going to be shaped and subsetted as we analyze our data and it's easier to add these columns once then to do it for derivative datasets.
