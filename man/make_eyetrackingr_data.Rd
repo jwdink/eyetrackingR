@@ -36,7 +36,8 @@ looking."}
 Dataframe ready for use in eyetrackingR.
 }
 \description{
-This should be the first function you use when using eyetrackingR for a project.
+This should be the first function you use when using eyetrackingR for a project (potentially with
+the exception of `add_aoi`, if you need to add AOIs)
 }
 \details{
 This takes your raw dataframe, as well as a list of information about your dataframe. It confirms

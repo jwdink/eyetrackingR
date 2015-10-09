@@ -196,16 +196,16 @@ add_aoi <- function(data, aoi_dataframe,
 #' from trial to trial. This function allows for several approaches to subsetting data into the relevant time-
 #' window-- see 'Details' below.
 #' 
-#' (1) The trial start/end times can be indicated by a message that is sent (e.g., TRIAL_START) in a 
+#' \enumerate{
+#'   \item The trial start/end times can be indicated by a message that is sent (e.g., TRIAL_START) in a 
 #' particular row for each trial. In this case, the timestamp of that row is used.
-#' 
-#' (2) The trial start/end times can be indicated in by a column that specifies trial start/end times for each
+#'   \item The trial start/end times can be indicated in by a column that specifies trial start/end times for each
 #' trial.
-#' 
-#' (3) The trial start/end times can be indicated by the actual start and stop time, the same across all
+#'   \item The trial start/end times can be indicated by the actual start and stop time, the same across all
 #' trials (the simplest case).
+#' }
 #' 
-#' If you only have a start time but the end time doesn't need adjusting, then leave the end time arg blank;
+#' If you only have a start time but the end time doesn't need adjusting, then leave the end time argument blank;
 #' and vice versa.
 #' 
 #' This function can either rezero your data (the trial start time you select is the new zero-time-point), or 
