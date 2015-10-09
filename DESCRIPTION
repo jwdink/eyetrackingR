@@ -21,5 +21,6 @@ Imports:
 Suggests: 
 	pbapply,
     knitr,
-    lme4 (>= 1.1-9)
+    lme4 (>= 1.1-9),
+    testthat
 VignetteBuilder: knitr
