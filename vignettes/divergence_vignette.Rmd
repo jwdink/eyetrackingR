@@ -60,7 +60,7 @@ response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)',
 
 Our first approach is to look for runs of significant differences between our conditions after smoothing the data in a series of time bins (similar to Wendt et al., 2014). This involves:
 
-1. Fitting a smoothing curve to the data (using either `smooth.spline()`, `loess()`, or a moving average)
+1. Fitting a smoothing curve to the data (choosing either `smooth.spline()`, `loess()`, or no smoother)
 2. Bootstrap-resampling these fits to build a distribution
 3. Obtaining the 95% confidence intervals of this distribution in order to determine which time-bins differ significantly.
 
