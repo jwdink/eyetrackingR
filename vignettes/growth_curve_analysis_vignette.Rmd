@@ -80,7 +80,7 @@ Growth curve analysis (GCA) lets us model the timecourse of attention by fitting
 
 eyetrackingR sets us up nicely for GCA. Above, we used `make_time_sequence_data` to generate the `` dataframe. This dataframe includes everything we need for GCA.
 
-First, it includes the same dependent variable columns as `make_time_window_data`, giving us an option of analyzing raw proportions or its transformations (for more detail, see the documentation or the <a href="http://www.eyetracking-r.com/vignettes/window_analysis">the window analysis vignette</a>).
+First, it includes the same dependent variable columns as `make_time_window_data`, giving us an option of analyzing raw proportions or its transformations (for more detail, see the documentation or the [window analysis vignette](window analysis_vignette.html).
 
 * `Prop` -- the mean of raw proportion scores
 * `LogitAdjusted` -- the logit transformation, `log( Prop / (1-Prop) )`.
