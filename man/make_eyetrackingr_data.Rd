@@ -37,11 +37,10 @@ Dataframe ready for use in eyetrackingR.
 }
 \description{
 This should be the first function you use when using eyetrackingR for a project (potentially with
-the exception of `add_aoi`, if you need to add AOIs)
-}
-\details{
-This takes your raw dataframe, as well as a list of information about your dataframe. It confirms
-that all the columns are the right format, and outputs a dataframe that is ready to used with
-eyetrackingR's functions.
+the exception of `add_aoi`, if you need to add AOIs). This function takes your raw dataframe, as
+well as information about your dataframe. It confirms that all the columns are the right format,
+based on this information. Further if \code{treat_non_aoi_looks_as_missing} is set to TRUE, it
+converts non-AOI looks to missing data (see the "Preparing your data" vignette for more
+information).
 }
 
