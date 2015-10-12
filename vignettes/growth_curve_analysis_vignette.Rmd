@@ -147,7 +147,8 @@ But what we are missing is a result that reflects that these differences between
 To remedy this issue, we can allow for non-linear change overtime by including a few higher-order orthogonal polynomials:
 
 ```{r, warning=FALSE}
-model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + (1 | Trial) + (1 | ParticipantName), data = response_time, REML = FALSE)
+model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + (1 | Trial) + (1 | ParticipantName), 
+                            data = response_time, REML = FALSE)
 
 # commented out because this many random slopes takes too long to fit for a vignette
 # model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + 

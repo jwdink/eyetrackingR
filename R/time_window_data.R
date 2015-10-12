@@ -53,7 +53,8 @@ make_time_window_data <- function(data,
   if (length(aois) > 1) {
     list_of_dfs <- lapply(X = aois, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
-      make_time_window_data(data, data_options, aois = this_aoi, predictor_columns, summarize_by)
+      make_time_window_data(data = data, aois = this_aoi, 
+        predictor_columns=predictor_columns, summarize_by=summarize_by)
     })
     out <- bind_rows(list_of_dfs)
     out <- as.data.frame(out)

@@ -60,7 +60,8 @@ make_time_sequence_data <- function (data,
   if (length(aois) > 1) {
     list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
-      make_time_sequence_data(data, data_options, time_bin_size, this_aoi, predictor_columns, summarize_by)
+      make_time_sequence_data(data=data, time_bin_size = time_bin_size, aois = this_aoi, 
+                              predictor_columns = predictor_columns, summarize_by = summarize_by)
     })
     out <- bind_rows(list_of_dfs)
     out <- as.data.frame(out)
@@ -200,7 +201,8 @@ analyze_time_bins.time_sequence_data <- function(data,
       if (!quiet) message("Analyzing ", this_aoi, "...")
       this_df <- filter(data, AOI == this_aoi)
       class(this_df) = class(data)
-      analyze_time_bins(data = this_df, predictor_column, test, threshold, alpha, formula, return_model, quiet, ...)
+      analyze_time_bins(data = this_df, predictor_column=predictor_column, test=test, 
+        threshold=threshold, alpha=alpha, formula=formula, return_model=return_model, quiet = quiet, ... = ...)
     })
     out <- bind_rows(list_of_dfs)
     out <- as.data.frame(out)
