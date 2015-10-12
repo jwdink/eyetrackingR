@@ -57,7 +57,7 @@ response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)',
 
 In this analysis, we are interested in the change of our data over time. Therefore, it's very important that we visualize our data to see whether our statistical estimates make any sense at all.
 
-To do so, we can use eyetrackingR's `time_sequence_data` type to create a dataset and its `plot` function to visualize it. This function requires us to bin our data so that, within each bin, we calculate a proportion of looking to our Animate AOI. Here we use 100ms time-bins. 
+To plot the time-course of our data, we first need to convert it to eyetrackingR's `time_sequence_data` format, which summarizes the data into time-bins and calculates proportion-looking for each (here we use 100ms time bins). From there, we simply use the `plot` method to plot the time-course.
 
 ```{r, warning=FALSE}
 # aggregate across trials within subjects in time analysis
@@ -76,18 +76,18 @@ From this plot, we should expect to see some big differences between Target cond
 
 ## Growth curve analysis
 
-Growth curve analysis (GCA) lets us model the timecourse of attention by fitting curves to proportion-looking over the course of the trial, and statistically assessing the bends in these curves.  Our implementation of a growth curve analysis modelled after Mirman (2008).
+Growth curve analysis (GCA) lets us model the timecourse of attention by fitting curves to proportion-looking over the course of the trial, and statistically assessing the bends in these curves.  Our implementation of a growth curve analysis modelled after Mirman et al. (2008).
 
-eyetrackingR sets us up nicely for GCA. Above, we used `make_time_sequence_data` to generate the `` dataframe. This dataframe includes everything we need for GCA.
+eyetrackingR sets us up nicely for GCA. Above, we used `make_time_sequence_data` to generate the dataframe. This dataframe includes everything we need for GCA.
 
-First, it includes the same dependent variable columns as `make_time_window_data`, giving us an option of analyzing raw proportions or its transformations (for more detail, see the documentation or the [window analysis vignette](window analysis_vignette.html).
+First, it includes the same dependent variable columns as `make_time_window_data`, giving us an option of analyzing raw proportions or its transformations (for more detail, see the documentation or the [window analysis vignette](window analysis_vignette.html) ).
 
 * `Prop` -- the mean of raw proportion scores
-* `LogitAdjusted` -- the logit transformation, `log( Prop / (1-Prop) )`.
+* `LogitAdjusted` -- the logit transformation, `log( Prop / (1-Prop) )`, adjusted to avoid -/+ infinity
 * `Elog` -- the empirical logit transformation `log( Prop+e / (1-Prop+e) )`
 * `ArcSin` -- the arcsine-root transformation 
 
-Second, it gives us a series columns corresponding to 'orthogonal polynomial timecodes.' You can think of these as the linear, quadratic, cubic, etc. component of our `Time` predictor (so `Time`, `Time^2`, `Time^3`, etc.). However, unlike simply taking the power, these transformations are *uncorrelated* with each other, and therefore more appropriate for multiple regression.
+Second, `time_sequence_data` has a series columns corresponding to 'orthogonal polynomial timecodes.' You can think of these as the linear, quadratic, cubic, etc. component of our `Time` predictor (so `Time`, `Time^2`, `Time^3`, etc.). However, unlike simply taking the power, these transformations are *uncorrelated* with each other, and therefore more appropriate for multiple regression.
 
 If this seems confusing, it might help to simply visualize each of these vectors:
 
@@ -114,7 +114,7 @@ You can see the linear time code moving from the bottom left to top right corner
 
 The idea behind GCA is that we can simulanteously regress differences between our conditions (here, Target) on each of these to see which (in combination, or independently) best captures the pattern of growth in our data. Importantly, because they are uncorrelated, they are sure to capture *distinct* variance in our data.
 
-Let's fit our first GCA model, including *only* the linear time code (i.e., saying that we want to ignore non-linear change over time):
+Let's fit our first GCA model, **including *only* the linear time code for now** (i.e., we temporarily want to ignore non-linear change over time):
 
 ```{r, warning=FALSE}
 # sum-code and center our predictor:
@@ -137,7 +137,12 @@ plot(response_time, predictor_column = "Target", dv = "Elog", model = model_time
   theme_light()
 ```
 
-This model reveals two main effects of TargetC and ot1, respectively. These may seem OK at first, but they are actually not a great match to our data (as revealed by the plot of their predictions). The main effect of TargetC says that, on average throughout each trial, participants looked more to the Animate target when it was named than when the Inanimate was named. This is accurate. The main effect of ot1 says that, on average, participants looked away from the Animate over the course of each trial. This is also accurate. What we are missing is a result that reflects that these differences between Target *emerged* after the start of the window.
+This model reveals two main effects of TargetC and ot1, respectively. These may seem OK at first, but they are actually not a great match to our data (as revealed by the plot of their predictions). 
+
+* The main effect of TargetC says that, on average throughout each trial, participants looked more to the Animate target when it was named than when the Inanimate was named. This is accurate. 
+* The main effect of ot1 says that, as the trial progressed, participants tended to look away from the Animate over the course of each trial. This is also accurate. 
+
+But what we are missing is a result that reflects that these differences between Target *emerged* after the start of the window.
 
 To remedy this issue, we can allow for non-linear change overtime by including a few higher-order orthogonal polynomials:
 
@@ -145,7 +150,9 @@ To remedy this issue, we can allow for non-linear change overtime by including a
 model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + (1 | Trial) + (1 | ParticipantName), data = response_time, REML = FALSE)
 
 # commented out because this many random slopes takes too long to fit for a vignette
-# model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + (1 + ot1 + ot2 + ot3 + ot4 | Trial) + (1 + ot1 + ot2 + ot3 + ot4 | ParticipantName), data = response_time, REML = FALSE)
+# model_time_sequence <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4) + 
+#                               (1 + ot1 + ot2 + ot3 + ot4 | Trial) + (1 + ot1 + ot2 + ot3 + ot4 | ParticipantName), 
+#                             data = response_time, REML = FALSE)
 
 # cleanly show important parts of model (see `summary()` for more)
 broom::tidy(model_time_sequence, effects = "fixed")
