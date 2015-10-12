@@ -21,6 +21,10 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   }
 
   ## Prelims:
+  if ( 'time_sequence_data' %in% class(data) ) {
+    stop("This function should be used on your original data (after processed by `make_eyetrackingr_data`), ",
+         "not on the output of `make_time_sequence_data`.")
+  }
   data_options <- attr(data, "eyetrackingR")$data_options
   if (is.null(data_options)) {
     stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
