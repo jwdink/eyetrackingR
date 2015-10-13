@@ -46,7 +46,7 @@ data <- make_eyetrackingr_data(your_original_data,
 )
 ```
 
-From here, all of eyetrackingR's functionality becomes available on this data. Check out [the eyetrackingR website](www.eyetrackingr.com) for tutorials on how to clean your data, visualize it, and perform analyses. 
+From here, all of eyetrackingR's functionality becomes available on this data. Check out [the eyetrackingR workflow](www.eyetrackingr.com/workflow) to get an accesible overview of this functionality, or checkout [the vignettes](http://www.eyetracking-r.com/vignettes) for guides on how to clean your data, visualize it, and perform analyses. 
 
 ***
 
