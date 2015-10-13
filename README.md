@@ -28,15 +28,27 @@ devtools::install_github("jwdink/eyetrackingR")
 library("eyetrackingR")
 ```
 
-If you'd like the tutorials available for offline use (accessible with `browseVignettes("eyetrackingR")`), instead run:
-
-```
-devtools::install_github(build_vignettes = TRUE)
-```
-
-These vignettes are also available on the project website.
-
 ---
+
+## Usage
+
+EyetrackingR only requires that your data is in an R dataframe and has a few necessary columns. For that reason, **eyetrackingR is compatible with any eyetracker,** so long as you can export your data to a table and import it into R. See the [preparing your data](http://www.eyetracking-r.com/vignettes/preparing_your_data) vignette.
+
+Once your data is in R, you  can prepare it for eyetrackingR by running `the make_eyetrackingr_data` function, e.g.:
+
+```
+data <- make_eyetrackingr_data(your_original_data, 
+                       participant_column = "ParticipantName",
+                       trial_column = "Trial",
+                       time_column = "Timestamp",
+                       trackloss_column = "TrackLoss",
+                       treat_non_aoi_looks_as_missing = TRUE
+)
+```
+
+From here, all of eyetrackingR's functionality becomes available on this data. Check out [the eyetrackingR website](www.eyetrackingr.com) for tutorials on how to clean your data, visualize it, and perform analyses. 
+
+***
 
 Copyright (c) 2015, Jacob Dink and Brock Ferguson
 
