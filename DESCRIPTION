@@ -1,6 +1,6 @@
 Package: eyetrackingR
 Title: Eye-tracking Data: Cleaning, Analysis, & Visualization
-Version: 0.0.0.9000
+Version: 0.0.1.0000
 Authors@R: c(
 	person("Jacob", "Dink", email = "jacobwdink@gmail.com", role = c("aut", "cre")),
 	person("Brock", "Ferguson", email = "brock.ferguson@gmail.com", role = c("aut"))

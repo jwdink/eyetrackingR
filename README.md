@@ -2,7 +2,7 @@ eyetrackingR
 =====================================
 
 ## Eye-tracking Data: Cleaning, Analysis, & Visualization
-#### Version: 0.0.0.9000
+#### Version: 0.0.1.0000
 
 
 - Jacob Dink (jacobwdink@gmail.com)

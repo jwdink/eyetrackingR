@@ -71,11 +71,14 @@ make_eyetrackingr_data <- function(data,
                         aoi_columns = aoi_columns,
                         treat_non_aoi_looks_as_missing = treat_non_aoi_looks_as_missing)
   
-  out <- data
-  
-  ## Check AOI
+  ## Check AOIs
   if (!all(data_options$aoi_columns %in% colnames(data))) {
-    warning("Not all of the AOI columns specified in data_options are in the data.")
+    if (treat_non_aoi_looks_as_missing) {
+      stop("Not all of the AOI columns specified here are in the data. ", 
+           "Use the 'add_aoi' function on your data before running this one.")
+    } else {
+      warning("Not all of the AOI columns specified here are in the data.")
+    }
   }
   
   ## Check for Reserved Column Name:
@@ -90,6 +93,7 @@ make_eyetrackingr_data <- function(data,
   }
   
   ## Verify Columns:
+  out <- data
   as.numeric2 <- function(x) as.numeric(as.character(x))
   check_then_convert <- function(x, checkfunc, convertfunc, colname) {
     if (!checkfunc(x)) {
@@ -114,9 +118,9 @@ make_eyetrackingr_data <- function(data,
     }
   }
   
-  ## Deal with NonAOI looks:
+  ## Deal with Non-AOI looks:
   if (treat_non_aoi_looks_as_missing) {
-    data <- .convert_non_aoi_to_missing(data, data_options)
+    out <- .convert_non_aoi_to_missing(out, data_options)
   }
   
   ## Assign attribute:
