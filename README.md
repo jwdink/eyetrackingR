@@ -34,7 +34,7 @@ library("eyetrackingR")
 
 EyetrackingR only requires that your data is in an R dataframe and has a few necessary columns. For that reason, **eyetrackingR is compatible with any eyetracker,** so long as you can export your data to a table and import it into R. See the [preparing your data](http://www.eyetracking-r.com/vignettes/preparing_your_data) vignette.
 
-Once your data is in R, you  can prepare it for eyetrackingR by running `the make_eyetrackingr_data` function, e.g.:
+Once your data is in R, you  can prepare it for eyetrackingR by running the `make_eyetrackingr_data` function, e.g.:
 
 ```
 data <- make_eyetrackingr_data(your_original_data, 
