@@ -74,6 +74,10 @@ analyze_time_clusters.time_cluster_data <-function(data,
   } else if (attrs$test == "lm") {
     if (within_subj == TRUE) stop("For lm, 'within_subj' must be FALSE.")
   }
+  
+  # what are we grouping our resampling by? default is by participant:
+  summarized_by <- attrs$summarized_by
+  if (is.null(summarized_by)) summarized_by <- data_options$participant_column
 
   # get data for biggest cluster
   df_biggclust <-data[!is.na(data[[attrs$predictor_column]]),]
@@ -88,11 +92,11 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
     # Within-Subjects
 
-    participants <-unique(df_biggclust[[data_options$participant_column]])
+    participants <-unique(df_biggclust[[summarized_by]])
 
-    # get a list of list of rows. outer list corresponds to participants, inner to conditions
+    # get a list of list of rows. outer list corresponds to participants/items, inner to conditions
     list_of_list_of_rows <-lapply(X = participants, FUN = function(ppt) {
-      ppt_logical <-(df_biggclust[[data_options$participant_column]] == ppt)
+      ppt_logical <-(df_biggclust[[summarized_by]] == ppt)
 
       # for each participant, get the rows for each of level of the shuffle_by col
       this_ppt_levels <-unique(df_biggclust[[shuffle_by]][ppt_logical])
@@ -108,7 +112,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
       # for each participant, randomly resample rows to be assigned to each possible level of the predictor
       # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
-      # gets reassigned once per condition across all participants (rather than once per condition per participant)
+      # gets reassigned once per condition across all participants/items (rather than once per condition per participant)
       for (list_of_rows in list_of_list_of_rows) {
         resampled <-sample(x = list_of_rows, size = length(list_of_rows), replace = FALSE)
         for (i in seq_along(resampled)) {
@@ -139,22 +143,22 @@ analyze_time_clusters.time_cluster_data <-function(data,
     # Between Subjects
 
     # get rows for each participant
-    participants <-unique(df_biggclust[[data_options$participant_column]])
-    rows_of_participants <- lapply(participants, FUN = function(ppt) which(df_biggclust[[data_options$participant_column]] == ppt))
+    participants <-unique(df_biggclust[[summarized_by]])
+    rows_of_participants <- lapply(participants, FUN = function(ppt) which(df_biggclust[[summarized_by]] == ppt))
 
     null_distribution <- pbsapply(1:samples, FUN = function(iter) {
       df_resampled <- df_biggclust
 
-      # randomly re-assign each participant to a condition:
+      # randomly re-assign each participant/item to a condition:
       rows_of_participants_resampled <- sample(rows_of_participants, size=length(rows_of_participants), replace=FALSE)
       for (i in seq_along(rows_of_participants_resampled)) {
         # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
-        # gets reassigned once per condition across all participants (rather than once per participant)
+        # gets reassigned once per condition across all participants/items (rather than once per participant)
         df_resampled[rows_of_participants_resampled[[i]], attrs$predictor_column] <-
           df_biggclust[first(rows_of_participants[[i]]),attrs$predictor_column]
       }
 
-      # this gives a dataframe where the "condition" label has been resampled for participants
+      # this gives a dataframe where the "condition" label has been resampled for participants/items
       # run analyze time bins on it to get sum statistic for cluster
       time_bin_summary_resampled <-analyze_time_bins(df_resampled,
                                                      predictor_column = attrs$predictor_column,

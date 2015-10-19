@@ -68,7 +68,7 @@ This is a useful technique for estimating the timepoints of divergence between t
 
 This method returns a list of divergences between your two conditions based on time windows in which the 95% confidence intervals did not include 0 (i.e., *p* < .05).
 
-To begin, we need to use `make_time_sequence_data` to generate a time-binned dataframe. Here we'll explicitly `summarize_by` ParticipantName Note that, regardless of whether you do this or leave it as trial-by-trial data, `make_boot_splines_data` (below) will automatically summarize by participant as a first step.
+To begin, we need to use `make_time_sequence_data` to generate a time-binned dataframe. The bootstrap analysis we'll be doing requires that we summarize our data--traditionally, we'd want a by-participants summary (but in some circumstances, you might want by-items as well).
 
 ```{r, warning=FALSE}
 response_time <- make_time_sequence_data(response_window_clean,
@@ -129,15 +129,7 @@ Here's the procedure eyetrackingR implements under the hood:
 6. Repeat steps (4) and (5) hundreds of times. This will lead to a distribution of summed-statistics, each representing the results of a statistical test on shuffled data. Intuitively, this distribution represents what kind of sum-statistics we would expect to get in a cluster by chance, if no effect were present (i.e., if the data were just randomly shuffled).
 7. Compare the cluster-statistics from step (3) to the distribution found in (6) to obtain a p-value. So, for example, imagine we get a distribution of sum-statistics, and 6.4% of the sum-statistics in this distribution are greater than the sum-statistic of our cluster, then our *p*-value for this cluster is *p* = .064. 
 
-To perform this procedure using eyetrackingR, we'll first create a time sequence dataset using `make_time_sequence_data` (as we did above):
-
-```{r, warning=FALSE}
-response_time_by_subj <- make_time_sequence_data(data = response_window_clean, 
-                        time_bin_size = 100, 
-                        aois= "Animate", 
-                        predictor_columns = "Target",
-                        summarize_by = "ParticipantName")
-```
+To perform this procedure using eyetrackingR, we'll need to make a `time_sequence_data` dataframe. In this case, we already made above (`response_window`).
 
 Next, we'll set the threshold for the t-statistic that will be considered a divergence. Note that this is just a threshold for grouping samples into initial clusters -- lowering this `threshold` parameter won't make your divergences any more "significant" or increase your Type I error rate. Here we'll set the threshold based on the appropriate t-statistic for a sample of this size and an alpha of .05.
 
@@ -151,7 +143,7 @@ threshold_t = qt(p = 1 - alpha/2,
 We can then look for initial clusters:
 
 ```{r, warning=FALSE}
-df_timeclust <- make_time_cluster_data(response_time_by_subj, 
+df_timeclust <- make_time_cluster_data(response_time, 
                                       test= "t.test",
                                       paired = TRUE,
                                       predictor_column = "Target", 
@@ -164,8 +156,8 @@ summary(df_timeclust)
 Finally, bootstrap p-values for each of these clusters by asking how likely we are to see a cluster with that "Sum Statistic" given a permutation-based null distribution derived from our largest cluster.
 
 ```{r, warning=FALSE}
-# only bootstrap for p-values if we actually have clusters identified
-clust_analysis <- analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, samples=250)
+clust_analysis <- analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, 
+                                        samples=150) # in practice, you should use a lot more
 clust_analysis
 
 plot(clust_analysis)

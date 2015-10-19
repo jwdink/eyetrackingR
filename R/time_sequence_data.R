@@ -166,7 +166,8 @@ analyze_time_bins.time_sequence_data <- function(data,
   .fix_unpaired = function(data, data_options, predictor_column, dv) {
     lvl1 <- levels(data[[predictor_column]])[1]
     df_no_na   <- filter_(data, interp(~!is.na(DV), DV = as.name(dv)))
-    df_grouped <- group_by_(df_no_na, .dots = c(data_options$participant_column))
+    summarized_by <- attr(data, "eyetrackingR")$summarized_by
+    df_grouped <- group_by_(df_no_na, .dots = summarized_by)
     df_mutated <- mutate_(df_grouped,
                           .dots = list(PairedObs = interp(~length(which(COND_COL == lvl1)) > 0 & length(which(COND_COL != lvl1)) > 0,
                                                           COND_COL = as.name(predictor_column)))
