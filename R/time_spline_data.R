@@ -38,6 +38,12 @@ make_boot_splines_data.time_sequence_data <- function (data,
   attrs <- attr(data, "eyetrackingR")
   data_options <- attrs$data_options
 
+  # Make sure data is summarized:  
+  summarized_by <- attrs$summarized_by
+  if (is.null(summarized_by)) stop("This analysis requires summarized data. ",
+                                   "When using the 'make_time_sequence_data' function, please select an argument for 'summarize_by'",
+                                   " (e.g., the participant column).")
+
   # validate arguments
   if ( length(levels(as.factor(data[[predictor_column]]))) != 2 ) {
     stop('make_boot_splines_data requires a predictor_column with exactly 2 levels.')
@@ -98,9 +104,6 @@ make_boot_splines_data.time_sequence_data <- function (data,
   # this dataframe will hold our final dataset
   combined_bootstrapped_data <- data.frame()
 
-  # re-factor Participant name column, so that levels() is accurate
-  data[[data_options$participant_column]] <- factor(data[[data_options$participant_column]])
-
   if (within_subj == FALSE) {
     # between-subjects:
     for (level in unique(data[[predictor_column]]) ) {
@@ -108,12 +111,11 @@ make_boot_splines_data.time_sequence_data <- function (data,
       subsetted_data <- data[which(data[, predictor_column] == level),]
       subsetted_data$RowNum <- 1:nrow(subsetted_data)
 
-      # get subjects
-      run_subjects <- unique(subsetted_data[[data_options$participant_column]])
-      run_subjects_rows <- lapply(run_subjects, function(sub) subsetted_data$RowNum[ subsetted_data[[data_options$participant_column]] == sub ])
+      # get the rows for each subject/item
+      run_subjects <- unique(subsetted_data[[summarized_by]])
+      run_subjects_rows <- lapply(run_subjects, function(sub) subsetted_data$RowNum[ subsetted_data[[summarized_by]] == sub ])
 
       # bootstrap
-      message('Resampling ', level, "...")
       bootstrapped_data <- pbreplicate(samples, sampler(subsetted_data, run_subjects_rows, data_options, resolution, smoother))
       bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
 
@@ -122,9 +124,9 @@ make_boot_splines_data.time_sequence_data <- function (data,
       colnames(bootstrapped_data) <- sample_rows
 
       bootstrapped_data <- data.frame(stringsAsFactors = FALSE,
-        predictor_column <- level,
-        Time <- seq(min(subsetted_data$Time), max(subsetted_data$Time), by=resolution),
-        bootstrapped_data
+                                      predictor_column = level,
+                                      Time = seq(min(subsetted_data$Time), max(subsetted_data$Time), by=resolution),
+                                      bootstrapped_data
       )
       colnames(bootstrapped_data)[1] <- predictor_column
 
@@ -138,7 +140,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
     # Group by participant, timebin; Calculate the difference in proportion between level1 and level2
     level1 <- levels(data[[predictor_column]])[1]
     level2 <- levels(data[[predictor_column]])[2]
-    df_grouped <- group_by_(data, .dots = c(data_options$participant_column, "Time") )
+    df_grouped <- group_by_(data, .dots = c(summarized_by, "Time") )
     df_diff <- summarize_(df_grouped,
                          .dots = list(Prop1 = interp(~mean(Prop[PRED_COL == level1]), PRED_COL = as.name(predictor_column)),
                                       Prop2 = interp(~mean(Prop[PRED_COL == level2]), PRED_COL = as.name(predictor_column)),
@@ -150,13 +152,11 @@ make_boot_splines_data.time_sequence_data <- function (data,
 
     df_diff$RowNum <- 1:nrow(df_diff)
 
-    # get subjects
-    message("Preparing dataframe...")
-    run_subjects <- unique(df_diff[[data_options$participant_column]])
-    run_subjects_rows = lapply(run_subjects, function(sub) df_diff$RowNum[ df_diff[[data_options$participant_column]] == sub ])
+    # get rows for each subject/item
+    run_subjects <- unique(df_diff[[summarized_by]])
+    run_subjects_rows = lapply(run_subjects, function(sub) df_diff$RowNum[ df_diff[[summarized_by]] == sub ])
 
     # bootstrap
-    message('Resampling ...')
     bootstrapped_data <- pbreplicate(samples, sampler(df_diff, run_subjects_rows, data_options, resolution, smoother))
     bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
 
