@@ -456,12 +456,18 @@ plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', mo
   } 
 
   ## Collapse by-subject for plotting
-  df_plot <- group_by_(data, .dots = c(data_options$participant_column, "Time", "AOI", predictor_column))
-  summarize_arg <- list(interp(~mean(DV, na.rm=TRUE), DV = as.name(dv)))
-  names(summarize_arg) <- dv
-  if (!is.null(model)) summarize_arg[[".Predicted"]] <- ~mean(.Predicted, na.rm=TRUE)
-  df_plot <- summarize_(df_plot, .dots = summarize_arg)
+  if (is.null(attr(data, "eyetrackingR")$summarized_by)) {
+    df_plot <- group_by_(data, .dots = c(data_options$participant_column, "Time", "AOI", predictor_column))
+    summarize_arg <- list(interp(~mean(DV, na.rm=TRUE), DV = as.name(dv)))
+    names(summarize_arg) <- dv
+    if (!is.null(model)) summarize_arg[[".Predicted"]] <- ~mean(.Predicted, na.rm=TRUE)
+    df_plot <- summarize_(df_plot, .dots = summarize_arg)
+  } else {
+    df_plot <- data
+  }
+  
   df_plot$AOI <- paste("AOI: ", df_plot$AOI) # for facetting
+  
 
   ## Check condition predictor
   if ( length(predictor_column) > 1 ) {

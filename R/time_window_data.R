@@ -131,13 +131,17 @@ plot.time_window_data <- function(data, predictor_columns = NULL, dv = "Prop") {
     }
   }
   color_var = group_column
-  
 
   # Summarize by Participants:
-  df_grouped = group_by_(data, .dots = c(data_options$participant_column, x_axis_column, group_column, "AOI"))
-  summarize_arg <- list(interp(~mean(DV, na.rm=TRUE), DV = as.name(dv)))
-  names(summarize_arg) <- dv
-  df_plot = summarize_(df_grouped, .dots = summarize_arg )
+  if (is.null(attr(data, "eyetrackingR")$summarized_by)) {
+    df_grouped = group_by_(data, .dots = c(data_options$participant_column, x_axis_column, group_column, "AOI"))
+    summarize_arg <- list(interp(~mean(DV, na.rm=TRUE), DV = as.name(dv)))
+    names(summarize_arg) <- dv
+    df_plot <- summarize_(df_grouped, .dots = summarize_arg )
+  } else {
+    df_plot <- data
+  }
+  
   if (x_axis_column!="AOI") df_plot$AOI <- paste("AOI: ", df_plot$AOI)
 
   # Plot:
