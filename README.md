@@ -9,7 +9,7 @@ eyetrackingR
 - Brock Ferguson (brock.ferguson@gmail.com)
 
 
-This package is designed to make dealing with eye-tracking data easier. It addresses tasks along the pipeline from raw data to analysis and visualization. It offers several popular types of analyses, including linear and growth curve time analyses, onset-contingent reaction time analyses, and bootstrapping cluster analyses, as well as novel non-parametric approaches to time-series data.
+This package is designed to make dealing with eye-tracking data easier. It addresses tasks along the pipeline from raw data to analysis and visualization. It offers several popular types of analyses, including growth-curve analysis, onset-contingent reaction time analyses, as well as several non-parametric bootstrapping approaches.
 
 www.eyetrackingr.com
 
@@ -46,7 +46,7 @@ data <- make_eyetrackingr_data(your_original_data,
 )
 ```
 
-From here, all of eyetrackingR's functionality becomes available on this data. Check out [the eyetrackingR workflow](http://www.eyetracking-r.com/workflow) to get an accesible overview of this functionality, or checkout [the vignettes](http://www.eyetracking-r.com/vignettes) for guides on how to clean your data, visualize it, and perform analyses. 
+From here, all of eyetrackingR's functionality becomes available on this data. Check out [the eyetrackingR workflow](http://www.eyetracking-r.com/workflow) to get an accesible overview of this functionality, or check out [the vignettes](http://www.eyetracking-r.com/vignettes) for guides on how to clean your data, visualize it, and perform analyses. 
 
 ***
 
