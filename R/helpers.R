@@ -97,6 +97,56 @@ plot.data.frame <- function(data) {
   }
 
 
+# EyetrackingR-Friendly-Subset ----------------------------------------------------------------------------------
+
+#' EyetrackingR friendly subset
+#' @describeIn subset
+#' @param data A dataframe
+#' @export
+#' @return A dataframe
+subset.time_sequence_data <- function(data, ...) {
+  # remove class names (avoid infinite recursion):
+  potential_classes <-
+    c(
+      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
+    )
+  temp_remove <- class(data)[class(data) %in% potential_classes]
+  class(data) <- class(data)[!class(data) %in% potential_classes]
+  temp_attr <- attr(data, "eyetrackingR") # also attributes
+  
+  out <- subset(data, ...)
+  
+  # reapply class/attributes
+  class(out) = c(temp_remove, class(out))
+  attr(out, "eyetrackingR") = temp_attr
+  
+  return(out)
+}
+
+#' @describeIn subset
+#' @export
+subset.time_window_data <- subset.time_sequence_data
+
+#' @describeIn subset
+#' @export
+subset.bin_analysis <- subset.time_sequence_data
+
+#' @describeIn subset
+#' @export
+subset.boot_splines_data <- subset.time_sequence_data
+
+#' @describeIn subset
+#' @export
+subset.time_cluster_data <- subset.time_sequence_data
+
+#' @describeIn subset
+#' @export
+subset.boot_splines_analysis <- subset.time_sequence_data
+
+#' @describeIn subset
+#' @export
+subset.onset_data <- subset.time_sequence_data
+
 # Friendly Dplyr Verbs: Mutate ----------------------------------------------------------------------------------
 #' EyetrackingR friendly mutate
 #' @describeIn mutate_
@@ -145,7 +195,6 @@ mutate_.boot_splines_analysis <- mutate_.time_sequence_data
 #' @describeIn mutate_
 #' @export
 mutate_.onset_data <- mutate_.time_sequence_data
-
 
 # Friendly Dplyr Verbs: GroupBy ----------------------------------------------------------------------------------
 
@@ -304,3 +353,56 @@ left_join.boot_splines_analysis <- left_join.time_sequence_data
 #' @describeIn left_join
 #' @export
 left_join.onset_data <- left_join.time_sequence_data
+
+
+
+## Should NOT be necessary 
+## (only needed for tbl_dfs, and if your eyetrackingR object has tbl_df class then this won't get caught anyways)
+# EyetrackingR friendly extract
+# #' @describeIn Extract
+# #' @param data A dataframe
+# #' @export
+# #' @return A dataframe
+# 
+# `[.time_sequence_data` <- function(data, i, j, ...) {
+#   # remove class names (avoid infinite recursion):
+#   potential_classes <-
+#     c(
+#       'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
+#     )
+#   temp_remove <- class(data)[class(data) %in% potential_classes]
+#   class(data) <- class(data)[!class(data) %in% potential_classes]
+#   temp_attr <- attr(data, "eyetrackingR") # also attributes
+#   
+#   out <- data[i = i, j = j,... = ...]
+#   
+#   # reapply class/attributes
+#   class(out) = c(temp_remove, class(out))
+#   attr(out, "eyetrackingR") = temp_attr
+#   
+#   return(out)
+# }
+# 
+# #' @describeIn Extract
+# #' @export
+# `[.time_window_data` <- `[.time_sequence_data`
+# 
+# #' @describeIn Extract
+# #' @export
+# `[.bin_analysis` <- `[.time_sequence_data`
+# 
+# #' @describeIn Extract
+# #' @export
+# `[.boot_splines_data` <- `[.time_sequence_data`
+# 
+# #' @describeIn Extract
+# #' @export
+# `[.time_cluster_data` <- `[.time_sequence_data`
+# 
+# #' @describeIn Extract
+# #' @export
+# `[.boot_splines_analysis` <- `[.time_sequence_data`
+# 
+# #' @describeIn Extract
+# #' @export
+# `[.onset_data` <- `[.time_sequence_data`
