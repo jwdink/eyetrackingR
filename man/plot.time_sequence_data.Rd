@@ -4,12 +4,12 @@
 \alias{plot.time_sequence_data}
 \title{Plot time-sequence data}
 \usage{
-\method{plot}{time_sequence_data}(data, predictor_column = NULL,
-  dv = "Prop", model = NULL, ...)
+\method{plot}{time_sequence_data}(x, predictor_column = NULL, dv = "Prop",
+  model = NULL, ...)
 }
 \arguments{
-\item{data}{Your data from \code{make_time_sequence_data}. Will be collapsed by
-subject for plotting.}
+\item{x}{Your data from \code{make_time_sequence_data}. Will be collapsed by
+subject for plotting (unless already collapsed by some other factor).}
 
 \item{predictor_column}{Data can be grouped by a predictor column (median split is performed if
 numeric)}
@@ -20,6 +20,8 @@ numeric)}
 \item{model}{(Optional) A growth-curve mixed effects model (from \code{lmer}) that
 was used on the \code{time_sequence_data}. If model is given, this function will overlay the
 predictions of that model on the data}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

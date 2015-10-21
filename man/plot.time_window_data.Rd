@@ -4,16 +4,19 @@
 \alias{plot.time_window_data}
 \title{Plot a time-window dataset}
 \usage{
-\method{plot}{time_window_data}(data, predictor_columns = NULL, dv = "Prop")
+\method{plot}{time_window_data}(x, predictor_columns = NULL, dv = "Prop",
+  ...)
 }
 \arguments{
-\item{data}{The data returned by make_time_window_data()}
+\item{x}{The data returned by make_time_window_data()}
 
 \item{predictor_columns}{Up to two columns indicating predictors. The first maps to the X-axis,
 the second to group/color. If the latter is numeric, a median split is performed.}
 
 \item{dv}{Which dv should be used in plotting? Raw proportion-looking ("Prop"), empirical logit
 ("Elog"), or "ArcSin"?}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

@@ -195,6 +195,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
 #' Summary Method for Cluster Analysis
 #' @param  object The output of the \code{analyze_clusters} function
+#' @param ... Ignored
 #' @export
 #' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
 summary.cluster_analysis <- function(object, ...) {
@@ -218,6 +219,7 @@ summary.cluster_analysis <- function(object, ...) {
 
 #' Print Method for Cluster Analysis
 #' @param  x The output of the \code{analyze_clusters} function
+#' @param ... Ignored
 #' @export
 #' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
 print.cluster_analysis <- function(x, ...) {
@@ -257,7 +259,6 @@ make_time_cluster_data <-function(data, ...) {
 #'   \code{t.test}, \code{wilcox}, \code{lm}, or \code{lmer}.
 #' @param threshold         Value of statistic used in determining significance. Note the sign! This
 #'   test is directional.
-#' @param alpha             Alpha value for determining significance, ignored if threshold is given
 #' @param formula           What formula should be used for test? Optional (for all but \code{lmer}), if unset
 #'   uses \code{Prop ~ [predictor_column]}
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
@@ -265,7 +266,7 @@ make_time_cluster_data <-function(data, ...) {
 #' @export
 #' @return The original data, augmented with information about clusters. Calling summary on this data will
 #'   describe these clusters. The dataset is ready for the \code{\link{analyze_time_clusters}} method.
-make_time_cluster_data.time_sequence_data <- function(data, data_options,
+make_time_cluster_data.time_sequence_data <- function(data,
                                                      predictor_column,
                                                      aoi = NULL,
                                                      test,
@@ -355,6 +356,7 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
 
 #' Summary Method for Cluster Analysis
 #' @param  object The output of the \code{analyze_clusters} function
+#' @param ... Ignored
 #' @export
 #' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
 summary.time_cluster_data <- function(object, ...) {
@@ -388,7 +390,7 @@ summary.time_cluster_data <- function(object, ...) {
 #' shuffled (null) distribution, with the sum statisics for each of the clusters indicated by dashed lines.
 #'
 #' @param x object returned by cluster_analysis()
-#'
+#' @param ... Ignored
 #' @export
 #' @return A ggplot object
 plot.cluster_analysis <- function(x, ...) {
@@ -412,13 +414,14 @@ plot.cluster_analysis <- function(x, ...) {
 #
 #' Plot time_cluster_data, highlights clusters of above-threshold time-bins.
 #'
-#' @param data
+#' @param x The output of \code{make_time_cluster_data}
 #' @param clusters A vector of the clusters you'd like highlighted. If left blank, all are highlighted
+#' @param ... Ignored
 #'
 #' @export
 #' @return A ggplot object
-plot.time_cluster_data <- function(data, clusters = NULL, ...) {
-  attrs <- attr(data, "eyetrackingR")
+plot.time_cluster_data <- function(x, clusters = NULL, ...) {
+  attrs <- attr(x, "eyetrackingR")
   g <- plot(attrs$time_bin_summary)
 
   if (is.null(clusters)) clusters <- unique(na.omit(attrs$time_bin_summary$Cluster))

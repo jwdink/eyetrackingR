@@ -7,7 +7,7 @@
 trackloss_analysis(data)
 }
 \arguments{
-\item{data}{}
+\item{data}{The output of \code{make_eyetrackingr_data}}
 }
 \value{
 A dataframe describing trackloss by-trial and by-participant

@@ -7,7 +7,9 @@
 \method{summary}{bin_analysis}(object, ...)
 }
 \arguments{
-\item{data}{The output of the \code{analyze_time_bins} function}
+\item{object}{The output of the \code{analyze_time_bins} function}
+
+\item{...}{Ignored}
 }
 \value{
 Prints information about each run of statistically significant time-bins, separately for

@@ -10,22 +10,29 @@
 \alias{group_by_.time_window_data}
 \title{EyetrackingR friendly group_by}
 \usage{
-\method{group_by_}{time_sequence_data}(data, ...)
+\method{group_by_}{time_sequence_data}(.data, ..., .dots, add = FALSE)
 
-\method{group_by_}{time_window_data}(data, ...)
+\method{group_by_}{time_window_data}(.data, ..., .dots, add = FALSE)
 
-\method{group_by_}{bin_analysis}(data, ...)
+\method{group_by_}{bin_analysis}(.data, ..., .dots, add = FALSE)
 
-\method{group_by_}{boot_splines_data}(data, ...)
+\method{group_by_}{boot_splines_data}(.data, ..., .dots, add = FALSE)
 
-\method{group_by_}{time_cluster_data}(data, ...)
+\method{group_by_}{time_cluster_data}(.data, ..., .dots, add = FALSE)
 
-\method{group_by_}{boot_splines_analysis}(data, ...)
+\method{group_by_}{boot_splines_analysis}(.data, ..., .dots, add = FALSE)
 
-\method{group_by_}{onset_data}(data, ...)
+\method{group_by_}{onset_data}(.data, ..., .dots, add = FALSE)
 }
 \arguments{
-\item{data}{A dataframe}
+\item{.data}{An eyetrackingR dataframe}
+
+\item{...}{variables to group by. Duplicated groups will be silently dropped.}
+
+\item{.dots}{Used to work around non-standard evaluation. See vignette("nse") for details.}
+
+\item{add}{By default, when add = FALSE, group_by will override existing groups. To instead add
+to the existing groups, use add = TRUE}
 }
 \value{
 A dataframe

@@ -3,12 +3,12 @@
 #' Bootstrap splines from \code{time_sequence_data()}. This creates a distribution from which a non-parametric
 #' analysis can be performed.
 #' @export
-make_boot_splines_data = function(data, ...) {
+make_boot_splines_data = function(data, predictor_column, aoi, within_subj, smoother, samples, resolution, alpha) {
   UseMethod("make_boot_splines_data")
 }
 #' @describeIn make_boot_splines_data
 #'
-#' @param data
+#' @param data The output of \code{time_sequence_data()}
 #' @param predictor_column What predictor var to split by? Maximum two conditions
 #' @param aoi Which AOI do you wish to perform the analysis on?
 #' @param within_subj Are the two conditions within or between subjects?
@@ -26,8 +26,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
                                                        smoother = "smooth.spline",
                                                        samples = 1000,
                                                        resolution = NULL,
-                                                       alpha = .05,
-                                                       ...) {
+                                                       alpha = .05) {
   if (!requireNamespace("pbapply", quietly = TRUE)) {
     pbreplicate <- function(n, expr, simplify) replicate(n, expr, simplify)
     message("Install package 'pbapply' for a progress bar in this function.")
@@ -271,7 +270,8 @@ analyze_boot_splines.boot_splines_data <- function(data) {
 }
 
 #' Summary Method for Bootstrapped Splines Analysis
-#' @param  data The output of the \code{boot_splines_data} function
+#' @param  object The output of the \code{boot_splines_data} function
+#' @param ... Ignored
 #' @export
 #' @return Prints a list of divergence-times.
 summary.boot_splines_analysis <- function(object, ...) {
@@ -308,12 +308,13 @@ summary.boot_splines_analysis <- function(object, ...) {
 #'
 #' Plot the means and CIs of bootstrapped splines (either within-subjects or between-subjects)
 #'
-#' @param  data The output of the \code{make_boot_splines_data} function
+#' @param  x The output of the \code{make_boot_splines_data} function
+#' @param ... Ignored
 #' @export
 #' @return A ggplot object
-plot.boot_splines_data = function(data) {
+plot.boot_splines_data = function(x, ...) {
   # make sure there is the proper kind of data frame, and check its attributes
-  attrs = attr(data, "eyetrackingR")
+  attrs = attr(x, "eyetrackingR")
   data_options = attrs$data_options
   bootstrap_attr = attrs$bootstrapped
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
@@ -323,21 +324,21 @@ plot.boot_splines_data = function(data) {
     # use plot.boot_splines_analysis() to plot within-subjects difference
     # because, for a within-subjects test, this is all that matters
     message("Plotting within-subjects differences...")
-    data <- analyze_boot_splines(data)
+    data <- analyze_boot_splines(x)
 
     return (plot(data))
   }
   else {
-    data$Mean <- apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, mean)
-    data$SE <- apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, sd)
+    x$Mean <- apply(x[, paste0('Sample',1:bootstrap_attr$samples)], 1, mean)
+    x$SE <- apply(x[, paste0('Sample',1:bootstrap_attr$samples)], 1, sd)
 
     low_prob <- .5 - ((1-bootstrap_attr$alpha)/2)
     high_prob <- .5 + ((1-bootstrap_attr$alpha)/2)
 
-    data$CI_high <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5)
-    data$CI_low <- round(apply(data[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5)
+    x$CI_high <- round(apply(x[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5)
+    x$CI_low <- round(apply(x[, paste0('Sample',1:bootstrap_attr$samples)], 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5)
 
-    g <- ggplot(data, aes_string(x='Time', y='Mean', color=bootstrap_attr$predictor_column)) +
+    g <- ggplot(x, aes_string(x='Time', y='Mean', color=bootstrap_attr$predictor_column)) +
       geom_line() +
       geom_ribbon(aes_string(ymax='CI_high', ymin='CI_low', fill=bootstrap_attr$predictor_column), mult=1, alpha=.2, colour=NA) +
       xlab('Time') +
@@ -352,19 +353,20 @@ plot.boot_splines_data = function(data) {
 #' Plot the means and CIs of bootstrapped spline difference estimates and intervals
 #' (either within-subjects or between-subjects)
 #'
-#' @param data The output of the \code{analyze_boot_splines} function
+#' @param x The output of the \code{analyze_boot_splines} function
+#' @param ... Ignored
 #' @export
 #' @return A ggplot object
-plot.boot_splines_analysis <- function(data) {
+plot.boot_splines_analysis <- function(x, ...) {
 
   # make sure there is the proper kind of data frame, and check its attributes
-  attrs = attr(data, "eyetrackingR")
+  attrs = attr(x, "eyetrackingR")
   data_options = attrs$data_options
   bootstrap_attr = attrs$bootstrapped
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
 
   # we have a MeanDiff and CI for both within- and between-subjects...
-  g <- ggplot(data, aes(x=Time, y=MeanDiff)) +
+  g <- ggplot(x, aes(x=Time, y=MeanDiff)) +
     geom_line() +
     geom_ribbon(aes(ymax=CI_high, ymin=CI_low), mult=1, alpha=.2, colour=NA) +
     xlab('Time') +

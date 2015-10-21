@@ -5,12 +5,14 @@
 \title{Plot test-statistic for each time-bin in a time-series, highlight clusters.
 Plot time_cluster_data, highlights clusters of above-threshold time-bins.}
 \usage{
-\method{plot}{time_cluster_data}(data, clusters = NULL, ...)
+\method{plot}{time_cluster_data}(x, clusters = NULL, ...)
 }
 \arguments{
-\item{data}{}
+\item{x}{The output of \code{make_time_cluster_data}}
 
 \item{clusters}{A vector of the clusters you'd like highlighted. If left blank, all are highlighted}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

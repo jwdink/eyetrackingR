@@ -4,10 +4,11 @@
 #' Sometimes, the class of the dataframe can be removed, so that plot will
 #' not have the expected result. This ensures a warning is issued to the user.
 #'
-#' @param data
+#' @param x Data which has accidentally had eyetrackingR results stripped from it
+#' @param ... Ignored
 #' @export
 #' @return NULL
-plot.data.frame <- function(data, ...) {
+plot.data.frame <- function(x, ...) {
   stop(
     "Cannot plot this data. Either no plotting method exists for this data, or the class of this data, which specifies ",
     "what type of data it is, has been removed. This can happen by using functions that transform the data significantly, ",
@@ -80,7 +81,7 @@ plot.data.frame <- function(data, ...) {
 #'
 #' Thanks to user Martin Morgan for this ingenious solution.
 #'
-#' @param function
+#' @param fun function
 #' @return new version of that function
 .make_function_fail_informatively <- function(fun)
   function(...) {
@@ -101,9 +102,10 @@ plot.data.frame <- function(data, ...) {
 
 #' EyetrackingR friendly subset
 #' @describeIn subset
-#' @param data A dataframe
+#' @param x A dataframe to be subsetted
+#' @param ... further arguments to be passed to or from other methods.
 #' @export
-#' @return A dataframe
+#' @return A dataframe with only selected elements
 subset.time_sequence_data <- function(x, ...) {
   # remove class names (avoid infinite recursion):
   potential_classes <-
@@ -150,20 +152,22 @@ subset.onset_data <- subset.time_sequence_data
 # Friendly Dplyr Verbs: Mutate ----------------------------------------------------------------------------------
 #' EyetrackingR friendly mutate
 #' @describeIn mutate_
-#' @param data A dataframe
+#' @param .data An eyetrackingR dataframe
+#' @param ... name value pairs of expressions
+#' @param .dots Used to work around non-standard evaluation. See vignette("nse") for details.
 #' @export
 #' @return A dataframe
-mutate_.time_sequence_data <- function(data, ...) {
+mutate_.time_sequence_data <- function(.data, ..., .dots) {
   # remove class names (avoid infinite recursion):
   potential_classes <-
     c(
       'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
     )
-  temp_remove <- class(data)[class(data) %in% potential_classes]
-  class(data) <- class(data)[!class(data) %in% potential_classes]
-  temp_attr <- attr(data, "eyetrackingR") # also attributes
+  temp_remove <- class(.data)[class(.data) %in% potential_classes]
+  class(.data) <- class(.data)[!class(.data) %in% potential_classes]
+  temp_attr <- attr(.data, "eyetrackingR") # also attributes
   
-  out <- mutate_(data, ...)
+  out <- mutate_(.data, ...=..., .dots=.dots)
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out))
@@ -200,20 +204,24 @@ mutate_.onset_data <- mutate_.time_sequence_data
 
 #' EyetrackingR friendly group_by
 #' @describeIn group_by_
-#' @param data A dataframe
+#' @param .data An eyetrackingR dataframe
+#' @param ... variables to group by. Duplicated groups will be silently dropped.
+#' @param .dots Used to work around non-standard evaluation. See vignette("nse") for details.
+#' @param add By default, when add = FALSE, group_by will override existing groups. To instead add
+#'   to the existing groups, use add = TRUE
 #' @export
 #' @return A dataframe
-group_by_.time_sequence_data <- function(data, ...) {
+group_by_.time_sequence_data <- function(.data, ..., .dots, add= FALSE) {
   # remove class names (avoid infinite recursion):
   potential_classes <-
     c(
       'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
     )
-  temp_remove <- class(data)[class(data) %in% potential_classes]
-  class(data) <- class(data)[!class(data) %in% potential_classes]
-  temp_attr <- attr(data, "eyetrackingR") # also attributes
+  temp_remove <- class(.data)[class(.data) %in% potential_classes]
+  class(.data) <- class(.data)[!class(.data) %in% potential_classes]
+  temp_attr <- attr(.data, "eyetrackingR") # also attributes
   
-  out <- group_by_(data, ...)
+  out <- group_by_(.data, ...=..., .dots=.dots, add=add)
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out))
@@ -251,20 +259,22 @@ group_by_.onset_data <- group_by_.time_sequence_data
 
 #' EyetrackingR friendly filter
 #' @describeIn filter_
-#' @param data A dataframe
+#' @param .data An eyetrackingR dataframe
+#' @param ... Logical predicates. Multiple conditions are combined with &.
+#' @param .dots Used to work around non-standard evaluation. See vignette("nse") for details.
 #' @export
 #' @return A dataframe
-filter_.time_sequence_data <- function(data, ...) {
+filter_.time_sequence_data <- function(.data, ..., .dots) {
   # remove class names (avoid infinite recursion):
   potential_classes <-
     c(
       'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
     )
-  temp_remove <- class(data)[class(data) %in% potential_classes]
-  class(data) <- class(data)[!class(data) %in% potential_classes]
-  temp_attr <- attr(data, "eyetrackingR") # also attributes
+  temp_remove <- class(.data)[class(.data) %in% potential_classes]
+  class(.data) <- class(.data)[!class(.data) %in% potential_classes]
+  temp_attr <- attr(.data, "eyetrackingR") # also attributes
   
-  out <- filter_(data, ...)
+  out <- filter_(.data, ...=..., .dots=.dots)
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out))

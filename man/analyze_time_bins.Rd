@@ -33,6 +33,8 @@ Interaction terms are not currently supported.}
 
 \item{return_model}{In the returned dataframe, should a model be given for each time bin, or
 just the summary of those models?}
+
+\item{quiet}{Should messages and progress bars be suppressed? Default is to show}
 }
 \value{
 A dataframe indicating the results of the test at each time-bin.

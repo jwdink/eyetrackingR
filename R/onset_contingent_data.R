@@ -137,16 +137,17 @@ make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_
 #' 
 #' Divide trials into which AOI participants started on; plot proportion looking away from that AOI.
 #' 
-#' @param data The output of the \code{make_onset_data} function
+#' @param x The output of the \code{make_onset_data} function
 #' @param predictor_columns Column(s) by which to facet the data. Maximum two columns. Will perform
 #'   median split if numeric.
+#' @param ... Ignored
 #' @export
 #' @return A ggplot object
 
-plot.onset_data <- function(data, predictor_columns=NULL, ...) {
+plot.onset_data <- function(x, predictor_columns=NULL, ...) {
 
   ## Prelims:
-  attrs <- attr(data, "eyetrackingR")
+  attrs <- attr(x, "eyetrackingR")
   data_options <- attrs$data_options
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   onset_attr <- attrs$onset_contingent
@@ -157,7 +158,7 @@ plot.onset_data <- function(data, predictor_columns=NULL, ...) {
   smoothing_window_size <- onset_attr$fixation_window_length / 4
 
   # clean out unknown first AOIs, perform median splits if necessary:
-  df_clean <- data[ !is.na(data[["FirstAOI"]]) , ]
+  df_clean <- x[ !is.na(x[["FirstAOI"]]) , ]
   numeric_predictor_cols <- sapply(predictor_columns, function(col) is.numeric(df_clean[[col]]))
   for (i in seq_along(predictor_columns)) {
     if (! identical(TRUE, predictor_columns[i] %in% colnames(df_clean)) ) stop("The column ", predictor_columns[i], " is not in the dataset.")
@@ -220,23 +221,24 @@ plot.onset_data <- function(data, predictor_columns=NULL, ...) {
 #' Boxplot of mean switch time aggregated by subjects within each FirstAOI, potentially faceted by
 #' predictor_columns.
 #' 
-#' @param data The output of the \code{make_switch_data} function
+#' @param x The output of the \code{make_switch_data} function
 #' @param predictor_columns Column(s) by which to facet the data. Maximum two columns. Will perform
 #'   median split if numeric.
+#' @param ... Ignored
 #' @export
 #' @return A ggplot object
 
-plot.switch_data <- function(data, predictor_columns=NULL, ...) {
+plot.switch_data <- function(x, predictor_columns=NULL, ...) {
 
   ## Prelims:
-  data_options <- attr(data, "eyetrackingR")$data_options
+  data_options <- attr(x, "eyetrackingR")$data_options
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   if (length(predictor_columns) > 2) {
     stop("Maximum two predictor columns.")
   }
 
   ## Prepare for Graphing:
-  data <- filter(data, !is.na(FirstAOI))
+  data <- filter(x, !is.na(FirstAOI))
   df_grouped <- group_by_(data, .dots = c(data_options$participant_column, predictor_columns, "FirstAOI"))
   df_plot <- summarize(df_grouped, MeanFirstSwitch = mean(FirstSwitch))
 

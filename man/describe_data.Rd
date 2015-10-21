@@ -7,7 +7,7 @@
 describe_data(data, describe_column, group_columns)
 }
 \arguments{
-\item{data}{}
+\item{data}{Data already run through \code{make_eyetrackingr_data}}
 
 \item{describe_column}{The column to return descriptive statistics about.}
 

@@ -4,10 +4,12 @@
 \alias{plot.boot_splines_analysis}
 \title{Plot differences in bootstrapped-splines data}
 \usage{
-\method{plot}{boot_splines_analysis}(data)
+\method{plot}{boot_splines_analysis}(x, ...)
 }
 \arguments{
-\item{data}{The output of the \code{analyze_boot_splines} function}
+\item{x}{The output of the \code{analyze_boot_splines} function}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

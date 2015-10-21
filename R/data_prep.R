@@ -31,24 +31,33 @@
 #' This should be the first function you use when using eyetrackingR for a project (potentially with
 #' the exception of `add_aoi`, if you need to add AOIs). This function takes your raw dataframe, as 
 #' well as information about your dataframe. It confirms that all the columns are the right format, 
-#' based on this information. Further if \code{treat_non_aoi_looks_as_missing} is set to TRUE, it
-#' converts non-AOI looks to missing data (see the "Preparing your data" vignette for more
+#' based on this information. Further if \code{treat_non_aoi_looks_as_missing} is set to TRUE, it 
+#' converts non-AOI looks to missing data (see the "Preparing your data" vignette for more 
 #' information).
 #' 
-#' @param data
+#' eyetrackingR is designed to deal with data in a (relatively) raw form,
+#' where each row specifies a sample. Each row should represent an equally spaced unit of time
+#' (e.g., if your eye-tracker's sample rate is 100hz, then each row corresponds to the
+#' eye-position every 10ms). This is in contrast to the more parsed data that the software bundled
+#' with eye-trackers can sometimes output (e.g., already parsed into saccades or fixations). For
+#' eyetrackingR, the simplest data is the best. This also maximizes compatibility: eyetrackingR
+#' will work with any eye-tracker's data (e.g., Eyelink, Tobii, etc.), since it requires the most
+#' basic format.
+#' 
+#' @param data               Your original data. See details section below.  
 #' @param participant_column Column name for participant identifier
 #' @param trackloss_column   Column name indicating trackloss
 #' @param time_column        Column name indicating time
 #' @param trial_column       Column name indicating trial identifier
 #' @param item_columns       Column names indicating items (optional)
 #' @param aoi_columns        Names of AOIs
-#' @param treat_non_aoi_looks_as_missing This is a logical indicating how you would like to
-#'   perform "proportion-looking" calculations, which are critical to any eyetracking analysis. If
-#'   set to TRUE, any samples that are not in any of the AOIs (defined with the \code{aoi_columns}
-#'   argument) are treated as missing data; when it comes time for eyetrackingR to calculate
-#'   proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by
-#'   time looking to all other AOIs." In contrast, if this parameter is set to FALSE, proportion
-#'   looking to an AOI will be calculated as "time looking to that AOI divided by total time
+#' @param treat_non_aoi_looks_as_missing This is a logical indicating how you would like to perform
+#'   "proportion-looking" calculations, which are critical to any eyetracking analysis. If set to
+#'   TRUE, any samples that are not in any of the AOIs (defined with the \code{aoi_columns} 
+#'   argument) are treated as missing data; when it comes time for eyetrackingR to calculate 
+#'   proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by 
+#'   time looking to all other AOIs." In contrast, if this parameter is set to FALSE, proportion 
+#'   looking to an AOI will be calculated as "time looking to that AOI divided by total time 
 #'   looking."
 #' @export
 #' @return Dataframe ready for use in eyetrackingR.
@@ -235,6 +244,7 @@ add_aoi <- function(data, aoi_dataframe,
 #' @param window_end_col     For method (2). A column that gives the end time for each trial.
 #' @param window_start_time  For method (3). Number indicating a start time that applies to all trials.
 #' @param window_end_time    For method (3). Number indicating an end time that applies to all trials.
+#' @param quiet              Suppress messages? Default FALSE
 #' @export
 #' @return Subsetted data
 
@@ -383,7 +393,7 @@ subset_by_window <- function(data,
 #'
 #' Get information on trackloss in your data.
 #'
-#' @param data
+#' @param data The output of \code{make_eyetrackingr_data}
 #' @export
 #' @return A dataframe describing trackloss by-trial and by-participant
 
@@ -431,7 +441,7 @@ trackloss_analysis <- function(data) {
 #'
 #' Remove trials/participants with too much trackloss, with a customizable threshold.
 #' 
-#' @param data
+#' @param data Data already run through \code{make_eyetrackingr_data}
 #' @param participant_prop_thresh            Maximum proportion of trackloss for participants
 #' @param trial_prop_thresh                  Maximum proportion of trackloss for trials
 #' @param window_start_time,window_end_time  Time-window within-which you want trackloss analysis to
@@ -498,7 +508,7 @@ clean_by_trackloss <- function(data,
 #' Returns descriptive statistics about a column of choice. A simple convenience function that wraps
 #' \code{dplyr::group_by} and \code{dplyr::summarize}, allowing a quick glance at the data.
 #' 
-#' @param data
+#' @param data Data already run through \code{make_eyetrackingr_data}
 #' @param describe_column The column to return descriptive statistics about.
 #' @param group_columns Any columns to group by when calculating descriptive statistics (e.g., participants,
 #'  conditions, etc.)
@@ -544,13 +554,14 @@ describe_data <- function(data, describe_column, group_columns) {
 #' Plots the data returned from \code{describe_data}. Like that function, this is a convenient 
 #' wrapper good for sanity checks.
 #' #' 
-#' @param data The data returned by make_time_window_data()
+#' @param x The data returned by \code{make_time_window_data()}
+#' @param ... Ignored
 #' @export
 #' @return A ggplot object
-plot.eyetrackingR_data_summary <- function(data_summary) {
-  attrs <- attr(data_summary, "eyetrackingR")
+plot.eyetrackingR_data_summary <- function(x, ...) {
+  attrs <- attr(x, "eyetrackingR")
   
-  ggplot(data_summary, aes_string(x=attrs$group_columns[1], y="Mean", group=attrs$group_columns[2])) +
+  ggplot(x, aes_string(x=attrs$group_columns[1], y="Mean", group=attrs$group_columns[2])) +
     stat_summary(fun.y='mean', geom='point') +
     stat_summary(fun.y='mean', geom='line')
 }

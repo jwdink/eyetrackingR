@@ -4,10 +4,12 @@
 \alias{plot.boot_splines_data}
 \title{Plot bootstrapped-splines data}
 \usage{
-\method{plot}{boot_splines_data}(data)
+\method{plot}{boot_splines_data}(x, ...)
 }
 \arguments{
-\item{data}{The output of the \code{make_boot_splines_data} function}
+\item{x}{The output of the \code{make_boot_splines_data} function}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

@@ -10,22 +10,26 @@
 \alias{filter_.time_window_data}
 \title{EyetrackingR friendly filter}
 \usage{
-\method{filter_}{time_sequence_data}(data, ...)
+\method{filter_}{time_sequence_data}(.data, ..., .dots)
 
-\method{filter_}{time_window_data}(data, ...)
+\method{filter_}{time_window_data}(.data, ..., .dots)
 
-\method{filter_}{bin_analysis}(data, ...)
+\method{filter_}{bin_analysis}(.data, ..., .dots)
 
-\method{filter_}{boot_splines_data}(data, ...)
+\method{filter_}{boot_splines_data}(.data, ..., .dots)
 
-\method{filter_}{time_cluster_data}(data, ...)
+\method{filter_}{time_cluster_data}(.data, ..., .dots)
 
-\method{filter_}{boot_splines_analysis}(data, ...)
+\method{filter_}{boot_splines_analysis}(.data, ..., .dots)
 
-\method{filter_}{onset_data}(data, ...)
+\method{filter_}{onset_data}(.data, ..., .dots)
 }
 \arguments{
-\item{data}{A dataframe}
+\item{.data}{An eyetrackingR dataframe}
+
+\item{...}{Logical predicates. Multiple conditions are combined with &.}
+
+\item{.dots}{Used to work around non-standard evaluation. See vignette("nse") for details.}
 }
 \value{
 A dataframe

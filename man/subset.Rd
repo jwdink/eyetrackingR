@@ -25,10 +25,12 @@
 \method{subset}{onset_data}(x, ...)
 }
 \arguments{
-\item{data}{A dataframe}
+\item{x}{A dataframe to be subsetted}
+
+\item{...}{further arguments to be passed to or from other methods.}
 }
 \value{
-A dataframe
+A dataframe with only selected elements
 }
 \description{
 EyetrackingR friendly subset

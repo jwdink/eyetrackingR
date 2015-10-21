@@ -7,9 +7,8 @@
 \usage{
 make_time_cluster_data(data, ...)
 
-\method{make_time_cluster_data}{time_sequence_data}(data, data_options,
-  predictor_column, aoi = NULL, test, threshold = NULL, formula = NULL,
-  ...)
+\method{make_time_cluster_data}{time_sequence_data}(data, predictor_column,
+  aoi = NULL, test, threshold = NULL, formula = NULL, ...)
 }
 \arguments{
 \item{data}{The output of the \code{make_time_sequence_data} function}
@@ -30,8 +29,6 @@ test is directional.}
 
 \item{formula}{What formula should be used for test? Optional (for all but \code{lmer}), if unset
 uses \code{Prop ~ [predictor_column]}}
-
-\item{alpha}{Alpha value for determining significance, ignored if threshold is given}
 }
 \value{
 The original data, augmented with information about clusters. Calling summary on this data will

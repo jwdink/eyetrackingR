@@ -4,13 +4,15 @@
 \alias{plot.switch_data}
 \title{Plot mean switch-from-initial-AOI times.}
 \usage{
-\method{plot}{switch_data}(data, predictor_columns = NULL, ...)
+\method{plot}{switch_data}(x, predictor_columns = NULL, ...)
 }
 \arguments{
-\item{data}{The output of the \code{make_switch_data} function}
+\item{x}{The output of the \code{make_switch_data} function}
 
 \item{predictor_columns}{Column(s) by which to facet the data. Maximum two columns. Will perform
 median split if numeric.}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

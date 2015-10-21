@@ -9,7 +9,7 @@ make_eyetrackingr_data(data, participant_column, trackloss_column, time_column,
   item_columns = NULL)
 }
 \arguments{
-\item{data}{}
+\item{data}{Your original data. See details section below.}
 
 \item{participant_column}{Column name for participant identifier}
 
@@ -21,9 +21,9 @@ make_eyetrackingr_data(data, participant_column, trackloss_column, time_column,
 
 \item{aoi_columns}{Names of AOIs}
 
-\item{treat_non_aoi_looks_as_missing}{This is a logical indicating how you would like to
-perform "proportion-looking" calculations, which are critical to any eyetracking analysis. If
-set to TRUE, any samples that are not in any of the AOIs (defined with the \code{aoi_columns}
+\item{treat_non_aoi_looks_as_missing}{This is a logical indicating how you would like to perform
+"proportion-looking" calculations, which are critical to any eyetracking analysis. If set to
+TRUE, any samples that are not in any of the AOIs (defined with the \code{aoi_columns}
 argument) are treated as missing data; when it comes time for eyetrackingR to calculate
 proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by
 time looking to all other AOIs." In contrast, if this parameter is set to FALSE, proportion
@@ -42,5 +42,15 @@ well as information about your dataframe. It confirms that all the columns are t
 based on this information. Further if \code{treat_non_aoi_looks_as_missing} is set to TRUE, it
 converts non-AOI looks to missing data (see the "Preparing your data" vignette for more
 information).
+}
+\details{
+eyetrackingR is designed to deal with data in a (relatively) raw form,
+where each row specifies a sample. Each row should represent an equally spaced unit of time
+(e.g., if your eye-tracker's sample rate is 100hz, then each row corresponds to the
+eye-position every 10ms). This is in contrast to the more parsed data that the software bundled
+with eye-trackers can sometimes output (e.g., already parsed into saccades or fixations). For
+eyetrackingR, the simplest data is the best. This also maximizes compatibility: eyetrackingR
+will work with any eye-tracker's data (e.g., Eyelink, Tobii, etc.), since it requires the most
+basic format.
 }
 

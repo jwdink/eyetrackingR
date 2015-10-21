@@ -8,7 +8,7 @@ clean_by_trackloss(data, participant_prop_thresh = 1, trial_prop_thresh = 1,
   window_start_time = -Inf, window_end_time = Inf)
 }
 \arguments{
-\item{data}{}
+\item{data}{Data already run through \code{make_eyetrackingr_data}}
 
 \item{participant_prop_thresh}{Maximum proportion of trackloss for participants}
 

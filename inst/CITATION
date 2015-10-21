@@ -1,0 +1,10 @@
+year <- sub("-.*", "", meta$Date)
+note <- sprintf("R package version %s", meta$Version)
+
+bibentry(bibtype = "Manual",
+         title = "{eyetrackingR}",
+         author = c(person("Jacob", "Dink"),
+                    person("Brock", "Ferguson")),
+         year = year,
+         note = note,
+         url = "https://www.eyetracking-R.com")

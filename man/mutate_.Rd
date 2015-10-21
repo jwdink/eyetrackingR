@@ -10,22 +10,26 @@
 \alias{mutate_.time_window_data}
 \title{EyetrackingR friendly mutate}
 \usage{
-\method{mutate_}{time_sequence_data}(data, ...)
+\method{mutate_}{time_sequence_data}(.data, ..., .dots)
 
-\method{mutate_}{time_window_data}(data, ...)
+\method{mutate_}{time_window_data}(.data, ..., .dots)
 
-\method{mutate_}{bin_analysis}(data, ...)
+\method{mutate_}{bin_analysis}(.data, ..., .dots)
 
-\method{mutate_}{boot_splines_data}(data, ...)
+\method{mutate_}{boot_splines_data}(.data, ..., .dots)
 
-\method{mutate_}{time_cluster_data}(data, ...)
+\method{mutate_}{time_cluster_data}(.data, ..., .dots)
 
-\method{mutate_}{boot_splines_analysis}(data, ...)
+\method{mutate_}{boot_splines_analysis}(.data, ..., .dots)
 
-\method{mutate_}{onset_data}(data, ...)
+\method{mutate_}{onset_data}(.data, ..., .dots)
 }
 \arguments{
-\item{data}{A dataframe}
+\item{.data}{An eyetrackingR dataframe}
+
+\item{...}{name value pairs of expressions}
+
+\item{.dots}{Used to work around non-standard evaluation. See vignette("nse") for details.}
 }
 \value{
 A dataframe

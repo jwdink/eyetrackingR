@@ -7,7 +7,9 @@
 \method{summary}{boot_splines_analysis}(object, ...)
 }
 \arguments{
-\item{data}{The output of the \code{boot_splines_data} function}
+\item{object}{The output of the \code{boot_splines_data} function}
+
+\item{...}{Ignored}
 }
 \value{
 Prints a list of divergence-times.

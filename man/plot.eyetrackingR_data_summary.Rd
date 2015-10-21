@@ -4,10 +4,12 @@
 \alias{plot.eyetrackingR_data_summary}
 \title{Plot some summarized data from eyetrackingR}
 \usage{
-\method{plot}{eyetrackingR_data_summary}(data_summary)
+\method{plot}{eyetrackingR_data_summary}(x, ...)
 }
 \arguments{
-\item{data}{The data returned by make_time_window_data()}
+\item{x}{The data returned by \code{make_time_window_data()}}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

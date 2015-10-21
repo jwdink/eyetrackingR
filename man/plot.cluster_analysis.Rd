@@ -8,6 +8,8 @@
 }
 \arguments{
 \item{x}{object returned by cluster_analysis()}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

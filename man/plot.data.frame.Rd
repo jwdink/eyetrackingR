@@ -4,10 +4,12 @@
 \alias{plot.data.frame}
 \title{Prevent accidental plotting of data.frames whose class has been removed.}
 \usage{
-\method{plot}{data.frame}(data, ...)
+\method{plot}{data.frame}(x, ...)
 }
 \arguments{
-\item{data}{}
+\item{x}{Data which has accidentally had eyetrackingR results stripped from it}
+
+\item{...}{Ignored}
 }
 \description{
 EyetrackingR adds a plot method to most dataframes you can create with it.

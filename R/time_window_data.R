@@ -23,7 +23,7 @@
 #' \code{asin(sqrt(Prop))}
 #' }
 #'
-#' @param data
+#' @param data  The output of \code{make_eyetrackingr_data}
 #' @param aois  Which AOIs are of interest? Defaults to all in 'data_options'
 #' @param predictor_columns  Which columns indicate predictor vars, and therefore should be preserved in
 #'   grouping operations?
@@ -95,17 +95,19 @@ make_time_window_data <- function(data,
 #' 
 #' Data are collapsed by-participants for plotting.
 #' 
-#' @param data The data returned by make_time_window_data()
+#' @param x The data returned by make_time_window_data()
 #' @param predictor_columns Up to two columns indicating predictors. The first maps to the X-axis,
 #'   the second to group/color. If the latter is numeric, a median split is performed.
 #' @param dv  Which dv should be used in plotting? Raw proportion-looking ("Prop"), empirical logit
 #'   ("Elog"), or "ArcSin"?
+#' @param ... Ignored
 #' @export
 #' @return A ggplot object
 
-plot.time_window_data <- function(data, predictor_columns = NULL, dv = "Prop") {
+plot.time_window_data <- function(x, predictor_columns = NULL, dv = "Prop", ...) {
 
   # Prelims:
+  data <- x
   data_options = attr(data, "eyetrackingR")$data_options
   dv = match.arg(dv, c("Prop", "Elog", "ArcSin", "LogitAdjusted"))
   

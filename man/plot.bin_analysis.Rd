@@ -4,13 +4,15 @@
 \alias{plot.bin_analysis}
 \title{Plot test-statistic for each time-bin in a time-series}
 \usage{
-\method{plot}{bin_analysis}(data, type = "statistic", ...)
+\method{plot}{bin_analysis}(x, type = "statistic", ...)
 }
 \arguments{
-\item{data}{}
+\item{x}{The output of \code{analyze_time_bins}}
 
 \item{type}{Plot the test-statistic at each time bin ("statistic"), or the parameter estimate at each time
-  bin ("estimate")? Note that estimate plots standard error, regardless of the alpha/threshold used originally}
+bin ("estimate")? Note that estimate plots standard error, regardless of the alpha/threshold used originally}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

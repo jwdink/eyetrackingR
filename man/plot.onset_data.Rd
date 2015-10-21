@@ -4,13 +4,15 @@
 \alias{plot.onset_data}
 \title{Plot onset-contingent data}
 \usage{
-\method{plot}{onset_data}(data, predictor_columns = NULL, ...)
+\method{plot}{onset_data}(x, predictor_columns = NULL, ...)
 }
 \arguments{
-\item{data}{The output of the \code{make_onset_data} function}
+\item{x}{The output of the \code{make_onset_data} function}
 
 \item{predictor_columns}{Column(s) by which to facet the data. Maximum two columns. Will perform
 median split if numeric.}
+
+\item{...}{Ignored}
 }
 \value{
 A ggplot object

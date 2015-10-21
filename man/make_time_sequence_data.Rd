@@ -8,13 +8,13 @@ make_time_sequence_data(data, time_bin_size, aois = NULL,
   predictor_columns = NULL, summarize_by = NULL)
 }
 \arguments{
-\item{data}{}
+\item{data}{The output of \code{make_eyetrackingr_data}}
 
-\item{time_bin_size}{}
+\item{time_bin_size}{How large should each time bin be? Units are whatever units your `time` column is in}
 
 \item{aois}{Which AOIs are of interest? Defaults to all in 'data_options'}
 
-\item{predictor_columns}{Which columns indicate predictor vars, and therefore should be preserved in
+\item{predictor_columns}{Which columns indicate predictor variables, and therefore should be preserved in
 grouping operations?}
 
 \item{summarize_by}{Should the data be summarized along, e.g., participants, items, etc.? If so, give

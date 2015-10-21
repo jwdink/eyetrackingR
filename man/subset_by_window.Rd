@@ -35,6 +35,8 @@ this is the name of that column.}
 \item{window_start_time}{For method (3). Number indicating a start time that applies to all trials.}
 
 \item{window_end_time}{For method (3). Number indicating an end time that applies to all trials.}
+
+\item{quiet}{Suppress messages? Default FALSE}
 }
 \value{
 Subsetted data

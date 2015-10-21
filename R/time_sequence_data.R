@@ -27,10 +27,10 @@
 #'  models} for more details.
 #' }
 #' 
-#' @param data
-#' @param time_bin_size
+#' @param data              The output of \code{make_eyetrackingr_data}
+#' @param time_bin_size     How large should each time bin be? Units are whatever units your `time` column is in
 #' @param aois              Which AOIs are of interest? Defaults to all in 'data_options'
-#' @param predictor_columns Which columns indicate predictor vars, and therefore should be preserved in
+#' @param predictor_columns Which columns indicate predictor variables, and therefore should be preserved in
 #'   grouping operations?
 #' @param summarize_by      Should the data be summarized along, e.g., participants, items, etc.? If so, give
 #'   column name(s) here. If left blank, will leave trials distinct. The former is needed for more traditional
@@ -147,6 +147,7 @@ analyze_time_bins = function(data, ...) {
 #'   \code{lmer}, if unset will use \code{Prop ~ [predictor_column]}
 #' @param return_model      In the returned dataframe, should a model be given for each time bin, or
 #'   just the summary of those models?
+#' @param quiet             Should messages and progress bars be suppressed? Default is to show
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g.,
 #'   paired, var.equal, etc.)
 #' @export
@@ -388,7 +389,8 @@ analyze_time_bins.time_sequence_data <- function(data,
 }
 
 #' Summary Method for Time-bin Analysis
-#' @param  data The output of the \code{analyze_time_bins} function
+#' @param  object The output of the \code{analyze_time_bins} function
+#' @param ... Ignored
 #' @export
 #' @return Prints information about each run of statistically significant time-bins, separately for
 #'   positive and negative
@@ -430,8 +432,8 @@ summary.bin_analysis <- function(object, ...) {
 #' split into groups by a predictor column. Data is collapsed by subject for plotting. Supports
 #' overlaying the predictions of a growth-curve mixed effects model on the data
 #' 
-#' @param data              Your data from \code{make_time_sequence_data}. Will be collapsed by
-#'   subject for plotting.
+#' @param x              Your data from \code{make_time_sequence_data}. Will be collapsed by
+#'   subject for plotting (unless already collapsed by some other factor).
 #' @param predictor_column  Data can be grouped by a predictor column (median split is performed if
 #'   numeric)
 #' @param dv                What measure of gaze do you want to use? (\code{Prop}, \code{Elog}, or
@@ -439,12 +441,13 @@ summary.bin_analysis <- function(object, ...) {
 #' @param model             (Optional) A growth-curve mixed effects model (from \code{lmer}) that
 #'   was used on the \code{time_sequence_data}. If model is given, this function will overlay the
 #'   predictions of that model on the data
+#' @param ... Ignored
 #' @export
 #' @return A ggplot object
-plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', model = NULL,...) {
+plot.time_sequence_data <- function(x, predictor_column = NULL, dv='Prop', model = NULL,...) {
 
   # Prelims:
-  data_options = attr(data, "eyetrackingR")$data_options
+  data_options = attr(x, "eyetrackingR")$data_options
   dv = match.arg(dv, c("Prop", "Elog", "ArcSin", "LogitAdjusted"))
   
   # Add model predictions to dataframe:
@@ -453,18 +456,18 @@ plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', mo
     if (!grepl(dv, formula_as_character, fixed = TRUE)) {
       stop("Your model appears to use a different DV than the one you are attempting to plot. Change the 'dv' arg in plot.")
     }
-    data$.Predicted = predict(model, data, re.form = NA)
+    x$.Predicted = predict(model, x, re.form = NA)
   } 
 
   ## Collapse by-subject for plotting
-  if (is.null(attr(data, "eyetrackingR")$summarized_by)) {
-    df_plot <- group_by_(data, .dots = c(data_options$participant_column, "Time", "AOI", predictor_column))
+  if (is.null(attr(x, "eyetrackingR")$summarized_by)) {
+    df_plot <- group_by_(x, .dots = c(data_options$participant_column, "Time", "AOI", predictor_column))
     summarize_arg <- list(interp(~mean(DV, na.rm=TRUE), DV = as.name(dv)))
     names(summarize_arg) <- dv
     if (!is.null(model)) summarize_arg[[".Predicted"]] <- ~mean(.Predicted, na.rm=TRUE)
     df_plot <- summarize_(df_plot, .dots = summarize_arg)
   } else {
-    df_plot <- data
+    df_plot <- x
   }
   
   df_plot$AOI <- paste("AOI: ", df_plot$AOI) # for facetting
@@ -517,32 +520,32 @@ plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', mo
 #' 
 #' Plot the result from the \code{analyze_time_bins} function, with the statistic and threshold for each bin
 #' 
-#' @param data
+#' @param x The output of \code{analyze_time_bins}
 #' @param type Plot the test-statistic at each time bin ("statistic"), or the parameter estimate at each time
 #'   bin ("estimate")? Note that estimate plots standard error, regardless of the alpha/threshold used originally
-#'   
+#' @param ... Ignored
 #' @export
 #' @return A ggplot object
-plot.bin_analysis <- function(data, type = "statistic", ...) {
+plot.bin_analysis <- function(x, type = "statistic", ...) {
   
   type = match.arg(type, c("statistic", "estimate"))
   
   if (type == "statistic") {
-    g <- ggplot(data = data) +
+    g <- ggplot(data = x) +
       geom_line(mapping = aes(x = Time, y= Statistic)) +
       geom_line(mapping = aes(x = Time, y= CritStatisticPos), linetype="dashed") +
       geom_line(mapping = aes(x = Time, y= CritStatisticNeg), linetype="dashed") +
       ylab("Statistic") +
       xlab("Time") 
-    if (length(unique(data$AOI))>1) g <- g + facet_wrap( ~ AOI)
+    if (length(unique(x$AOI))>1) g <- g + facet_wrap( ~ AOI)
   } else {
-    g <- ggplot(data = data, mapping = aes(x = Time, y= Estimate)) +
+    g <- ggplot(data = x, mapping = aes(x = Time, y= Estimate)) +
       geom_line() +
       geom_ribbon(mapping = aes(ymin = Estimate - StdErr, ymax = Estimate + StdErr), alpha=.33) + 
       geom_hline(yintercept = 0, linetype="dashed") +
       ylab("Parameter Estimate") +
       xlab("Time") 
-    if (length(unique(data$AOI))>1) g <- g + facet_wrap( ~ AOI)
+    if (length(unique(x$AOI))>1) g <- g + facet_wrap( ~ AOI)
   }
   return(g)
 }

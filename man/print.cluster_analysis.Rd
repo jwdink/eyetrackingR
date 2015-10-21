@@ -8,6 +8,8 @@
 }
 \arguments{
 \item{x}{The output of the \code{analyze_clusters} function}
+
+\item{...}{Ignored}
 }
 \value{
 Prints information about the bootstrapped null distribution, as well as information about each cluster.

@@ -5,14 +5,15 @@
 \alias{make_boot_splines_data.time_sequence_data}
 \title{Bootstrap resample splines for time-series data.}
 \usage{
-make_boot_splines_data(data, ...)
+make_boot_splines_data(data, predictor_column, aoi, within_subj, smoother,
+  samples, resolution, alpha)
 
 \method{make_boot_splines_data}{time_sequence_data}(data, predictor_column,
   aoi = NULL, within_subj = FALSE, smoother = "smooth.spline",
-  samples = 1000, resolution = NULL, alpha = 0.05, ...)
+  samples = 1000, resolution = NULL, alpha = 0.05)
 }
 \arguments{
-\item{data}{}
+\item{data}{The output of \code{time_sequence_data()}}
 
 \item{predictor_column}{What predictor var to split by? Maximum two conditions}
 

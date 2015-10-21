@@ -8,7 +8,7 @@ make_time_window_data(data, aois = NULL, predictor_columns = NULL,
   summarize_by = NULL)
 }
 \arguments{
-\item{data}{}
+\item{data}{The output of \code{make_eyetrackingr_data}}
 
 \item{aois}{Which AOIs are of interest? Defaults to all in 'data_options'}
 
