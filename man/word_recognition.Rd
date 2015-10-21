@@ -24,9 +24,9 @@ word_recognition
 Data from a simple 2-alternative forced choice (2AFC) word recognition task administered to 19-
 and 24-month-olds. On each trial, infants were shown a picture of an animate object (e.g., a
 horse) and an inanimate object (e.g., a spoon). After inspecting the images, they disappeared and
-they heard a label referring to one of them (e.g., “The horse is nearby!”). Finally, the objects
-re-appeared on the screen and they were prompted to look at the target (e.g., “Look at the
-horse!”).
+they heard a label referring to one of them (e.g., "The horse is nearby!"). Finally, the objects
+re-appeared on the screen and they were prompted to look at the target (e.g., "Look at the
+horse!").
 }
 \keyword{datasets}
 
