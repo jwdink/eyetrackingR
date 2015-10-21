@@ -15,6 +15,8 @@ www.eyetrackingr.com
 
 ## Installation
 
+We are in the process of preparing eyetrackingR for CRAN. Until then:
+
 Make sure you have the `devtools` package installed:
 
 ```
@@ -52,4 +54,4 @@ From here, all of eyetrackingR's functionality becomes available on this data. C
 
 Copyright (c) 2015, Jacob Dink and Brock Ferguson
 
-Released under the MIT License (see LICENSE for details)
+Released under the MIT License (see LICENCE for details)

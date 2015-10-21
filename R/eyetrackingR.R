@@ -10,6 +10,18 @@
 #' @importFrom lazyeval interp
 #' @import ggplot2
 #' @import dplyr
+#' @importFrom stats  as.formula
+#' @importFrom stats  formula
+#' @importFrom stats  median
+#' @importFrom stats  na.omit
+#' @importFrom stats  poly
+#' @importFrom stats  predict
+#' @importFrom stats  qnorm
+#' @importFrom stats  qsignrank
+#' @importFrom stats  qt
+#' @importFrom stats  quantile
+#' @importFrom stats  sd
+#' @importFrom graphics plot
 #'
 #' @docType package
 #' @name eyetrackingR

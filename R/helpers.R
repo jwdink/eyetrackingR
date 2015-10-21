@@ -1,21 +1,3 @@
-#' Prevent accidental plotting of data.frames whose class has been removed.
-#'
-#' EyetrackingR adds a plot method to most dataframes you can create with it.
-#' Sometimes, the class of the dataframe can be removed, so that plot will
-#' not have the expected result. This ensures a warning is issued to the user.
-#'
-#' @param x Data which has accidentally had eyetrackingR results stripped from it
-#' @param ... Ignored
-#' @export
-#' @return NULL
-plot.data.frame <- function(x, ...) {
-  stop(
-    "Cannot plot this data. Either no plotting method exists for this data, or the class of this data, which specifies ",
-    "what type of data it is, has been removed. This can happen by using functions that transform the data significantly, ",
-    "such as dplyr's 'summarize' and 'select'."
-  )
-}
-
 #' .label_consecutive()
 #'
 #' A helper function to label/enumerate runs of TRUEs in a logical vector, with NA for falses.
