@@ -157,11 +157,11 @@ summary(df_timeclust)
 Finally, bootstrap p-values for each of these clusters by asking how likely we are to see a cluster with that "Sum Statistic" given a permutation-based null distribution derived from our largest cluster.
 
 ```{r, warning=FALSE}
-# clust_analysis <- analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, 
-#                                         samples=150) # in practice, you should use a lot more
-# clust_analysis
-# 
-# plot(clust_analysis)
+clust_analysis <- analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, 
+                                        samples=150) # in practice, you should use a lot more
+clust_analysis
+
+plot(clust_analysis)
 ```
 
 ## References
