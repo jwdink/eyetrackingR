@@ -5,7 +5,7 @@
 \title{Plot test-statistic for each time-bin in a time-series, highlight clusters.
 Plot time_cluster_data, highlights clusters of above-threshold time-bins.}
 \usage{
-\method{plot}{time_cluster_data}(data, clusters = NULL)
+\method{plot}{time_cluster_data}(data, clusters = NULL, ...)
 }
 \arguments{
 \item{data}{}

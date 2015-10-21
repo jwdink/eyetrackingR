@@ -4,10 +4,10 @@
 \alias{plot.cluster_analysis}
 \title{Visualize the results of a cluster analysis.}
 \usage{
-\method{plot}{cluster_analysis}(cl_analysis)
+\method{plot}{cluster_analysis}(x, ...)
 }
 \arguments{
-\item{cluster_analysis}{object returned by cluster_analysis()}
+\item{x}{object returned by cluster_analysis()}
 }
 \value{
 A ggplot object

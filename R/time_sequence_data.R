@@ -392,9 +392,9 @@ analyze_time_bins.time_sequence_data <- function(data,
 #' @export
 #' @return Prints information about each run of statistically significant time-bins, separately for
 #'   positive and negative
-summary.bin_analysis <- function(df_timebins) {
+summary.bin_analysis <- function(object, ...) {
   
-  attrs <- attr(df_timebins, "eyetrackingR")
+  attrs <- attr(object, "eyetrackingR")
   positive_runs <- seq_along(attrs$positive_runs)
   negative_runs <- seq_along(attrs$negative_runs)
   df_pos <- bind_rows(lapply(attrs$positive_runs, as.data.frame))
@@ -421,7 +421,7 @@ summary.bin_analysis <- function(df_timebins) {
     p3 <- ""
   }
   cat(p1,p2,p3)
-  invisible(df_timebins)
+  invisible(object)
 }
 
 #' Plot time-sequence data
@@ -441,7 +441,7 @@ summary.bin_analysis <- function(df_timebins) {
 #'   predictions of that model on the data
 #' @export
 #' @return A ggplot object
-plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', model = NULL) {
+plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', model = NULL,...) {
 
   # Prelims:
   data_options = attr(data, "eyetrackingR")$data_options
@@ -523,7 +523,7 @@ plot.time_sequence_data <- function(data, predictor_column = NULL, dv='Prop', mo
 #'   
 #' @export
 #' @return A ggplot object
-plot.bin_analysis <- function(data, type = "statistic") {
+plot.bin_analysis <- function(data, type = "statistic", ...) {
   
   type = match.arg(type, c("statistic", "estimate"))
   

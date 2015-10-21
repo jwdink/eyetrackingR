@@ -5,7 +5,7 @@
 \alias{make_switch_data.onset_data}
 \title{Summarize data into time-to-switch from initial AOI.}
 \usage{
-make_switch_data(data, ...)
+make_switch_data(data, predictor_columns, summarize_by)
 
 \method{make_switch_data}{onset_data}(data, predictor_columns = NULL,
   summarize_by = NULL)

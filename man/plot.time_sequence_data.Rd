@@ -5,7 +5,7 @@
 \title{Plot time-sequence data}
 \usage{
 \method{plot}{time_sequence_data}(data, predictor_column = NULL,
-  dv = "Prop", model = NULL)
+  dv = "Prop", model = NULL, ...)
 }
 \arguments{
 \item{data}{Your data from \code{make_time_sequence_data}. Will be collapsed by

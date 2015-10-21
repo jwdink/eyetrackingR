@@ -4,7 +4,7 @@
 \alias{summary.boot_splines_analysis}
 \title{Summary Method for Bootstrapped Splines Analysis}
 \usage{
-\method{summary}{boot_splines_analysis}(data)
+\method{summary}{boot_splines_analysis}(object, ...)
 }
 \arguments{
 \item{data}{The output of the \code{boot_splines_data} function}

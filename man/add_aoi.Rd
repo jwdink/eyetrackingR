@@ -4,8 +4,8 @@
 \alias{add_aoi}
 \title{Add an area-of-interest to your dataset, based on x-y coordinates and the AOI rectangle.}
 \usage{
-add_aoi(data, aoi_dataframe, x_col, y_col, aoi_name, xmin_col = "L",
-  xmax_col = "R", ymin_col = "T", ymax_col = "B")
+add_aoi(data, aoi_dataframe, x_col, y_col, aoi_name, x_min_col = "L",
+  x_max_col = "R", y_min_col = "T", y_max_col = "B")
 }
 \arguments{
 \item{data}{Your data}

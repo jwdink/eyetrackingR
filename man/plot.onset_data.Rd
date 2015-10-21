@@ -4,7 +4,7 @@
 \alias{plot.onset_data}
 \title{Plot onset-contingent data}
 \usage{
-\method{plot}{onset_data}(data, predictor_columns = NULL)
+\method{plot}{onset_data}(data, predictor_columns = NULL, ...)
 }
 \arguments{
 \item{data}{The output of the \code{make_onset_data} function}

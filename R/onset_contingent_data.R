@@ -93,7 +93,7 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
 #'
 #' Take trials split by initial-AOI, and determine how quickly participants switch away from that AOI
 #' @export
-make_switch_data <- function(data, ...) {
+make_switch_data <- function(data, predictor_columns, summarize_by) {
   UseMethod("make_switch_data")
 }
 #' @describeIn make_switch_data
@@ -143,7 +143,7 @@ make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_
 #' @export
 #' @return A ggplot object
 
-plot.onset_data <- function(data, predictor_columns=NULL) {
+plot.onset_data <- function(data, predictor_columns=NULL, ...) {
 
   ## Prelims:
   attrs <- attr(data, "eyetrackingR")
@@ -226,7 +226,7 @@ plot.onset_data <- function(data, predictor_columns=NULL) {
 #' @export
 #' @return A ggplot object
 
-plot.switch_data <- function(data, predictor_columns=NULL) {
+plot.switch_data <- function(data, predictor_columns=NULL, ...) {
 
   ## Prelims:
   data_options <- attr(data, "eyetrackingR")$data_options

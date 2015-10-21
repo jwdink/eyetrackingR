@@ -4,7 +4,7 @@
 \alias{summary.bin_analysis}
 \title{Summary Method for Time-bin Analysis}
 \usage{
-\method{summary}{bin_analysis}(df_timebins)
+\method{summary}{bin_analysis}(object, ...)
 }
 \arguments{
 \item{data}{The output of the \code{analyze_time_bins} function}

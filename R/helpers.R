@@ -7,7 +7,7 @@
 #' @param data
 #' @export
 #' @return NULL
-plot.data.frame <- function(data) {
+plot.data.frame <- function(data, ...) {
   stop(
     "Cannot plot this data. Either no plotting method exists for this data, or the class of this data, which specifies ",
     "what type of data it is, has been removed. This can happen by using functions that transform the data significantly, ",
@@ -104,17 +104,17 @@ plot.data.frame <- function(data) {
 #' @param data A dataframe
 #' @export
 #' @return A dataframe
-subset.time_sequence_data <- function(data, ...) {
+subset.time_sequence_data <- function(x, ...) {
   # remove class names (avoid infinite recursion):
   potential_classes <-
     c(
       'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
     )
-  temp_remove <- class(data)[class(data) %in% potential_classes]
-  class(data) <- class(data)[!class(data) %in% potential_classes]
-  temp_attr <- attr(data, "eyetrackingR") # also attributes
+  temp_remove <- class(x)[class(x) %in% potential_classes]
+  class(x) <- class(x)[!class(x) %in% potential_classes]
+  temp_attr <- attr(x, "eyetrackingR") # also attributes
   
-  out <- subset(data, ...)
+  out <- subset(x, ...)
   
   # reapply class/attributes
   class(out) = c(temp_remove, class(out))

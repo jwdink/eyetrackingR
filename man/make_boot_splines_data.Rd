@@ -9,7 +9,7 @@ make_boot_splines_data(data, ...)
 
 \method{make_boot_splines_data}{time_sequence_data}(data, predictor_column,
   aoi = NULL, within_subj = FALSE, smoother = "smooth.spline",
-  samples = 1000, resolution = NULL, alpha = 0.05)
+  samples = 1000, resolution = NULL, alpha = 0.05, ...)
 }
 \arguments{
 \item{data}{}

@@ -4,7 +4,7 @@
 \alias{plot.bin_analysis}
 \title{Plot test-statistic for each time-bin in a time-series}
 \usage{
-\method{plot}{bin_analysis}(data, type = "statistic")
+\method{plot}{bin_analysis}(data, type = "statistic", ...)
 }
 \arguments{
 \item{data}{}

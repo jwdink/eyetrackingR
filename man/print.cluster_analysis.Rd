@@ -4,10 +4,10 @@
 \alias{print.cluster_analysis}
 \title{Print Method for Cluster Analysis}
 \usage{
-\method{print}{cluster_analysis}(cl_analysis)
+\method{print}{cluster_analysis}(x, ...)
 }
 \arguments{
-\item{data}{The output of the \code{analyze_clusters} function}
+\item{x}{The output of the \code{analyze_clusters} function}
 }
 \value{
 Prints information about the bootstrapped null distribution, as well as information about each cluster.

@@ -10,19 +10,19 @@
 \alias{subset.time_window_data}
 \title{EyetrackingR friendly subset}
 \usage{
-\method{subset}{time_sequence_data}(data, ...)
+\method{subset}{time_sequence_data}(x, ...)
 
-\method{subset}{time_window_data}(data, ...)
+\method{subset}{time_window_data}(x, ...)
 
-\method{subset}{bin_analysis}(data, ...)
+\method{subset}{bin_analysis}(x, ...)
 
-\method{subset}{boot_splines_data}(data, ...)
+\method{subset}{boot_splines_data}(x, ...)
 
-\method{subset}{time_cluster_data}(data, ...)
+\method{subset}{time_cluster_data}(x, ...)
 
-\method{subset}{boot_splines_analysis}(data, ...)
+\method{subset}{boot_splines_analysis}(x, ...)
 
-\method{subset}{onset_data}(data, ...)
+\method{subset}{onset_data}(x, ...)
 }
 \arguments{
 \item{data}{A dataframe}

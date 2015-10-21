@@ -4,10 +4,10 @@
 \alias{summary.cluster_analysis}
 \title{Summary Method for Cluster Analysis}
 \usage{
-\method{summary}{cluster_analysis}(cl_analysis)
+\method{summary}{cluster_analysis}(object, ...)
 }
 \arguments{
-\item{data}{The output of the \code{analyze_clusters} function}
+\item{object}{The output of the \code{analyze_clusters} function}
 }
 \value{
 Prints information about the bootstrapped null distribution, as well as information about each cluster.

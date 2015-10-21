@@ -4,7 +4,7 @@
 \alias{plot.data.frame}
 \title{Prevent accidental plotting of data.frames whose class has been removed.}
 \usage{
-\method{plot}{data.frame}(data)
+\method{plot}{data.frame}(data, ...)
 }
 \arguments{
 \item{data}{}

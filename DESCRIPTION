@@ -22,5 +22,7 @@ Suggests:
 	pbapply,
     knitr,
     lme4 (>= 1.1-9),
-    testthat
+    Matrix,
+    testthat,
+    rmarkdown
 VignetteBuilder: knitr

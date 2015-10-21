@@ -156,8 +156,8 @@ make_eyetrackingr_data <- function(data,
 add_aoi <- function(data, aoi_dataframe,
                      x_col, y_col,
                      aoi_name,
-                     xmin_col = "L", xmax_col = "R",
-                     ymin_col = "T", ymax_col = "B"
+                     x_min_col = "L", x_max_col = "R",
+                     y_min_col = "T", y_max_col = "B"
 ) {
   
   ## Helper
@@ -186,7 +186,7 @@ add_aoi <- function(data, aoi_dataframe,
   
   ## Make AOI column
   data[[aoi_name]] <- .inside_rect(pt    = cbind(df_joined[[x_col]], df_joined[[y_col]]),
-                                   ltrb  = cbind(df_joined[[xmin_col]], df_joined[[ymin_col]], df_joined[[xmax_col]], df_joined[[ymax_col]])
+                                   ltrb  = cbind(df_joined[[x_min_col]], df_joined[[y_min_col]], df_joined[[x_max_col]], df_joined[[y_max_col]])
   )
   
   return(data)

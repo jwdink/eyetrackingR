@@ -194,18 +194,18 @@ analyze_time_clusters.time_cluster_data <-function(data,
 }
 
 #' Summary Method for Cluster Analysis
-#' @param  data The output of the \code{analyze_clusters} function
+#' @param  object The output of the \code{analyze_clusters} function
 #' @export
 #' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
-summary.cluster_analysis <- function(cl_analysis) {
-  clusters <- cl_analysis$clusters
+summary.cluster_analysis <- function(object, ...) {
+  clusters <- object$clusters
   cat(
-    "Test Type:\t", cl_analysis$test,
-    "\nPredictor:\t", cl_analysis$predictor_column,
-    "\nFormula:\t", Reduce(paste, deparse(cl_analysis$formula)),
+    "Test Type:\t", object$test,
+    "\nPredictor:\t", object$predictor_column,
+    "\nFormula:\t", Reduce(paste, deparse(object$formula)),
     "\nNull Distribution =====",
-    "\n\tMean:\t", round(mean(cl_analysis$null_distribution, na.rm=TRUE), digits = 5),
-    "\n\tSD:\t", round(sd(cl_analysis$null_distribution, na.rm=TRUE), digits = 5),
+    "\n\tMean:\t", round(mean(object$null_distribution, na.rm=TRUE), digits = 5),
+    "\n\tSD:\t", round(sd(object$null_distribution, na.rm=TRUE), digits = 5),
     paste(
       "\nCluster", clusters["Cluster",], " =====",
       "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
@@ -213,14 +213,31 @@ summary.cluster_analysis <- function(cl_analysis) {
       "\n\tProbability:\t", round(clusters["Prob",], digits = 5)
     )
   )
-  invisible(cl_analysis)
+  invisible(object)
 }
 
 #' Print Method for Cluster Analysis
-#' @param  data The output of the \code{analyze_clusters} function
+#' @param  x The output of the \code{analyze_clusters} function
 #' @export
 #' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
-print.cluster_analysis <- summary.cluster_analysis
+print.cluster_analysis <- function(x, ...) {
+  clusters <- x$clusters
+  cat(
+    "Test Type:\t", x$test,
+    "\nPredictor:\t", x$predictor_column,
+    "\nFormula:\t", Reduce(paste, deparse(x$formula)),
+    "\nNull Distribution =====",
+    "\n\tMean:\t", round(mean(x$null_distribution, na.rm=TRUE), digits = 5),
+    "\n\tSD:\t", round(sd(x$null_distribution, na.rm=TRUE), digits = 5),
+    paste(
+      "\nCluster", clusters["Cluster",], " =====",
+      "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
+      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 5),
+      "\n\tProbability:\t", round(clusters["Prob",], digits = 5)
+    )
+  )
+  invisible(x)
+}
 
 #' Make data for cluster analysis.
 #'
@@ -337,23 +354,23 @@ make_time_cluster_data.time_sequence_data <- function(data, data_options,
 }
 
 #' Summary Method for Cluster Analysis
-#' @param  data The output of the \code{analyze_clusters} function
+#' @param  object The output of the \code{analyze_clusters} function
 #' @export
 #' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
-summary.time_cluster_data <- function(data) {
-  clusters <- attr(data, "eyetrackingR")$clusters
+summary.time_cluster_data <- function(object, ...) {
+  clusters <- attr(object, "eyetrackingR")$clusters
   if (length(clusters)==0) {
     cat(
-      "Test Type:\t", attr(data, "eyetrackingR")$test,
-      "\nPredictor:\t", attr(data, "eyetrackingR")$predictor_column,
-      "\nFormula:\t", Reduce(paste, deparse(attr(data, "eyetrackingR")$formula)),
+      "Test Type:\t", attr(object, "eyetrackingR")$test,
+      "\nPredictor:\t", attr(object, "eyetrackingR")$predictor_column,
+      "\nFormula:\t", Reduce(paste, deparse(attr(object, "eyetrackingR")$formula)),
       "\nNo Clusters"
     )
   } else {
     cat(
-      "Test Type:\t", attr(data, "eyetrackingR")$test,
-      "\nPredictor:\t", attr(data, "eyetrackingR")$predictor_column,
-      "\nFormula:\t", Reduce(paste, deparse(attr(data, "eyetrackingR")$formula)),
+      "Test Type:\t", attr(object, "eyetrackingR")$test,
+      "\nPredictor:\t", attr(object, "eyetrackingR")$predictor_column,
+      "\nFormula:\t", Reduce(paste, deparse(attr(object, "eyetrackingR")$formula)),
       paste(
         "\nCluster", clusters["Cluster",], " =====",
         "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
@@ -361,7 +378,7 @@ summary.time_cluster_data <- function(data) {
       )
     )
   }
-  invisible(data)
+  invisible(object)
 }
 
 
@@ -370,24 +387,24 @@ summary.time_cluster_data <- function(data) {
 #' Plots the result of the bootstrapping cluster analysis. A histogram of the sum statistics for the
 #' shuffled (null) distribution, with the sum statisics for each of the clusters indicated by dashed lines.
 #'
-#' @param cluster_analysis object returned by cluster_analysis()
+#' @param x object returned by cluster_analysis()
 #'
 #' @export
 #' @return A ggplot object
-plot.cluster_analysis <- function(cl_analysis) {
-  dat <- c(cl_analysis$clusters['SumStat',], cl_analysis$null_distribution)
+plot.cluster_analysis <- function(x, ...) {
+  dat <- c(x$clusters['SumStat',], x$null_distribution)
   x_min <- min(dat, na.rm=TRUE) - sd(dat)
   x_max <- max(dat, na.rm=TRUE) + sd(dat)
-  cluster_names <- as.factor(cl_analysis$clusters['Cluster',])
-  df_plot1 <- data.frame(NullDistribution = cl_analysis$null_distribution)
-  df_plot2 <- data.frame(SumStat = cl_analysis$clusters['SumStat',],
-                         Cluster = as.factor(cl_analysis$clusters['Cluster',]))
+  cluster_names <- as.factor(x$clusters['Cluster',])
+  df_plot1 <- data.frame(NullDistribution = x$null_distribution)
+  df_plot2 <- data.frame(SumStat = x$clusters['SumStat',],
+                         Cluster = as.factor(x$clusters['Cluster',]))
   ggplot(data = df_plot1, aes(x = NullDistribution)) +
     geom_density() +
-    geom_histogram(aes(y=..density..), binwidth = sd(cl_analysis$null_distribution)/5, alpha=.75 ) +
+    geom_histogram(aes(y=..density..), binwidth = sd(x$null_distribution)/5, alpha=.75 ) +
     coord_cartesian(xlim = c(x_min, x_max)) +
     geom_vline(data = df_plot2, aes(xintercept = SumStat, color = Cluster), linetype="dashed", size=1, show_guide = TRUE) +
-    xlab(paste("Distribution of summed statistics from", cl_analysis$test )) + ylab("Density")
+    xlab(paste("Distribution of summed statistics from", x$test )) + ylab("Density")
 
 }
 
@@ -400,7 +417,7 @@ plot.cluster_analysis <- function(cl_analysis) {
 #'
 #' @export
 #' @return A ggplot object
-plot.time_cluster_data <- function(data, clusters = NULL) {
+plot.time_cluster_data <- function(data, clusters = NULL, ...) {
   attrs <- attr(data, "eyetrackingR")
   g <- plot(attrs$time_bin_summary)
 

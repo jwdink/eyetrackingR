@@ -26,7 +26,8 @@ make_boot_splines_data.time_sequence_data <- function (data,
                                                        smoother = "smooth.spline",
                                                        samples = 1000,
                                                        resolution = NULL,
-                                                       alpha = .05) {
+                                                       alpha = .05,
+                                                       ...) {
   if (!requireNamespace("pbapply", quietly = TRUE)) {
     pbreplicate <- function(n, expr, simplify) replicate(n, expr, simplify)
     message("Install package 'pbapply' for a progress bar in this function.")
@@ -273,16 +274,16 @@ analyze_boot_splines.boot_splines_data <- function(data) {
 #' @param  data The output of the \code{boot_splines_data} function
 #' @export
 #' @return Prints a list of divergence-times.
-summary.boot_splines_analysis <- function(data) {
+summary.boot_splines_analysis <- function(object, ...) {
 
   # make sure there is the proper kind of data frame, and check its attributes
-  attrs = attr(data, "eyetrackingR")
+  attrs = attr(object, "eyetrackingR")
   data_options = attrs$data_options
   bootstrap_attr = attrs$bootstrapped
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
 
   # find divergences as runs of Significant == TRUE
-  divergences <- rle(c(FALSE,data$Significant)) # TO DO: this should probably list times start_first_bin -> end_last_bin,
+  divergences <- rle(c(FALSE,object$Significant)) # TO DO: this should probably list times start_first_bin -> end_last_bin,
                                                 # instead of current behavior of start_first_bin -> start_last_bin
 
   if (sum(divergences$values) == 0) {
