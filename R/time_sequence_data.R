@@ -234,7 +234,9 @@ analyze_time_bins.time_sequence_data <- function(data,
   # Run a model for each time-bin
   cc <- match.call(expand.dots = TRUE)
   paired <- cc[["paired"]]
-  if (paired == "T") paired = TRUE # I can't even right now.
+  if (!is.null(paired)) {
+    if (paired=="T") paired = TRUE # I can't even right now.
+  }
   if (!quiet) message("Computing ", test, " for each time bin...")
   if (test=="lmer") {
     the_test <- .make_function_fail_informatively(lme4::lmer)
