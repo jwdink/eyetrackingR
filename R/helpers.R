@@ -92,7 +92,8 @@ subset.time_sequence_data <- function(x, ...) {
   # remove class names (avoid infinite recursion):
   potential_classes <-
     c(
-      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
+      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 
+      'boot_splines_analysis', "time_cluster_data", 'bin_analysis','eyetrackingR'
     )
   temp_remove <- class(x)[class(x) %in% potential_classes]
   class(x) <- class(x)[!class(x) %in% potential_classes]
@@ -131,6 +132,10 @@ subset.boot_splines_analysis <- subset.time_sequence_data
 #' @export
 subset.onset_data <- subset.time_sequence_data
 
+#' @describeIn subset
+#' @export
+subset.eyetrackingR <- subset.time_sequence_data
+
 # Friendly Dplyr Verbs: Mutate ----------------------------------------------------------------------------------
 #' EyetrackingR friendly mutate
 #' @describeIn mutate_
@@ -143,7 +148,8 @@ mutate_.time_sequence_data <- function(.data, ..., .dots) {
   # remove class names (avoid infinite recursion):
   potential_classes <-
     c(
-      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
+      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 
+      'boot_splines_analysis', "time_cluster_data", 'bin_analysis', 'eyetrackingR'
     )
   temp_remove <- class(.data)[class(.data) %in% potential_classes]
   class(.data) <- class(.data)[!class(.data) %in% potential_classes]
@@ -182,6 +188,10 @@ mutate_.boot_splines_analysis <- mutate_.time_sequence_data
 #' @export
 mutate_.onset_data <- mutate_.time_sequence_data
 
+#' @describeIn mutate_
+#' @export
+mutate_.eyetrackingR <- mutate_.time_sequence_data
+
 # Friendly Dplyr Verbs: GroupBy ----------------------------------------------------------------------------------
 
 #' EyetrackingR friendly group_by
@@ -197,7 +207,8 @@ group_by_.time_sequence_data <- function(.data, ..., .dots, add= FALSE) {
   # remove class names (avoid infinite recursion):
   potential_classes <-
     c(
-      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
+      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 
+      'boot_splines_analysis', "time_cluster_data", 'bin_analysis', 'eyetrackingR'
     )
   temp_remove <- class(.data)[class(.data) %in% potential_classes]
   class(.data) <- class(.data)[!class(.data) %in% potential_classes]
@@ -236,6 +247,10 @@ group_by_.boot_splines_analysis <- group_by_.time_sequence_data
 #' @export
 group_by_.onset_data <- group_by_.time_sequence_data
 
+#' @describeIn group_by_
+#' @export
+group_by_.eyetrackingR <- group_by_.time_sequence_data
+
 
 # Friendly Dplyr Verbs: Filter ----------------------------------------------------------------------------------
 
@@ -250,7 +265,8 @@ filter_.time_sequence_data <- function(.data, ..., .dots) {
   # remove class names (avoid infinite recursion):
   potential_classes <-
     c(
-      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
+      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 
+      'boot_splines_analysis', "time_cluster_data", 'bin_analysis', 'eyetrackingR'
     )
   temp_remove <- class(.data)[class(.data) %in% potential_classes]
   class(.data) <- class(.data)[!class(.data) %in% potential_classes]
@@ -289,6 +305,67 @@ filter_.boot_splines_analysis <- filter_.time_sequence_data
 #' @export
 filter_.onset_data <- filter_.time_sequence_data
 
+#' @describeIn filter_
+#' @export
+filter_.eyetrackingR <- filter_.time_sequence_data
+
+
+# Friendly Dplyr Verbs: Ungroup ----------------------------------------------------------------------------------
+
+#' EyetrackingR friendly ungroup
+#' @describeIn ungroup
+#' @param x An eyetrackingR dataframe
+#' @export
+#' @return An eyetrackingR dataframe, without dplyr groups
+ungroup.time_sequence_data <- function(x) {
+  # remove class names (avoid infinite recursion):
+  potential_classes <-
+    c(
+      'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 
+      'boot_splines_analysis', "time_cluster_data", 'bin_analysis', 'eyetrackingR'
+    )
+  temp_remove <- class(x)[class(x) %in% potential_classes]
+  class(x) <- class(x)[!class(x) %in% potential_classes]
+  temp_attr <- attr(x, "eyetrackingR") # also attributes
+  
+  out <- ungroup(x)
+  
+  # reapply class/attributes
+  class(out) = c(temp_remove, class(out))
+  attr(out, "eyetrackingR") = temp_attr
+  
+  return(out)
+}
+
+#' @describeIn ungroup
+#' @export
+ungroup.time_window_data <- ungroup.time_sequence_data
+
+#' @describeIn ungroup
+#' @export
+ungroup.bin_analysis <- ungroup.time_sequence_data
+
+#' @describeIn ungroup
+#' @export
+ungroup.boot_splines_data <- ungroup.time_sequence_data
+
+#' @describeIn ungroup
+#' @export
+ungroup.time_cluster_data <- ungroup.time_sequence_data
+
+#' @describeIn ungroup
+#' @export
+ungroup.boot_splines_analysis <- ungroup.time_sequence_data
+
+#' @describeIn ungroup
+#' @export
+ungroup.onset_data <- ungroup.time_sequence_data
+
+#' @describeIn ungroup
+#' @export
+ungroup.eyetrackingR <- ungroup.time_sequence_data
+
+
 # Friendly Dplyr Verbs: Left-Join ----------------------------------------------------------------------------------
 
 #' EyetrackingR friendly Left-Join
@@ -305,7 +382,9 @@ left_join.time_sequence_data <-
     # remove class names (avoid infinite recursion):
     potential_classes <-
       c(
-        'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 'boot_splines_analysis', "time_cluster_data", 'bin_analysis'
+        'time_sequence_data', 'time_window_data', 'onset_data', 'boot_splines_data', 
+        'boot_splines_analysis', "time_cluster_data", 'bin_analysis',
+        'eyetrackingR'
       )
     temp_remove <- class(x)[class(x) %in% potential_classes]
     class(x) <- class(x)[!class(x) %in% potential_classes]
@@ -346,6 +425,9 @@ left_join.boot_splines_analysis <- left_join.time_sequence_data
 #' @export
 left_join.onset_data <- left_join.time_sequence_data
 
+#' @describeIn left_join
+#' @export
+left_join.eyetrackingR <- left_join.time_sequence_data
 
 
 ## Should NOT be necessary 

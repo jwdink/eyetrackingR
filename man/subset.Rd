@@ -4,6 +4,7 @@
 \alias{subset.bin_analysis}
 \alias{subset.boot_splines_analysis}
 \alias{subset.boot_splines_data}
+\alias{subset.eyetrackingR}
 \alias{subset.onset_data}
 \alias{subset.time_cluster_data}
 \alias{subset.time_sequence_data}
@@ -23,6 +24,8 @@
 \method{subset}{boot_splines_analysis}(x, ...)
 
 \method{subset}{onset_data}(x, ...)
+
+\method{subset}{eyetrackingR}(x, ...)
 }
 \arguments{
 \item{x}{A dataframe to be subsetted}
@@ -50,5 +53,7 @@ EyetrackingR friendly subset
 \item \code{boot_splines_analysis}: 
 
 \item \code{onset_data}: 
+
+\item \code{eyetrackingR}: 
 }}
 

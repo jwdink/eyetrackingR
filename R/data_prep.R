@@ -133,6 +133,7 @@ make_eyetrackingr_data <- function(data,
   }
   
   ## Assign attribute:
+  class(out) <- c("eyetrackingR", "data.frame")
   attr(out, "eyetrackingR") <- list(data_options = data_options)
   return(out)
   
@@ -270,6 +271,7 @@ subset_by_window <- function(data,
   }
   
   # Prelims:
+  orig_classes <- class(data)
   data_options <- attr(data, "eyetrackingR")$data_options
   if (is.null(data_options)) {
     stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
@@ -385,7 +387,8 @@ subset_by_window <- function(data,
   out[[".WindowEnd"]] <- NULL
   
   attr(out, "eyetrackingR") <- list(data_options = data_options)
-
+  class(out) <- orig_classes
+  
   out
 }
 

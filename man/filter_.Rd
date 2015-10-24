@@ -4,6 +4,7 @@
 \alias{filter_.bin_analysis}
 \alias{filter_.boot_splines_analysis}
 \alias{filter_.boot_splines_data}
+\alias{filter_.eyetrackingR}
 \alias{filter_.onset_data}
 \alias{filter_.time_cluster_data}
 \alias{filter_.time_sequence_data}
@@ -23,6 +24,8 @@
 \method{filter_}{boot_splines_analysis}(.data, ..., .dots)
 
 \method{filter_}{onset_data}(.data, ..., .dots)
+
+\method{filter_}{eyetrackingR}(.data, ..., .dots)
 }
 \arguments{
 \item{.data}{An eyetrackingR dataframe}
@@ -52,5 +55,7 @@ EyetrackingR friendly filter
 \item \code{boot_splines_analysis}: 
 
 \item \code{onset_data}: 
+
+\item \code{eyetrackingR}: 
 }}
 

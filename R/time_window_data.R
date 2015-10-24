@@ -42,7 +42,7 @@ make_time_window_data <- function(data,
   data_options <- attr(data, "eyetrackingR")$data_options
   if (is.null(data_options)) {
     stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
-         "Did you run `make_eyetracking_r` data on it originally?",
+         "Did you run `make_eyetracking_r` data on it originally? ",
          "If so, this information has been removed. This can happen when using functions that ",
          "transform your data significantly, like dplyr::summarise or dplyr::select.")
   }

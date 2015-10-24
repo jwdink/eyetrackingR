@@ -4,6 +4,7 @@
 \alias{group_by_.bin_analysis}
 \alias{group_by_.boot_splines_analysis}
 \alias{group_by_.boot_splines_data}
+\alias{group_by_.eyetrackingR}
 \alias{group_by_.onset_data}
 \alias{group_by_.time_cluster_data}
 \alias{group_by_.time_sequence_data}
@@ -23,6 +24,8 @@
 \method{group_by_}{boot_splines_analysis}(.data, ..., .dots, add = FALSE)
 
 \method{group_by_}{onset_data}(.data, ..., .dots, add = FALSE)
+
+\method{group_by_}{eyetrackingR}(.data, ..., .dots, add = FALSE)
 }
 \arguments{
 \item{.data}{An eyetrackingR dataframe}
@@ -55,5 +58,7 @@ EyetrackingR friendly group_by
 \item \code{boot_splines_analysis}: 
 
 \item \code{onset_data}: 
+
+\item \code{eyetrackingR}: 
 }}
 

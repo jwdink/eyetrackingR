@@ -4,6 +4,7 @@
 \alias{mutate_.bin_analysis}
 \alias{mutate_.boot_splines_analysis}
 \alias{mutate_.boot_splines_data}
+\alias{mutate_.eyetrackingR}
 \alias{mutate_.onset_data}
 \alias{mutate_.time_cluster_data}
 \alias{mutate_.time_sequence_data}
@@ -23,6 +24,8 @@
 \method{mutate_}{boot_splines_analysis}(.data, ..., .dots)
 
 \method{mutate_}{onset_data}(.data, ..., .dots)
+
+\method{mutate_}{eyetrackingR}(.data, ..., .dots)
 }
 \arguments{
 \item{.data}{An eyetrackingR dataframe}
@@ -52,5 +55,7 @@ EyetrackingR friendly mutate
 \item \code{boot_splines_analysis}: 
 
 \item \code{onset_data}: 
+
+\item \code{eyetrackingR}: 
 }}
 

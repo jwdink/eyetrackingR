@@ -4,6 +4,7 @@
 \alias{left_join.bin_analysis}
 \alias{left_join.boot_splines_analysis}
 \alias{left_join.boot_splines_data}
+\alias{left_join.eyetrackingR}
 \alias{left_join.onset_data}
 \alias{left_join.time_cluster_data}
 \alias{left_join.time_sequence_data}
@@ -24,6 +25,8 @@
   ...)
 
 \method{left_join}{onset_data}(x, y, by = NULL, copy = FALSE, ...)
+
+\method{left_join}{eyetrackingR}(x, y, by = NULL, copy = FALSE, ...)
 }
 \arguments{
 \item{x}{Left dataframe}
@@ -57,5 +60,7 @@ EyetrackingR friendly Left-Join
 \item \code{boot_splines_analysis}: 
 
 \item \code{onset_data}: 
+
+\item \code{eyetrackingR}: 
 }}
 
