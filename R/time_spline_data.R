@@ -3,7 +3,7 @@
 #' Bootstrap splines from \code{time_sequence_data()}. This creates a distribution from which a non-parametric
 #' analysis can be performed.
 #' @export
-make_boot_splines_data = function(data, predictor_column, aoi, within_subj, smoother, samples, resolution, alpha) {
+make_boot_splines_data = function(data, predictor_column, within_subj, aoi,smoother, samples, resolution, alpha) {
   UseMethod("make_boot_splines_data")
 }
 #' @describeIn make_boot_splines_data

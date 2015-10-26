@@ -5,7 +5,7 @@
 \alias{make_boot_splines_data.time_sequence_data}
 \title{Bootstrap resample splines for time-series data.}
 \usage{
-make_boot_splines_data(data, predictor_column, aoi, within_subj, smoother,
+make_boot_splines_data(data, predictor_column, within_subj, aoi, smoother,
   samples, resolution, alpha)
 
 \method{make_boot_splines_data}{time_sequence_data}(data, predictor_column,
@@ -17,9 +17,9 @@ make_boot_splines_data(data, predictor_column, aoi, within_subj, smoother,
 
 \item{predictor_column}{What predictor var to split by? Maximum two conditions}
 
-\item{aoi}{Which AOI do you wish to perform the analysis on?}
-
 \item{within_subj}{Are the two conditions within or between subjects?}
+
+\item{aoi}{Which AOI do you wish to perform the analysis on?}
 
 \item{smoother}{Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing}
 
