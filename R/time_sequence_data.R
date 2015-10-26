@@ -272,24 +272,39 @@ analyze_time_bins.time_sequence_data <- function(data,
   
   # Give Errors:
   if (length(the_errors) > 1) {
-    df_errors <- data_frame(Message = the_errors,
-                            TimeBin = sapply(names(the_errors), function(tb) as.numeric(tb))
-    )
-    for (msg in unique(df_errors$Message)) {
-      warning("\nFor the following timebins...\n\t", paste(sort(df_errors$TimeBin), collapse = ", "),
-              "\n...received the following error message: \n\t`", msg, "`",
+    error_types <- unique(unlist(lapply(the_errors, unique)))
+    error_lists <- list()
+    for (error_type in error_types) {
+      error_lists[[error_type]] <- unlist(lapply(names(the_errors), function(tb) {
+        ifelse(test = error_type %in% the_errors[[tb]],
+               yes = tb,
+               no = NULL)
+      }))
+    }
+    for (i in seq_along(error_lists)) {
+      error_list <- error_lists[[i]]
+      warning("\nFor the following timebins...\n\t", paste(sort(error_list), collapse = ", "),
+              "\n...received the following error message(s): \n\t`", error_types[i], "`",
               "\nThis means something went wrong when running ", test, " on these timebins. ",
-              "Model results for these timebins have been replaced by `NA` in the output.")
+              "Model results for these timebins have been replaced by `NA` in the output.\n")
     }
   }
+  
   # Give Warnings:
   if (length(the_warnings) > 1) {
-    df_warnings <- data_frame(Message = the_warnings,
-                              TimeBin = sapply(names(the_warnings), function(tb) as.numeric(tb))
-    )
-    for (msg in unique(df_warnings$Message)) {
-      warning("\nFor the following timebins...\n\t", paste(sort(df_warnings$TimeBin), collapse = ", "),
-              "\n...received the following warning message: \n\t`", msg, "`")
+    warning_types <- unique(unlist(lapply(the_warnings, unique)))
+    warning_lists <- list()
+    for (warning_type in warning_types) {
+      warning_lists[[warning_type]] <- unlist(lapply(names(the_warnings), function(tb) {
+        ifelse(test = warning_type %in% the_warnings[[tb]],
+               yes = tb,
+               no = NULL)
+      }))
+    }
+    for (i in seq_along(warning_lists)) {
+      warning_list <- warning_lists[[i]]
+      warning("\nFor the following timebins...\n\t", paste(sort(warning_list), collapse = ", "),
+              "\n...received the following warning message: \n\t`", warning_types[i], "`\n")
     }
   }
   
