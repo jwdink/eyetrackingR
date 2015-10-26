@@ -7,7 +7,7 @@
 \usage{
 analyze_time_clusters(data, ...)
 
-\method{analyze_time_clusters}{time_cluster_data}(data, within_subj = FALSE,
+\method{analyze_time_clusters}{time_cluster_data}(data, within_subj,
   samples = 1000, formula = NULL, shuffle_by = NULL, ...)
 }
 \arguments{
@@ -16,8 +16,7 @@ analyze_time_clusters(data, ...)
 \item{...}{Other args for to selected 'test' function; should be identical to those passed to
 \code{make_time_cluster_data} function}
 
-\item{within_subj}{Logical indicating whether to perform within-subjects bootstrap resampling. (Defaults
-to FALSE: between-subjects resampling)}
+\item{within_subj}{Logical indicating whether to perform within-subjects bootstrap resampling.}
 
 \item{samples}{How many iterations should be performed in the bootstrap resampling procedure?}
 

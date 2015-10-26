@@ -10,8 +10,8 @@ make_boot_splines_data = function(data, predictor_column, aoi, within_subj, smoo
 #'
 #' @param data The output of \code{time_sequence_data()}
 #' @param predictor_column What predictor var to split by? Maximum two conditions
-#' @param aoi Which AOI do you wish to perform the analysis on?
 #' @param within_subj Are the two conditions within or between subjects?
+#' @param aoi Which AOI do you wish to perform the analysis on?
 #' @param smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing
 #' @param samples How many iterations to run bootstrap resampling? Default 1000
 #' @param resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100
@@ -21,8 +21,8 @@ make_boot_splines_data = function(data, predictor_column, aoi, within_subj, smoo
 #' @return A bootstrapped distribution of samples for each time-bin
 make_boot_splines_data.time_sequence_data <- function (data,
                                                        predictor_column,
+                                                       within_subj,
                                                        aoi = NULL,
-                                                       within_subj = FALSE,
                                                        smoother = "smooth.spline",
                                                        samples = 1000,
                                                        resolution = NULL,

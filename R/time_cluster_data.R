@@ -11,8 +11,7 @@ analyze_time_clusters <-function(data, ...) {
 #' @describeIn analyze_time_clusters
 #'
 #' @param data          The output of the \code{make_time_cluster_data} function
-#' @param within_subj   Logical indicating whether to perform within-subjects bootstrap resampling. (Defaults
-#'   to FALSE: between-subjects resampling)
+#' @param within_subj   Logical indicating whether to perform within-subjects bootstrap resampling.
 #' @param samples       How many iterations should be performed in the bootstrap resampling procedure?
 #' @param formula       Formula for test. Should be identical to that passed to make_time_cluster_data fxn (if
 #'   arg ignored there, can be ignored here)
@@ -29,7 +28,7 @@ analyze_time_clusters <-function(data, ...) {
 #' @return A cluster-analysis object, which can be plotted and summarized to examine which temporal periods
 #'   show a significant effect of the predictor variable
 analyze_time_clusters.time_cluster_data <-function(data,
-                                                   within_subj = FALSE,
+                                                   within_subj,
                                                    samples = 1000,
                                                    formula = NULL,
                                                    shuffle_by = NULL,
@@ -58,12 +57,16 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
   # Arg check:
   if (is.null(formula)) {
+    message("Using formula that was used in 'make_time_cluster_data'.")
     formula <-attrs$formula
   } else {
     if (attrs$formula != formula) stop("Formula given in 'make_time_cluster_data' does not match formula given here.")
   }
   if (attrs$test %in% c("t.test", "wilcox.test")) {
     paired = list(...)[['paired']]
+    if (!is.null(paired)) {
+      if (paired=="T") paired = TRUE # I can't even right now.
+    }
     if (within_subj==TRUE) {
       # if within_subj is true, we need to confirm they overrode default
       if (!identical(paired, TRUE)) stop("For ", attrs$test, ", if 'within_subj' is TRUE, then 'paired' should also be TRUE.")
