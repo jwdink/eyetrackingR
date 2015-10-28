@@ -195,6 +195,7 @@ add_aoi <- function(data, aoi_dataframe,
   df_joined <- left_join(data, aoi_dataframe)
   
   ## Make AOI column
+  message("Making ", aoi_name, " AOI...")
   data[[aoi_name]] <- .inside_rect(pt    = cbind(df_joined[[x_col]], df_joined[[y_col]]),
                                    ltrb  = cbind(df_joined[[x_min_col]], df_joined[[y_min_col]], df_joined[[x_max_col]], df_joined[[y_max_col]])
   )
