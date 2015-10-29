@@ -1,16 +1,19 @@
 Package: eyetrackingR
-Title: An R Library for Eye-Tracking Data Analysis
+Type: Package
 Version: 0.1.0
+Title: Eye-Tracking Data Analysis
 Authors@R: c(
 	person("Jacob", "Dink", email = "jacobwdink@gmail.com", role = c("aut", "cre")),
 	person("Brock", "Ferguson", email = "brock.ferguson@gmail.com", role = c("aut"))
 	)
-Description: This package addresses tasks along the pipeline from raw data to
-    analysis and visualization for eye-tracking data. It offers several popular
+Description: A set of tools that address tasks along the pipeline from raw data to
+    analysis and visualization for eye-tracking data. Offers several popular
     types of analyses, including linear and growth curve time analyses,
     onset-contingent reaction time analyses, as well as several non-parametric 
     bootstrapping approaches.
-Date: 2015
+URL: http://eyetracking-r.com
+BugReports: https://github.com/jwdink/eyetrackingR/issues
+Date: 2015-10-28 15:15:02
 Depends: R (>= 3.2.1)
 License: MIT + file LICENSE
 LazyData: true

@@ -1,3 +1,9 @@
+---
+output:
+  md_document:
+    variant: markdown_github
+---
+
 eyetrackingR
 =====================================
 
@@ -15,19 +21,19 @@ www.eyetracking-r.com
 
 ## Installation
 
-We are in the process of preparing eyetrackingR for CRAN. Until then:
-
-Make sure you have the `devtools` package installed:
-
+To install:
 ```
-install.packages("devtools")
+install.packages("eyetrackingR")
 ```
 
-Then to install and load eyetrackingR, simply run:
+To load: 
+```
+library("eyetrackingR")
+```
 
+For the development version:
 ```
 devtools::install_github("jwdink/eyetrackingR")
-library("eyetrackingR")
 ```
 
 ---

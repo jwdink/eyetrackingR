@@ -24,7 +24,7 @@ This is in contrast to the more parsed data that the software bundled with eye-t
 
 This also **maximizes compatibility:** eyetrackingR will work with any eye-tracker's data (e.g., Eyelink, Tobii, etc.), since it requires the most basic format.
 
-**Note:** eyetrackingR does not handle reading your data into R. Most software bundled with your eyetracker should be capable of exporting your data to a delimited format (.csv, tab-delimited .txt), etc. From there, you can use base functions like `read.delim`, or (recommended) check out the package <a href="https://cran.r-project.org/web/packages/readr/index.html">readr</a>.
+**Note:** eyetrackingR does not handle reading your data into R. Most software bundled with your eyetracker should be capable of exporting your data to a delimited format (.csv, tab-delimited .txt), etc. From there, you can use base functions like `read.delim`, or (recommended) check out the package <a href="https://cran.r-project.org/package=readr">readr</a>.
 
 ***
 
