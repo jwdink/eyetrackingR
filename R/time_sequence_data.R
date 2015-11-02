@@ -36,6 +36,20 @@
 #'   column name(s) here. If left blank, will leave trials distinct. The former is needed for more traditional
 #'   analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)
 #'
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' response_time <- make_time_sequence_data(data, time_bin_size = 250, 
+#'                                          predictor_columns = c("MCDI_Total"),
+#'                                          aois = "Animate", summarize_by = "ParticipantName")
+#'
 #' @export
 #' @return Data binned into time-bins, with proportion-looking and transformations as well as orthogonal
 #'   time-polynomials for growth curve analysis
@@ -150,6 +164,24 @@ analyze_time_bins = function(data, ...) {
 #' @param quiet             Should messages and progress bars be suppressed? Default is to show
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g.,
 #'   paired, var.equal, etc.)
+#'   
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' response_time <- make_time_sequence_data(data, time_bin_size = 250, 
+#'                                          predictor_columns = c("MCDI_Total"),
+#'                                          aois = "Animate", summarize_by = "ParticipantName")
+#' tb_analysis <- analyze_time_bins(response_time, predictor_column = "MCDI_Total", 
+#'                                  test = "lm", threshold = 2)
+#' summary(tb_analysis)
+#'   
 #' @export
 #' @return A dataframe indicating the results of the test at each time-bin.
 analyze_time_bins.time_sequence_data <- function(data,
@@ -459,6 +491,25 @@ summary.bin_analysis <- function(object, ...) {
 #'   was used on the \code{time_sequence_data}. If model is given, this function will overlay the
 #'   predictions of that model on the data
 #' @param ... Ignored
+#' 
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' response_time <- make_time_sequence_data(data, time_bin_size = 250, 
+#'                                          predictor_columns = c("MCDI_Total"),
+#'                                          aois = "Animate", summarize_by = "ParticipantName")
+#' 
+#' # visualize time results
+#' plot(response_time, predictor_column = "MCDI_Total") 
+#' 
+#' 
 #' @export
 #' @return A ggplot object
 plot.time_sequence_data <- function(x, predictor_column = NULL, dv='Prop', model = NULL,...) {

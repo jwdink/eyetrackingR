@@ -30,8 +30,27 @@
 #' @param summarize_by  Should the data be summarized along, e.g., participants, items, etc.? If so, give
 #'   column names here. If left blank, will leave trials distinct. The former is needed for more traditional
 #'   analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)
+#'   
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' 
+#' response_window_agg_by_sub <- make_time_window_data(data, 
+#'                                                     aois='Animate',
+#'                                                     predictor_columns=c('Age','MCDI_Total'),
+#'                                                     summarize_by = "ParticipantName")
+#'                                                     
+#' plot(response_window_agg_by_sub, predictor_columns="Age", dv = "LogitAdjusted")   
+#'
 #' @export
-#' @return Data with proportion-looking and transformations (empirical logit, arc-sin)
+#' @return Data with proportion-looking and transformations (logit, arc-sin, etc.)
 
 make_time_window_data <- function(data,
                          aois = NULL,
@@ -102,6 +121,22 @@ make_time_window_data <- function(data,
 #'   ("Elog"), or "ArcSin"?
 #' @param ... Ignored
 #' @export
+#' 
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE)
+#' response_window_agg_by_sub <- make_time_window_data(data, 
+#'                                                     aois='Animate',
+#'                                                     predictor_columns=c('Age','MCDI_Total'))
+#'                                                     
+#' plot(response_window_agg_by_sub, predictor_columns="Age", dv = "LogitAdjusted") 
+#' 
 #' @return A ggplot object
 
 plot.time_window_data <- function(x, predictor_columns = NULL, dv = "Prop", ...) {

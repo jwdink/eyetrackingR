@@ -15,7 +15,7 @@ analyze_time_bins(data, ...)
 \item{data}{The output of the 'make_time_sequence_data' function}
 
 \item{...}{Any other arguments to be passed to the selected 'test' function (e.g.,
-paired, var.equal, etc.)}
+  paired, var.equal, etc.)}
 
 \item{predictor_column}{The variable whose test statistic you are interested in. If you are not
 interested in a predictor, but the intercept, you can enter "intercept" for this argument.
@@ -47,4 +47,21 @@ Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test
 \itemize{
 \item \code{time_sequence_data}: 
 }}
+\examples{
+data(word_recognition)
+data <- make_eyetrackingr_data(word_recognition,
+                               participant_column = "ParticipantName",
+                               trial_column = "Trial",
+                               time_column = "TimeFromTrialOnset",
+                               trackloss_column = "TrackLoss",
+                               aoi_columns = c('Animate','Inanimate'),
+                               treat_non_aoi_looks_as_missing = TRUE
+)
+response_time <- make_time_sequence_data(data, time_bin_size = 250,
+                                         predictor_columns = c("MCDI_Total"),
+                                         aois = "Animate", summarize_by = "ParticipantName")
+tb_analysis <- analyze_time_bins(response_time, predictor_column = "MCDI_Total",
+                                 test = "lm", threshold = 2)
+summary(tb_analysis)
+}
 

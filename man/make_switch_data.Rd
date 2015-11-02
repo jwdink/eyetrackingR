@@ -15,12 +15,14 @@ make_switch_data(data, predictor_columns, summarize_by)
 
 \item{predictor_columns}{Variables/covariates of interest when analyzing time-to-switch}
 
-\item{summarize_by}{Should the data be summarized along, e.g., participants, items, etc.? If so, give
-column name(s) here. If left blank, will leave trials distinct. The former is needed for more traditional
-analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)}
+\item{summarize_by}{Should the data be summarized along, e.g., participants, items, etc.?
+If so, give column name(s) here. If left blank, will leave trials distinct. The former is
+needed for more traditional analyses (t.tests, ANOVAs), while the latter is preferable for
+mixed-effects models (lmer)}
 }
 \value{
-A dataframe indicating initial AOI and time-to-switch from that AOI for each trial/subject/item/etc.
+A dataframe indicating initial AOI and time-to-switch from that AOI for each
+  trial/subject/item/etc.
 }
 \description{
 Take trials split by initial-AOI, and determine how quickly participants switch away from that AOI
@@ -29,4 +31,24 @@ Take trials split by initial-AOI, and determine how quickly participants switch 
 \itemize{
 \item \code{onset_data}: 
 }}
+\examples{
+data(word_recognition)
+data <- make_eyetrackingr_data(word_recognition,
+                               participant_column = "ParticipantName",
+                               trial_column = "Trial",
+                               time_column = "TimeFromTrialOnset",
+                               trackloss_column = "TrackLoss",
+                               aoi_columns = c('Animate','Inanimate'),
+                               treat_non_aoi_looks_as_missing = TRUE
+)
+response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000,
+                                    rezero = FALSE)
+inanimate_trials <- subset(response_window, grepl('(Spoon|Bottle)', Trial))
+onsets <- make_onset_data(inanimate_trials, onset_time = 15500,
+                          fixation_window_length = 100, target_aoi='Inanimate')
+
+df_switch <- make_switch_data(onsets, predictor_columns = "MCDI_Total",
+             summarize_by = "ParticipantName")
+plot(df_switch, "MCDI_Total")
+}
 

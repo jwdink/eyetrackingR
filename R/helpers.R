@@ -1,6 +1,6 @@
 #' .label_consecutive()
 #'
-#' A helper function to label/enumerate runs of TRUEs in a logical vector, with NA for falses.
+#' A helper function to label/enumerate runs of TRUEs in a logical vector, with NA for FALSEs
 #'
 #' @param vec Logical
 #' @return A numeric vector

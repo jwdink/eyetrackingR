@@ -24,4 +24,28 @@ used to shape the dataset (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.00
 \itemize{
 \item \code{boot_splines_data}: 
 }}
+\examples{
+data(word_recognition)
+data <- make_eyetrackingr_data(word_recognition,
+                               participant_column = "ParticipantName",
+                               trial_column = "Trial",
+                               time_column = "TimeFromTrialOnset",
+                               trackloss_column = "TrackLoss",
+                               aoi_columns = c('Animate','Inanimate'),
+                               treat_non_aoi_looks_as_missing = TRUE )
+response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000,
+                                    rezero = FALSE)
+response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate",
+                                         predictor_columns = "Sex",
+                                         summarize_by = "ParticipantName")
+df_bootstrapped <- make_boot_splines_data(response_time,
+                                          predictor_column = 'Sex',
+                                          within_subj = FALSE,
+                                          samples = 500,
+                                          alpha = .05,
+                                          smoother = "smooth.spline")
+
+boot_splines_analysis <- analyze_boot_splines(df_bootstrapped)
+summary(boot_splines_analysis)
+}
 

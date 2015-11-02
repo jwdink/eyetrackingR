@@ -59,6 +59,18 @@
 #'   time looking to all other AOIs." In contrast, if this parameter is set to FALSE, proportion 
 #'   looking to an AOI will be calculated as "time looking to that AOI divided by total time 
 #'   looking."
+#'   
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#'   
 #' @export
 #' @return Dataframe ready for use in eyetrackingR.
 
@@ -258,7 +270,7 @@ add_aoi <- function(data, aoi_dataframe,
 #'                                aoi_columns = c('Animate','Inanimate'),
 #'                                treat_non_aoi_looks_as_missing = TRUE
 #' )
-#' response_window <- subset_by_window(response_window, window_start_time = 15500, 
+#' response_window <- subset_by_window(data, window_start_time = 15500, 
 #'                                    window_end_time = 21000, rezero= FALSE, remove= TRUE)
 #' 
 #' @export
@@ -412,6 +424,20 @@ subset_by_window <- function(data,
 #' Get information on trackloss in your data.
 #'
 #' @param data The output of \code{make_eyetrackingr_data}
+#' 
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' 
+#' tl_analysis <- trackloss_analysis(data)
+#' 
 #' @export
 #' @return A dataframe describing trackloss by-trial and by-participant
 
@@ -462,12 +488,26 @@ trackloss_analysis <- function(data) {
 #' @param data Data already run through \code{make_eyetrackingr_data}
 #' @param participant_prop_thresh            Maximum proportion of trackloss for participants
 #' @param trial_prop_thresh                  Maximum proportion of trackloss for trials
-#' @param window_start_time,window_end_time  Time-window within-which you want trackloss analysis to
+#' @param window_start_time,window_end_time  Time-window within which you want trackloss analysis to
 #'   be based. Allows you to keep the entire trial window for data, but clean based on the trackloss
 #'   within a subset of it
+#'   
+#' @examples
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' 
+#' data_clean <- clean_by_trackloss(data, participant_prop_thresh = .25, trial_prop_thresh = .25, 
+#'                                  window_start_time = 15500, window_end_time = 21000)
+#'   
 #' @export
 #' @return Cleaned data
-
 clean_by_trackloss <- function(data,
                               participant_prop_thresh = 1,
                               trial_prop_thresh = 1,
@@ -530,10 +570,23 @@ clean_by_trackloss <- function(data,
 #' @param describe_column The column to return descriptive statistics about.
 #' @param group_columns Any columns to group by when calculating descriptive statistics (e.g., participants,
 #'  conditions, etc.)
+#'  
+#'
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' describe_data(data, describe_column = "Animate", group_columns = "ParticipantName")
+#'  
 #' @export
 #' @return A dataframe giving descriptive statistics for the \code{describe_column}, including mean, SD, var,
 #' min, max, and number of trials
-
 describe_data <- function(data, describe_column, group_columns) {
 
   # Data options:
@@ -571,7 +624,7 @@ describe_data <- function(data, describe_column, group_columns) {
 #' 
 #' Plots the data returned from \code{describe_data}. Like that function, this is a convenient 
 #' wrapper good for sanity checks.
-#' #' 
+#' 
 #' @param x The data returned by \code{make_time_window_data()}
 #' @param ... Ignored
 #' @export

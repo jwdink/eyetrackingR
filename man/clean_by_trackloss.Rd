@@ -14,14 +14,28 @@ clean_by_trackloss(data, participant_prop_thresh = 1, trial_prop_thresh = 1,
 
 \item{trial_prop_thresh}{Maximum proportion of trackloss for trials}
 
-\item{window_start_time,window_end_time}{Time-window within-which you want trackloss analysis to
-be based. Allows you to keep the entire trial window for data, but clean based on the trackloss
-within a subset of it}
+\item{window_start_time,window_end_time}{Time-window within which you want trackloss analysis to
+  be based. Allows you to keep the entire trial window for data, but clean based on the trackloss
+  within a subset of it}
 }
 \value{
 Cleaned data
 }
 \description{
 Remove trials/participants with too much trackloss, with a customizable threshold.
+}
+\examples{
+data(word_recognition)
+data <- make_eyetrackingr_data(word_recognition,
+                               participant_column = "ParticipantName",
+                               trial_column = "Trial",
+                               time_column = "TimeFromTrialOnset",
+                               trackloss_column = "TrackLoss",
+                               aoi_columns = c('Animate','Inanimate'),
+                               treat_non_aoi_looks_as_missing = TRUE
+)
+
+data_clean <- clean_by_trackloss(data, participant_prop_thresh = .25, trial_prop_thresh = .25,
+                                 window_start_time = 15500, window_end_time = 21000)
 }
 

@@ -17,6 +17,30 @@ make_boot_splines_data = function(data, predictor_column, within_subj, aoi,smoot
 #' @param resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100
 #'   intervals per second, or hundredths of a second. Default is the same size as time-bins.
 #' @param alpha p-value when the groups are sufficiently "diverged"
+#' 
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE )
+#' response_window <- subset_by_window(data, window_start_time = 15500, 
+#'                                     window_end_time = 21000, rezero = FALSE)
+#' response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
+#'                                          predictor_columns = "Sex", 
+#'                                          summarize_by = "ParticipantName")
+#'                                          
+#' df_bootstrapped <- make_boot_splines_data(response_time, 
+#'                                           predictor_column = 'Sex', 
+#'                                           within_subj = FALSE, 
+#'                                           samples = 500, 
+#'                                           alpha = .05,
+#'                                           smoother = "smooth.spline") 
+#' 
+#' 
 #' @export
 #' @return A bootstrapped distribution of samples for each time-bin
 make_boot_splines_data.time_sequence_data <- function (data,
@@ -199,6 +223,31 @@ analyze_boot_splines <- function(data) {
 #' @describeIn analyze_boot_splines
 #'
 #' @param  data The output of the \code{boot_splines_data} function
+#' 
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE )
+#' response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000, 
+#'                                     rezero = FALSE)
+#' response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
+#'                                          predictor_columns = "Sex", 
+#'                                          summarize_by = "ParticipantName")
+#' df_bootstrapped <- make_boot_splines_data(response_time, 
+#'                                           predictor_column = 'Sex', 
+#'                                           within_subj = FALSE, 
+#'                                           samples = 500, 
+#'                                           alpha = .05,
+#'                                           smoother = "smooth.spline") 
+#'                                           
+#' boot_splines_analysis <- analyze_boot_splines(df_bootstrapped)
+#' summary(boot_splines_analysis)
+#' 
 #' @export
 #' @return A dataframe indicating means and CIs for each time-bin
 analyze_boot_splines.boot_splines_data <- function(data) {

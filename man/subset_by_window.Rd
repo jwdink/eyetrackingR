@@ -77,7 +77,7 @@ data <- make_eyetrackingr_data(word_recognition,
                                aoi_columns = c('Animate','Inanimate'),
                                treat_non_aoi_looks_as_missing = TRUE
 )
-response_window <- subset_by_window(response_window, window_start_time = 15500,
+response_window <- subset_by_window(data, window_start_time = 15500,
                                    window_end_time = 21000, rezero= FALSE, remove= TRUE)
 }
 

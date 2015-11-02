@@ -10,9 +10,25 @@
 #'   average. This is the width of window for rolling average.
 #' @param target_aoi      Which AOI is the target that should be switched *to*
 #' @param distractor_aoi  Which AOI is the distractor that should be switched *from* (default = !target_aoi)
+#'
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000, 
+#'                                     rezero = FALSE)
+#' inanimate_trials <- subset(response_window, grepl('(Spoon|Bottle)', Trial))
+#' onsets <- make_onset_data(inanimate_trials, onset_time = 15500, 
+#'                           fixation_window_length = 100, target_aoi='Inanimate')
+#' 
 #' @export
 #' @return Original dataframe augmented with column indicating switch away from target AOI
-
 make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi, distractor_aoi = NULL) {
   ## Helper Function:
   na_replace_rollmean <- function(col) {
@@ -97,14 +113,37 @@ make_switch_data <- function(data, predictor_columns, summarize_by) {
   UseMethod("make_switch_data")
 }
 #' @describeIn make_switch_data
-#'
+#'   
 #' @param data               The output of \code{make_onset_data}
 #' @param predictor_columns  Variables/covariates of interest when analyzing time-to-switch
-#' @param summarize_by       Should the data be summarized along, e.g., participants, items, etc.? If so, give
-#'   column name(s) here. If left blank, will leave trials distinct. The former is needed for more traditional
-#'   analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)
+#' @param summarize_by       Should the data be summarized along, e.g., participants, items, etc.? 
+#'   If so, give column name(s) here. If left blank, will leave trials distinct. The former is 
+#'   needed for more traditional analyses (t.tests, ANOVAs), while the latter is preferable for 
+#'   mixed-effects models (lmer)
 #' @export
-#' @return A dataframe indicating initial AOI and time-to-switch from that AOI for each trial/subject/item/etc.
+#' 
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000, 
+#'                                     rezero = FALSE)
+#' inanimate_trials <- subset(response_window, grepl('(Spoon|Bottle)', Trial))
+#' onsets <- make_onset_data(inanimate_trials, onset_time = 15500, 
+#'                           fixation_window_length = 100, target_aoi='Inanimate')
+#'                           
+#' df_switch <- make_switch_data(onsets, predictor_columns = "MCDI_Total", 
+#'              summarize_by = "ParticipantName")
+#' plot(df_switch, "MCDI_Total")
+#'                           
+#' @return A dataframe indicating initial AOI and time-to-switch from that AOI for each
+#'   trial/subject/item/etc.
 make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_by = NULL) {
 
   data_options = attr(data, "eyetrackingR")$data_options

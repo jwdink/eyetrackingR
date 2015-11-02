@@ -22,13 +22,13 @@ make_eyetrackingr_data(data, participant_column, trackloss_column, time_column,
 \item{aoi_columns}{Names of AOIs}
 
 \item{treat_non_aoi_looks_as_missing}{This is a logical indicating how you would like to perform
-"proportion-looking" calculations, which are critical to any eyetracking analysis. If set to
-TRUE, any samples that are not in any of the AOIs (defined with the \code{aoi_columns}
-argument) are treated as missing data; when it comes time for eyetrackingR to calculate
-proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by
-time looking to all other AOIs." In contrast, if this parameter is set to FALSE, proportion
-looking to an AOI will be calculated as "time looking to that AOI divided by total time
-looking."}
+  "proportion-looking" calculations, which are critical to any eyetracking analysis. If set to
+  TRUE, any samples that are not in any of the AOIs (defined with the \code{aoi_columns}
+  argument) are treated as missing data; when it comes time for eyetrackingR to calculate
+  proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by
+  time looking to all other AOIs." In contrast, if this parameter is set to FALSE, proportion
+  looking to an AOI will be calculated as "time looking to that AOI divided by total time
+  looking."}
 
 \item{item_columns}{Column names indicating items (optional)}
 }
@@ -52,5 +52,16 @@ with eye-trackers can sometimes output (e.g., already parsed into saccades or fi
 eyetrackingR, the simplest data is the best. This also maximizes compatibility: eyetrackingR
 will work with any eye-tracker's data (e.g., Eyelink, Tobii, etc.), since it requires the most
 basic format.
+}
+\examples{
+data(word_recognition)
+data <- make_eyetrackingr_data(word_recognition,
+                               participant_column = "ParticipantName",
+                               trial_column = "Trial",
+                               time_column = "TimeFromTrialOnset",
+                               trackloss_column = "TrackLoss",
+                               aoi_columns = c('Animate','Inanimate'),
+                               treat_non_aoi_looks_as_missing = TRUE
+)
 }
 

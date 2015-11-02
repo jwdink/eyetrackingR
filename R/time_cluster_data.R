@@ -24,6 +24,34 @@ analyze_time_clusters <-function(data, ...) {
 #'   but it's only needed if you've specified a numeric *and* within-subjects predictor column.
 #' @param ...            Other args for to selected 'test' function; should be identical to those passed to
 #'   \code{make_time_cluster_data} function
+#'   
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE )
+#' response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000, 
+#'                                     rezero = FALSE)
+#' response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
+#'                                          predictor_columns = "Sex")
+#' 
+#' time_cluster_data <- make_time_cluster_data(data = response_time, predictor_column = "Sex", 
+#'                          aoi = "Animate", test = "lmer", 
+#'                          threshold = 1.5, 
+#'                          formula = LogitAdjusted ~ Sex + (1|Trial) + (1|ParticipantName))
+#' summary(time_cluster_data)
+#' plot(time_cluster_data)
+#' 
+#' tc_analysis <- analyze_time_clusters(time_cluster_data, within_subj = FALSE, 
+#'                                      samples = 20) #<--- more should be used in practice
+#' plot(tc_analysis)
+#' summary(tc_analysis)
+#'
+#'   
 #' @export
 #' @return A cluster-analysis object, which can be plotted and summarized to examine which temporal periods
 #'   show a significant effect of the predictor variable
@@ -57,7 +85,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
   # Arg check:
   if (is.null(formula)) {
-    message("Using formula that was used in 'make_time_cluster_data'.")
+    message("Using formula that was supplied in 'make_time_cluster_data'.")
     formula <-attrs$formula
   } else {
     if (attrs$formula != formula) stop("Formula given in 'make_time_cluster_data' does not match formula given here.")
@@ -266,6 +294,25 @@ make_time_cluster_data <-function(data, ...) {
 #'   uses \code{Prop ~ [predictor_column]}
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
 #'   var.equal, etc.)
+#'   
+#' @examples 
+#' data(word_recognition)
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE )
+#' response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000, 
+#'                                     rezero = FALSE)
+#' response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
+#'                                          predictor_columns = "Sex")
+#' 
+#' time_cluster_data <- make_time_cluster_data(data = response_time, predictor_column = "Sex", 
+#'                                 aoi = "Animate", test = "lmer", threshold = 1.5, 
+#'                                 formula = LogitAdjusted ~ Sex + (1|Trial) + (1|ParticipantName))
+#'   
 #' @export
 #' @return The original data, augmented with information about clusters. Calling summary on this data will
 #'   describe these clusters. The dataset is ready for the \code{\link{analyze_time_clusters}} method.
