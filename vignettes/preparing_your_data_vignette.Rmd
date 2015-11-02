@@ -110,13 +110,20 @@ animate_aoi <- read.csv("./interest_areas_for_animate_aoi.csv")
 # 5  FamiliarHorse  500 200   900    600
 # 6  FamiliarSpoon  350 300   750    700
 
-data = add_aoi(data = data, aoi_dataframe = animate_aoi, 
+data <- add_aoi(data = data, aoi_dataframe = animate_aoi, 
                x_col = "GazeX", y_col = "GazeY", 
                aoi_name = "Animate",
                xmin_col = "Left",xmax_col = "Top", ymin_col = "Right",ymax_col = "Bottom")
 ```
 
 This can be done for each AOI: just load in a csv file and run the `add_aoi` function for each.
+
+After using this function, you should probably check that the added AOI column actually indicates that the gaze was ever in the AOI. For example:
+
+```{r}
+table(data$Animate)
+table(is.na(data$Animate)) # if all TRUE, then something went wrong.
+```
 
 (Note that you should typically add your AOIs to your dataframe **before** running `make_eyetrackingr_data`, since that function will check your AOIs.)
 
@@ -134,19 +141,19 @@ In this example, let's imagine that our Timestamp doesn't actually specify the s
 Fortunately, our eye-tracker sends a message when each trial starts (this is not always the same as the very first sample for the trial-- recording often starts a few hundred milliseconds before the trial does). This message can be used to set the zero-point for each trial.
 
 ```{r}
-data = subset_by_window(data, window_start_msg = "TrialStart", msg_col = "Message", rezero= TRUE)
+data <- subset_by_window(data, window_start_msg = "TrialStart", msg_col = "Message", rezero= TRUE)
 ```
 
 Unfortunately, the eye-tracker didn't send a message for when the response-window starts. Instead, it added a column that tells you how long after the start of the trial the response-window started. Now that we have rezero'd our data so that 0 = trial-start, this column specifying the time after trial start can be used easily.
 
 ```{r}
-response_window = subset_by_window(data, window_start_col = "ResponseWindowStart", rezero= FALSE, remove= TRUE)
+response_window <- subset_by_window(data, window_start_col = "ResponseWindowStart", rezero= FALSE, remove= TRUE)
 ```
 
 Finally, our trials always ended after 21 seconds. So we'll simply remove data from after this.
 
 ```{r}
-response_window = subset_by_window(response_window, window_end_time = 21000, rezero= FALSE, remove= TRUE)
+response_window <- subset_by_window(response_window, window_end_time = 21000, rezero= FALSE, remove= TRUE)
 ```
 
 In summary, we have subset the data to focus on our time window of interest (a "response window" beginning 500ms pre-word-onset, 15500ms after the start of the trial, and ending at the end of the trial 5500ms later)

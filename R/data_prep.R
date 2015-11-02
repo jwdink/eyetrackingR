@@ -247,6 +247,20 @@ add_aoi <- function(data, aoi_dataframe,
 #' @param window_start_time  For method (3). Number indicating a start time that applies to all trials.
 #' @param window_end_time    For method (3). Number indicating an end time that applies to all trials.
 #' @param quiet              Suppress messages? Default FALSE
+#' 
+#' @examples
+#' data("word_recognition")
+#' data <- make_eyetrackingr_data(word_recognition, 
+#'                                participant_column = "ParticipantName",
+#'                                trial_column = "Trial",
+#'                                time_column = "TimeFromTrialOnset",
+#'                                trackloss_column = "TrackLoss",
+#'                                aoi_columns = c('Animate','Inanimate'),
+#'                                treat_non_aoi_looks_as_missing = TRUE
+#' )
+#' response_window <- subset_by_window(response_window, window_start_time = 15500, 
+#'                                    window_end_time = 21000, rezero= FALSE, remove= TRUE)
+#' 
 #' @export
 #' @return Subsetted data
 

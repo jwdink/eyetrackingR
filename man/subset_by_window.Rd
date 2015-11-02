@@ -67,4 +67,17 @@ portion of your data while keeping obvious the fact that there were other parts 
 image always appears 5000ms-7000ms in the trial, so for one analysis you are only interested in this
 portion).
 }
+\examples{
+data("word_recognition")
+data <- make_eyetrackingr_data(word_recognition,
+                               participant_column = "ParticipantName",
+                               trial_column = "Trial",
+                               time_column = "TimeFromTrialOnset",
+                               trackloss_column = "TrackLoss",
+                               aoi_columns = c('Animate','Inanimate'),
+                               treat_non_aoi_looks_as_missing = TRUE
+)
+response_window <- subset_by_window(response_window, window_start_time = 15500,
+                                   window_end_time = 21000, rezero= FALSE, remove= TRUE)
+}
 
