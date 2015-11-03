@@ -38,6 +38,9 @@ response_window <- subset_by_window(data, window_start_time = 15500, window_end_
 response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate",
                                          predictor_columns = "Sex",
                                          summarize_by = "ParticipantName")
+
+# bootstrap resample 500 smoothed splines from the dataset,
+# comparing females versus females at an alpha of .05                                         
 df_bootstrapped <- make_boot_splines_data(response_time,
                                           predictor_column = 'Sex',
                                           within_subj = FALSE,
@@ -45,6 +48,7 @@ df_bootstrapped <- make_boot_splines_data(response_time,
                                           alpha = .05,
                                           smoother = "smooth.spline")
 
+# analyze the divergences that occurred
 boot_splines_analysis <- analyze_boot_splines(df_bootstrapped)
 summary(boot_splines_analysis)
 }

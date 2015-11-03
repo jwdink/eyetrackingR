@@ -58,7 +58,6 @@ response_window <- subset_by_window(data, window_start_time = 15500, window_end_
                                     rezero = FALSE)
 response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate",
                                          predictor_columns = "Sex")
-
 time_cluster_data <- make_time_cluster_data(data = response_time, predictor_column = "Sex",
                          aoi = "Animate", test = "lmer",
                          threshold = 1.5,
@@ -66,8 +65,10 @@ time_cluster_data <- make_time_cluster_data(data = response_time, predictor_colu
 summary(time_cluster_data)
 plot(time_cluster_data)
 
+# analyze time clusters in a non-parametric analysis
+# note: use more than 20 samples in a real analysis (ideally 1000+)
 tc_analysis <- analyze_time_clusters(time_cluster_data, within_subj = FALSE,
-                                     samples = 20) #<--- more should be used in practice
+                                     samples = 20)
 plot(tc_analysis)
 summary(tc_analysis)
 }

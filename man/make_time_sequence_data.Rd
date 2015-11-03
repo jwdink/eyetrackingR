@@ -64,8 +64,32 @@ data <- make_eyetrackingr_data(word_recognition,
                                aoi_columns = c('Animate','Inanimate'),
                                treat_non_aoi_looks_as_missing = TRUE
 )
-response_time <- make_time_sequence_data(data, time_bin_size = 250,
-                                         predictor_columns = c("MCDI_Total"),
-                                         aois = "Animate", summarize_by = "ParticipantName")
+
+# bin data in 250ms bins, and generate a dataframe
+# with a single AOI (Animate) predicted by Target, and summarized by ParticipantName
+response_time <- make_time_sequence_data(data,
+									     time_bin_size = 250,
+									     predictor_columns = c("Target"),
+                                         aois = "Animate",
+                                         summarize_by = "ParticipantName"
+)
+                                         
+# optionally specify other columns in the data
+# to be included in the generated dataframe
+# (e.g., for use in statistical models)
+# bin data in 250ms bins, and generate a dataframe
+# with Animate and MCDI_Total summarized by ParticipantName
+response_time <- make_time_sequence_data(data,
+									     time_bin_size = 250,
+                                         predictor_columns = c("Target","MCDI_Total"),
+                                         aois = "Animate", 
+                                         summarize_by = "ParticipantName"
+)
+
+# plot the time series
+plot(response_time, predictor_column = "Target") + 
+  theme_light() +
+  coord_cartesian(ylim = c(0,1)
+)
 }
 
