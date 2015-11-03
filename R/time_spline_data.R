@@ -238,13 +238,17 @@ analyze_boot_splines <- function(data) {
 #' response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
 #'                                          predictor_columns = "Sex", 
 #'                                          summarize_by = "ParticipantName")
-#' df_bootstrapped <- make_boot_splines_data(response_time, 
-#'                                           predictor_column = 'Sex', 
-#'                                           within_subj = FALSE, 
-#'                                           samples = 500, 
+#'                                          
+#' # bootstrap resample 500 smoothed splines from the dataset,
+#' # comparing females versus females at an alpha of .05                                         
+#' df_bootstrapped <- make_boot_splines_data(response_time,
+#'                                           predictor_column = 'Sex',
+#'                                           within_subj = FALSE,
+#'                                           samples = 500,
 #'                                           alpha = .05,
-#'                                           smoother = "smooth.spline") 
-#'                                           
+#'                                           smoother = "smooth.spline")
+#' 
+#' # analyze the divergences that occurred
 #' boot_splines_analysis <- analyze_boot_splines(df_bootstrapped)
 #' summary(boot_splines_analysis)
 #' 

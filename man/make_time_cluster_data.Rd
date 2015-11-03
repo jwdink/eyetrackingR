@@ -64,7 +64,7 @@ response_time <- make_time_sequence_data(response_window,
                                          predictor_columns = "Sex"
 )
 
-# perform a cluster analysis on the sequence data a t-test with
+# identify clusters in the sequence data using a t-test with
 # threshold t-value of 2
 time_cluster_data <- make_time_cluster_data(data = response_time,
 										    predictor_column = "Target",
@@ -72,7 +72,7 @@ time_cluster_data <- make_time_cluster_data(data = response_time,
 											threshold = 2
 )
 
-# perform a cluster analysis on an lmer() random-effects
+# identify clusters in the sequence data using an lmer() random-effects
 # model with a threshold t-value of 1.5.
 # lmer() models require a formula be specified
 time_cluster_data <- make_time_cluster_data(data = response_time,

@@ -86,7 +86,7 @@ response_time <- make_time_sequence_data(data,
                                          summarize_by = "ParticipantName"
 )
 
-# plot the time series
+# plot a time series
 plot(response_time, predictor_column = "Target") + 
   theme_light() +
   coord_cartesian(ylim = c(0,1)
