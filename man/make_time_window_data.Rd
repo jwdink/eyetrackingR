@@ -72,7 +72,7 @@ response_window_agg_by_sub <- make_time_window_data(data,
                                                     summarize_by = "ParticipantName"
 )
 
-# plot the aggregated data
+# plot the aggregated data for sanity check
 plot(response_window_agg_by_sub, predictor_columns="Age", dv = "LogitAdjusted")
 }
 

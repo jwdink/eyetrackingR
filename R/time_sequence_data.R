@@ -48,10 +48,10 @@
 #' )
 #' 
 #' # bin data in 250ms bins, and generate a dataframe
-#' # with a single AOI (Animate) predicted by Target, and summarized by ParticipantName
+#' # with a single AOI (Animate) predicted by Sex, and summarized by ParticipantName
 #' response_time <- make_time_sequence_data(data,
 #'                                          time_bin_size = 250,
-#'                                          predictor_columns = c("Target"),
+#'                                          predictor_columns = c("Sex"),
 #'                                          aois = "Animate",
 #'                                          summarize_by = "ParticipantName"
 #' )
@@ -63,16 +63,10 @@
 #' # with Animate and MCDI_Total summarized by ParticipantName
 #' response_time <- make_time_sequence_data(data,
 #'                                          time_bin_size = 250,
-#'                                          predictor_columns = c("Target","MCDI_Total"),
+#'                                          predictor_columns = c("Sex","MCDI_Total"),
 #'                                          aois = "Animate", 
 #'                                          summarize_by = "ParticipantName"
 #' )
-#' 
-#' # plot a time sequence dataframe for sanity check
-#' plot(response_time, predictor_column = "Target") + 
-#'   theme_light() +
-#'   coord_cartesian(ylim = c(0,1)
-#'   )
 #'
 #' @export
 #' @return Data binned into time-bins, with proportion-looking and transformations as well as orthogonal

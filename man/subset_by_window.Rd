@@ -80,22 +80,20 @@ data <- make_eyetrackingr_data(word_recognition,
 
 # zoom in to 15500-21000ms
 response_window <- subset_by_window(data,
- 									window_start_time = 15500,
+                                    window_start_time = 15500,
                                     window_end_time = 21000, rezero = FALSE, remove = TRUE)
 
 # zoom in to 15500-21000ms and re-zero so timestamps start at 0
 response_window <- subset_by_window(data,
-									window_start_time = 15500, 
-									window_end_time = 21000, 
-									rezero = TRUE, 
-									remove = TRUE)
-                                   
+                                    window_start_time = 15500,
+                                    window_end_time = 21000,
+                                    rezero = TRUE,
+                                    remove = TRUE)
+
 # keep all data, but re-zero it
 response_window <- subset_by_window(data,
-									window_start_time = 0, 
-									rezero = TRUE, 
-									remove = FALSE)
-									                               
+                                    window_start_time = 0,
+                                    rezero = TRUE,
+                                    remove = FALSE)
 }
-
 

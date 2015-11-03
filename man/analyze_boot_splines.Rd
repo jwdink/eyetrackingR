@@ -40,7 +40,7 @@ response_time <- make_time_sequence_data(response_window, time_bin_size = 500, a
                                          summarize_by = "ParticipantName")
 
 # bootstrap resample 500 smoothed splines from the dataset,
-# comparing females versus females at an alpha of .05                                         
+# comparing females versus females at an alpha of .05
 df_bootstrapped <- make_boot_splines_data(response_time,
                                           predictor_column = 'Sex',
                                           within_subj = FALSE,

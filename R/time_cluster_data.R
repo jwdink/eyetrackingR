@@ -307,26 +307,36 @@ make_time_cluster_data <-function(data, ...) {
 #'                                treat_non_aoi_looks_as_missing = TRUE )
 #' response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000, 
 #'                                     rezero = FALSE)
-#' response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
-#'                                          predictor_columns = "Sex")
 #' 
 #' # identify clusters in the sequence data using a t-test with
 #' # threshold t-value of 2
+#' 
+#' # (note: t-tests require a summarized dataset)
+#' response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
+#'                                          predictor_columns = "Sex",
+#'                                          summarize_by = "ParticipantName")
+#'                                          
 #' time_cluster_data <- make_time_cluster_data(data = response_time,
-#'                                             predictor_column = "Target",
+#'                                             predictor_column = "Sex",
 #'                                             aoi = "Animate",
+#'                                             test = "t.test",
 #'                                             threshold = 2
 #' )
 #' 
 #' # identify clusters in the sequence data using an lmer() random-effects
 #' # model with a threshold t-value of 1.5.
-#' # lmer() models require a formula be specified
+#' 
+#' # random-effects models don't require us to summarize
+#' response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
+#'                                          predictor_columns = "Sex")
+#'    
+#' # but they do require a formula to be specified
 #' time_cluster_data <- make_time_cluster_data(data = response_time,
-#'                                             predictor_column = "Sex",
-#'                                             aoi = "Animate",
-#'                                             test = "lmer",
-#'                                             threshold = 1.5,
-#'                                             formula = LogitAdjusted ~ Sex + (1|Trial) + (1|ParticipantName)
+#'                            predictor_column = "Sex",
+#'                            aoi = "Animate",
+#'                            test = "lmer",
+#'                            threshold = 1.5,
+#'                            formula = LogitAdjusted ~ Sex + (1|Trial) + (1|ParticipantName)
 #' )
 #'   
 #' @export
