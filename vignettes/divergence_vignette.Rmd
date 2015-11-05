@@ -158,8 +158,8 @@ Finally, bootstrap p-values for each of these clusters by asking how likely we a
 
 ```{r, warning=FALSE}
 clust_analysis <- analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, 
-                                        samples=150) # in practice, you should use a lot more
-clust_analysis
+                                        samples=100) # in practice, you should use a lot more
+summary(clust_analysis)
 
 plot(clust_analysis)
 ```

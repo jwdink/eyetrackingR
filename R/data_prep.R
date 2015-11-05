@@ -92,20 +92,10 @@ make_eyetrackingr_data <- function(data,
                         aoi_columns = aoi_columns,
                         treat_non_aoi_looks_as_missing = treat_non_aoi_looks_as_missing)
   
-  ## Check AOIs
-  if (!all(data_options$aoi_columns %in% colnames(data))) {
-    if (treat_non_aoi_looks_as_missing) {
-      stop("Not all of the AOI columns specified here are in the data. ", 
-           "Use the 'add_aoi' function on your data before running this one.")
-    } else {
-      warning("Not all of the AOI columns specified here are in the data.")
-    }
-  }
-  
   ## Check for Reserved Column Name:
   if (data_options$time_column == "Time") {
     stop("We apologize for the inconvenience, but your `time_column` cannot be called 'Time' ",
-         "(this is a reserved name that eyetrackingR uses). Please change.")
+         "(this is a reserved name that eyetrackingR uses). Please rename.")
   } 
   if ("Time" %in% colnames(data)) {
     warning("Your dataset has a column called 'Time', but this column name is reserved for eyetrackingR. Will rename to 'TimeOriginal'...")

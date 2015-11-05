@@ -58,7 +58,7 @@ analyze_time_clusters <-function(data, ...) {
 #'   show a significant effect of the predictor variable
 analyze_time_clusters.time_cluster_data <-function(data,
                                                    within_subj,
-                                                   samples = 1000,
+                                                   samples = 2000,
                                                    formula = NULL,
                                                    shuffle_by = NULL,
                                                    ...) {
@@ -208,7 +208,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
   }
 
-  # Get p-values:
+  # Get p-values (one tailed based on sign of original threshold):
   out <-c(list(null_distribution = null_distribution), attr(data, "eyetrackingR"))
   probs <-sapply(out$clusters["SumStat",],
                  FUN= function(ss) ifelse(sign(out$threshold)==1,
@@ -237,12 +237,12 @@ summary.cluster_analysis <- function(object, ...) {
     "\nPredictor:\t", object$predictor_column,
     "\nFormula:\t", Reduce(paste, deparse(object$formula)),
     "\nNull Distribution =====",
-    "\n\tMean:\t", round(mean(object$null_distribution, na.rm=TRUE), digits = 5),
-    "\n\tSD:\t", round(sd(object$null_distribution, na.rm=TRUE), digits = 5),
+    "\n\tMean:\t\t", round(mean(object$null_distribution, na.rm=TRUE), digits = 4),
+    "\n\tSD:\t\t", round(sd(object$null_distribution, na.rm=TRUE), digits = 4),
     paste(
       "\nCluster", clusters["Cluster",], " =====",
       "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
-      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 5),
+      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 4),
       "\n\tProbability:\t", round(clusters["Prob",], digits = 5)
     )
   )
@@ -255,22 +255,23 @@ summary.cluster_analysis <- function(object, ...) {
 #' @export
 #' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
 print.cluster_analysis <- function(x, ...) {
-  clusters <- x$clusters
+  object <- x
+  clusters <- object$clusters
   cat(
-    "Test Type:\t", x$test,
-    "\nPredictor:\t", x$predictor_column,
-    "\nFormula:\t", Reduce(paste, deparse(x$formula)),
+    "Test Type:\t", object$test,
+    "\nPredictor:\t", object$predictor_column,
+    "\nFormula:\t", Reduce(paste, deparse(object$formula)),
     "\nNull Distribution =====",
-    "\n\tMean:\t", round(mean(x$null_distribution, na.rm=TRUE), digits = 5),
-    "\n\tSD:\t", round(sd(x$null_distribution, na.rm=TRUE), digits = 5),
+    "\n\tMean:\t\t", round(mean(object$null_distribution, na.rm=TRUE), digits = 4),
+    "\n\tSD:\t\t", round(sd(object$null_distribution, na.rm=TRUE), digits = 4),
     paste(
       "\nCluster", clusters["Cluster",], " =====",
       "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
-      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 5),
+      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 4),
       "\n\tProbability:\t", round(clusters["Prob",], digits = 5)
     )
   )
-  invisible(x)
+  invisible(object)
 }
 
 #' Make data for cluster analysis.

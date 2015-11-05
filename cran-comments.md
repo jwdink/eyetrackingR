@@ -1,5 +1,9 @@
 ## Resubmission
-This is a resubmission. In this version I have:
+This is a resubmission. As suggested, in this submission I have:
+
+* Added examples to the documentation of the primary functions in eyetrackingR.
+
+In the previous revision:
 
 * Fixed the CRAN URL that was not in correct form
 * Fixed the LICENSE file to match template from https://www.r-project.org/Licenses/MIT
