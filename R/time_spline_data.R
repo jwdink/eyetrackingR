@@ -1,7 +1,9 @@
 #' Bootstrap resample splines for time-series data.
 #'
-#' Bootstrap splines from \code{time_sequence_data()}. This creates a distribution from which a non-parametric
-#' analysis can be performed.
+#' This function takes proportion-looking data over-time (from \code{time_sequence_data()}), fits 
+#' smoothing splines to this data, then bootstrap-resampes these splines to create a distribution.
+#' This distribution can be used by \code{analyze_boot_splines} to test when divergences between two
+#' conditions occur.
 #' @export
 make_boot_splines_data = function(data, predictor_column, within_subj, aoi,smoother, samples, resolution, alpha) {
   UseMethod("make_boot_splines_data")

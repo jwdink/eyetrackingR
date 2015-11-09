@@ -5,21 +5,26 @@
 \title{make_time_sequence_data()}
 \usage{
 make_time_sequence_data(data, time_bin_size, aois = NULL,
-  predictor_columns = NULL, summarize_by = NULL)
+  predictor_columns = NULL, other_dv_columns = NULL, summarize_by = NULL)
 }
 \arguments{
 \item{data}{The output of \code{make_eyetrackingr_data}}
 
-\item{time_bin_size}{How large should each time bin be? Units are whatever units your `time` column is in}
+\item{time_bin_size}{How large should each time bin be? Units are whatever units your \code{time} column is in}
 
-\item{aois}{Which AOIs are of interest? Defaults to all in 'data_options'}
+\item{aois}{Which AOI(s) is/are of interest? Defaults to all specified in
+\code{make_eyetracking_r_data}}
 
-\item{predictor_columns}{Which columns indicate predictor variables, and therefore should be preserved in
-grouping operations?}
+\item{predictor_columns}{Which columns indicate predictor variables, and therefore should be
+preserved in grouping operations?}
 
-\item{summarize_by}{Should the data be summarized along, e.g., participants, items, etc.? If so, give
-  column name(s) here. If left blank, will leave trials distinct. The former is needed for more traditional
-  analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)}
+\item{other_dv_columns}{Within each time-bin, this function will calculate not only proportion-
+looking, but also the mean of any columns specified here.}
+
+\item{summarize_by}{Should the data be summarized along, e.g., participants, items, etc.? If
+  so, give column name(s) here. If left blank, will leave trials distinct. The former is needed
+  for more traditional analyses (\code{t.test}, \code{ANOVA}), while the latter is preferable for
+  mixed-effects models (\code{lmer})}
 }
 \value{
 Data binned into time-bins, with proportion-looking and transformations as well as orthogonal
@@ -50,7 +55,7 @@ walkthrough}, so you do *not* set \code{weights = 1/Weights} as done there.)
 \code{asin(sqrt(Prop))}
  \item \code{ot} - These columns (ot1-ot7) represent (centered) orthogonal time polynomials,
  needed for growth curve analysis. See
- \href{http://www.eyetracking-r.com/vignettes/growth_curve_analysis}{our vignette on growth curve
+ \href{http://www.eyetracking-r.com/vignettes/growth_curve_analysis}{the vignette on growth curve
  models} for more details.
 }
 }

@@ -24,12 +24,15 @@
 #' }
 #'
 #' @param data  The output of \code{make_eyetrackingr_data}
-#' @param aois  Which AOIs are of interest? Defaults to all in 'data_options'
+#' @param aois   Which AOI(s) is/are of interest? Defaults to all specified in
+#'   \code{make_eyetracking_r_data}
 #' @param predictor_columns  Which columns indicate predictor vars, and therefore should be preserved in
 #'   grouping operations?
+#' @param other_dv_columns  Within each participant/trial (or whatever is specified in \code{summarize_by}), 
+#'    this function will calculate not only proportion-looking, but also the mean of any columns specified here. 
 #' @param summarize_by  Should the data be summarized along, e.g., participants, items, etc.? If so, give
 #'   column names here. If left blank, will leave trials distinct. The former is needed for more traditional
-#'   analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)
+#'   analyses (\code{t.test}, \code{ANOVA}), while the latter is preferable for mixed-effects models (\code{lmer})
 #'   
 #' @examples 
 #' data(word_recognition)
@@ -65,6 +68,7 @@
 make_time_window_data <- function(data,
                          aois = NULL,
                          predictor_columns = NULL,
+                         other_dv_columns = NULL,
                          summarize_by = NULL
 ) {
 
@@ -83,7 +87,7 @@ make_time_window_data <- function(data,
     list_of_dfs <- lapply(X = aois, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
       make_time_window_data(data = data, aois = this_aoi, 
-        predictor_columns=predictor_columns, summarize_by=summarize_by)
+        predictor_columns=predictor_columns, other_dv_columns = other_dv_columns, summarize_by=summarize_by)
     })
     out <- bind_rows(list_of_dfs)
     out <- as.data.frame(out)
@@ -106,7 +110,7 @@ make_time_window_data <- function(data,
   } else {
     groups <- c(summarize_by, predictor_columns)
   }
-  out <- .make_proportion_looking_summary(data=data, groups = groups, aoi_col)
+  out <- .make_proportion_looking_summary(data=data, groups = groups, aoi_col = aoi_col, other_dv_columns = other_dv_columns)
 
   out <- as.data.frame(out)
   class(out) <- c('time_window_data', class(out))
@@ -154,7 +158,7 @@ plot.time_window_data <- function(x, predictor_columns = NULL, dv = "Prop", ...)
   # Prelims:
   data <- x
   data_options = attr(data, "eyetrackingR")$data_options
-  dv = match.arg(dv, c("Prop", "Elog", "ArcSin", "LogitAdjusted"))
+  if (!dv %in% colnames(data)) stop("Selected 'dv' is not in data.")
   
   # Organize Vars:
   if (is.null(predictor_columns)) {
@@ -207,13 +211,19 @@ plot.time_window_data <- function(x, predictor_columns = NULL, dv = "Prop", ...)
     g <- ggplot(df_plot, aes_string(x = x_axis_column, y = dv, group= group_var, color= color_var)) +
       geom_point(position = position_jitter(width = .025, height=0), alpha= .75) +
       geom_boxplot(alpha = .05)
-      #stat_summary(fun.y = mean, geom='line') +
-      #stat_summary(fun.dat = mean_cl_boot)
-      if (length(unique(df_plot$AOI))>1  & !all(predictor_columns=="AOI")) {
+    if (dv %in% c("Prop", "Elog", "LogitAdjusted", "ArcSin")) {
+      if (length(unique(df_plot$AOI))>1) {
         g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
       } else {
         g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
       }
+    } else {
+      if (length(unique(df_plot$AOI))>1) {
+        g <- g + facet_wrap( ~ AOI)
+        warning("Facets for a DV that doesn't correspond to amount-of-looking may not be meaningful.")
+      }
+      g <- g + ylab(dv)
+    }
   }
   return(g)
 

@@ -23,18 +23,22 @@
 #' \code{asin(sqrt(Prop))}
 #'  \item \code{ot} - These columns (ot1-ot7) represent (centered) orthogonal time polynomials,
 #'  needed for growth curve analysis. See
-#'  \href{http://www.eyetracking-r.com/vignettes/growth_curve_analysis}{our vignette on growth curve
+#'  \href{http://www.eyetracking-r.com/vignettes/growth_curve_analysis}{the vignette on growth curve
 #'  models} for more details.
 #' }
 #' 
 #' @param data              The output of \code{make_eyetrackingr_data}
-#' @param time_bin_size     How large should each time bin be? Units are whatever units your `time` column is in
-#' @param aois              Which AOIs are of interest? Defaults to all in 'data_options'
-#' @param predictor_columns Which columns indicate predictor variables, and therefore should be preserved in
-#'   grouping operations?
-#' @param summarize_by      Should the data be summarized along, e.g., participants, items, etc.? If so, give
-#'   column name(s) here. If left blank, will leave trials distinct. The former is needed for more traditional
-#'   analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)
+#' @param time_bin_size     How large should each time bin be? Units are whatever units your \code{time} column is in
+#' @param aois              Which AOI(s) is/are of interest? Defaults to all specified in
+#'   \code{make_eyetracking_r_data}
+#' @param predictor_columns Which columns indicate predictor variables, and therefore should be
+#'   preserved in grouping operations?
+#' @param other_dv_columns  Within each time-bin, this function will calculate not only proportion-
+#'    looking, but also the mean of any columns specified here. 
+#' @param summarize_by      Should the data be summarized along, e.g., participants, items, etc.? If
+#'   so, give column name(s) here. If left blank, will leave trials distinct. The former is needed
+#'   for more traditional analyses (\code{t.test}, \code{ANOVA}), while the latter is preferable for
+#'   mixed-effects models (\code{lmer})
 #'
 #' @examples 
 #' data(word_recognition)
@@ -76,6 +80,7 @@ make_time_sequence_data <- function (data,
                         time_bin_size,
                         aois = NULL,
                         predictor_columns = NULL,
+                        other_dv_columns = NULL,
                         summarize_by = NULL) {
 
   data_options <- attr(data, "eyetrackingR")$data_options
@@ -93,7 +98,8 @@ make_time_sequence_data <- function (data,
     list_of_dfs = lapply(X = aois, FUN = function(this_aoi) {
       message("Analyzing ", this_aoi, "...")
       make_time_sequence_data(data=data, time_bin_size = time_bin_size, aois = this_aoi, 
-                              predictor_columns = predictor_columns, summarize_by = summarize_by)
+                              predictor_columns = predictor_columns, other_dv_columns= other_dv_columns,
+                              summarize_by = summarize_by)
     })
     out <- bind_rows(list_of_dfs)
     out <- as.data.frame(out)
@@ -131,7 +137,7 @@ make_time_sequence_data <- function (data,
   } else {
     groups <- c(summarize_by, predictor_columns, "TimeBin")
   }
-  df_summarized <- .make_proportion_looking_summary(data=data, groups = groups, aoi_col)
+  df_summarized <- .make_proportion_looking_summary(data=data, groups = groups, aoi_col = aoi_col, other_dv_columns = other_dv_columns)
   df_summarized[["Time"]] <- df_summarized[["TimeBin"]] * time_bin_size
 
   # Add orthogonal polynomials for Growth Curve Analyses
@@ -160,7 +166,9 @@ make_time_sequence_data <- function (data,
 #' analyze_time_bins()
 #'
 #' Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
-#' \code{lmer}. Results can be plotted to see how test-results or parameters estimates vary over time.
+#' \code{lmer}. By default, uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed by manually specifying the formula.
+#' Results can be plotted to see how test-results or parameters estimates vary over time.
+#' 
 #' @export
 analyze_time_bins = function(data, ...) {
   UseMethod("analyze_time_bins")
@@ -176,7 +184,7 @@ analyze_time_bins = function(data, ...) {
 #' @param threshold         Value of statistic used in determining significance
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given
 #' @param formula           What formula should be used for the test? Optional for all but
-#'   \code{lmer}, if unset will use \code{Prop ~ [predictor_column]}
+#'   \code{lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.
 #' @param return_model      In the returned dataframe, should a model be given for each time bin, or
 #'   just the summary of those models?
 #' @param quiet             Should messages and progress bars be suppressed? Default is to show
@@ -326,9 +334,11 @@ analyze_time_bins.time_sequence_data <- function(data,
     error_lists <- list()
     for (error_type in error_types) {
       error_lists[[error_type]] <- unlist(lapply(names(the_errors), function(tb) {
-        ifelse(test = error_type %in% the_errors[[tb]],
-               yes = tb,
-               no = NULL)
+        if (error_type %in% the_errors[[tb]]) {
+          return(tb)
+        } else {
+          return(NULL)
+        }
       }))
     }
     for (i in seq_along(error_lists)) {
@@ -346,9 +356,11 @@ analyze_time_bins.time_sequence_data <- function(data,
     warning_lists <- list()
     for (warning_type in warning_types) {
       warning_lists[[warning_type]] <- unlist(lapply(names(the_warnings), function(tb) {
-        ifelse(test = warning_type %in% the_warnings[[tb]],
-               yes = tb,
-               no = NULL)
+        if (warning_type %in% the_warnings[[tb]]) {
+          return(tb)
+        } else {
+          return(NULL)
+        }
       }))
     }
     for (i in seq_along(warning_lists)) {
@@ -534,8 +546,8 @@ plot.time_sequence_data <- function(x, predictor_column = NULL, dv='Prop', model
 
   # Prelims:
   data_options = attr(x, "eyetrackingR")$data_options
-  dv = match.arg(dv, c("Prop", "Elog", "ArcSin", "LogitAdjusted"))
-  
+  if (!dv %in% colnames(x)) stop("Selected 'dv' is not in data.")
+
   # Add model predictions to dataframe:
   if (!is.null(model)) {
     formula_as_character <- Reduce(paste, deparse(formula(model)))
@@ -592,11 +604,20 @@ plot.time_sequence_data <- function(x, predictor_column = NULL, dv='Prop', model
     g <- g +
       stat_summary(aes(y = .Predicted), fun.y = 'mean', geom="line", size= 1.2) 
   }
-  if (length(unique(df_plot$AOI))>1) {
-    g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
+  if (dv %in% c("Prop", "Elog", "LogitAdjusted", "ArcSin")) {
+    if (length(unique(df_plot$AOI))>1) {
+      g <- g + facet_wrap( ~ AOI) + ylab(paste0("Looking to AOI (",dv,")"))
+    } else {
+      g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
+    }
   } else {
-    g <- g + ylab(paste0("Looking to ", df_plot$AOI[1], " (",dv,")"))
+    if (length(unique(df_plot$AOI))>1) {
+      g <- g + facet_wrap( ~ AOI)
+      warning("Facets for a DV that doesn't correspond to amount-of-looking may not be meaningful.")
+    }
+    g <- g + ylab(dv)
   }
+  
   
   return(g)
   

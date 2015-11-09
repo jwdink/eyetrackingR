@@ -81,6 +81,8 @@ Note that the dataframe returned by `make_time_window_data` will actually give u
 
 While the first DV is the most intuitive, you might consider using the others to account for the bounded nature of proportions. The boundedness of proportions is an issue because it can mean that CI's around your estimates fall above 1 or below 0 (which is not possible) and that there is an inherent link between group means and variance (means closer to 0 and 1 will necessarily have lower variance than means around .5). These are violations of many parametric models, such as OLS regression and t-tests.
 
+(EyetrackingR also lets you specify any arbitrary DV aside from the above. For example, you could analyze mean pupil-dilation by supplying a column name to the `other_dv_columns` argument. This is true for  `make_time_sequence_data` as well.)
+
 We will start out by using the ArcSin DV.
 
 ```{r, warning=FALSE}

@@ -29,7 +29,7 @@ Interaction terms are not currently supported.}
 \item{alpha}{Alpha value for determining significance, ignored if threshold is given}
 
 \item{formula}{What formula should be used for the test? Optional for all but
-\code{lmer}, if unset will use \code{Prop ~ [predictor_column]}}
+\code{lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.}
 
 \item{return_model}{In the returned dataframe, should a model be given for each time bin, or
 just the summary of those models?}
@@ -41,7 +41,8 @@ A dataframe indicating the results of the test at each time-bin.
 }
 \description{
 Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
-\code{lmer}. Results can be plotted to see how test-results or parameters estimates vary over time.
+\code{lmer}. By default, uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed by manually specifying the formula.
+Results can be plotted to see how test-results or parameters estimates vary over time.
 }
 \section{Methods (by class)}{
 \itemize{

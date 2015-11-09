@@ -34,8 +34,10 @@ intervals per second, or hundredths of a second. Default is the same size as tim
 A bootstrapped distribution of samples for each time-bin
 }
 \description{
-Bootstrap splines from \code{time_sequence_data()}. This creates a distribution from which a non-parametric
-analysis can be performed.
+This function takes proportion-looking data over-time (from \code{time_sequence_data()}), fits
+smoothing splines to this data, then bootstrap-resampes these splines to create a distribution.
+This distribution can be used by \code{analyze_boot_splines} to test when divergences between two
+conditions occur.
 }
 \section{Methods (by class)}{
 \itemize{

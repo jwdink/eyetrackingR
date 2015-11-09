@@ -23,7 +23,7 @@
 #' @param aoi_col
 #' @return dataframe
 .make_proportion_looking_summary <-
-  function(data, groups, aoi_col) {
+  function(data, groups, aoi_col, other_dv_columns) {
     
     .logit_adj <- function(prop) {
       non_zero_ind <- which(prop!=0)
@@ -36,12 +36,16 @@
     }
     
     # Group, summarize Samples
+    
+    summarize_expression <- list(
+      SamplesInAOI = interp( ~ sum(AOI_COL, na.rm = TRUE), AOI_COL = aoi_col),
+      SamplesTotal = interp( ~ sum(!is.na(AOI_COL)), AOI_COL = aoi_col) # ignore all NAs
+      )
+    for (other_dv in other_dv_columns) {
+      summarize_expression[[other_dv]] <- interp( ~ mean(OTHER_DV, na.rm=TRUE), OTHER_DV = as.name(other_dv) )
+    }
     df_grouped <- group_by_(data, .dots = groups)
-    df_summarized <- summarize_(df_grouped,
-                                .dots = list(
-                                  SamplesInAOI = interp( ~ sum(AOI_COL, na.rm = TRUE), AOI_COL = aoi_col),
-                                  SamplesTotal = interp( ~ sum(!is.na(AOI_COL)), AOI_COL = aoi_col) # ignore all NAs
-                                ))
+    df_summarized <- summarize_(df_grouped, .dots = summarize_expression)
     
     # Calculate Proportion, Elog, etc.
     aoi <- as.character(aoi_col)

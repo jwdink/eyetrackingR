@@ -5,19 +5,23 @@
 \title{Make a dataset collapsing over a time-window}
 \usage{
 make_time_window_data(data, aois = NULL, predictor_columns = NULL,
-  summarize_by = NULL)
+  other_dv_columns = NULL, summarize_by = NULL)
 }
 \arguments{
 \item{data}{The output of \code{make_eyetrackingr_data}}
 
-\item{aois}{Which AOIs are of interest? Defaults to all in 'data_options'}
+\item{aois}{Which AOI(s) is/are of interest? Defaults to all specified in
+\code{make_eyetracking_r_data}}
 
 \item{predictor_columns}{Which columns indicate predictor vars, and therefore should be preserved in
 grouping operations?}
 
+\item{other_dv_columns}{Within each participant/trial (or whatever is specified in \code{summarize_by}),
+this function will calculate not only proportion-looking, but also the mean of any columns specified here.}
+
 \item{summarize_by}{Should the data be summarized along, e.g., participants, items, etc.? If so, give
   column names here. If left blank, will leave trials distinct. The former is needed for more traditional
-  analyses (t.tests, ANOVAs), while the latter is preferable for mixed-effects models (lmer)}
+  analyses (\code{t.test}, \code{ANOVA}), while the latter is preferable for mixed-effects models (\code{lmer})}
 }
 \value{
 Data with proportion-looking and transformations (logit, arc-sin, etc.)
