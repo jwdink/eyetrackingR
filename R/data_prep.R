@@ -82,6 +82,29 @@ make_eyetrackingr_data <- function(data,
                                    aoi_columns,
                                    treat_non_aoi_looks_as_missing,
                                    item_columns = NULL) {
+  ## Helpers:
+  as.numeric2 <- function(x) as.numeric(as.character(x))
+  is.logical2 <- function(x) {
+    if (is.logical(x)) {
+      return(TRUE)
+    } else if (is.numeric(x)) {
+      return(FALSE)
+    } else {
+      stop("One of your columns (", col, ") could not be converted to the correct format (TRUE/FALSE), ",
+           "please do so manually.")
+    }
+  }
+  check_then_convert <- function(x, checkfunc, convertfunc, colname) {
+    if (!checkfunc(x)) {
+      message("Converting ", colname, " to proper type.")
+      x <- convertfunc(x)
+    } 
+    if (colname=="Trackloss" & any(is.na(x))) {
+      warning("Found NAs in trackloss column, these will be treated as TRACKLOSS=FALSE.")
+      x <- ifelse(is.na(x), FALSE, x)
+    }
+    return(x)
+  }
   
   ## Data Options:
   data_options = list(participant_column = participant_column,
@@ -105,24 +128,12 @@ make_eyetrackingr_data <- function(data,
   
   ## Verify Columns:
   out <- data
-  as.numeric2 <- function(x) as.numeric(as.character(x))
-  check_then_convert <- function(x, checkfunc, convertfunc, colname) {
-    if (!checkfunc(x)) {
-      message("Converting ", colname, " to proper type.")
-      x <- convertfunc(x)
-    } 
-    if (colname=="Trackloss" & any(is.na(x))) {
-      warning("Found NAs in trackloss column, these will be treated as TRACKLOSS=FALSE.")
-      x <- ifelse(is.na(x), FALSE, x)
-    }
-    return(x)
-  }
   col_type_converter <- list(participant_column = function(x) check_then_convert(x, is.factor, as.factor, "Participants"),
                              time_column = function(x) check_then_convert(x, is.numeric, as.numeric2, "Time"),
                              trial_column = function(x) check_then_convert(x, is.factor, as.factor, "Trial"),
-                             trackloss_column = function(x) check_then_convert(x, is.logical, as.logical, "Trackloss"),
+                             trackloss_column = function(x) check_then_convert(x, is.logical2, as.logical, "Trackloss"),
                              item_columns = function(x) check_then_convert(x, is.factor, as.factor, "Item"),
-                             aoi_columns = function(x) check_then_convert(x, is.logical, as.logical, "AOI"))
+                             aoi_columns = function(x) check_then_convert(x, is.logical2, as.logical, "AOI"))
   
   for (col in names(col_type_converter)) {
     for (i in seq_along(data_options[[col]])) {
@@ -559,29 +570,27 @@ clean_by_trackloss <- function(data,
   data_tl <- subset_by_window(data = data, quiet=TRUE,
                               window_start_time = window_start_time, window_end_time = window_end_time )
   tl <- trackloss_analysis(data_tl)
+  tl$.TrialID <- paste(tl[[data_options$participant_col]], tl[[data_options$trial_col]], sep = "_")
 
   # Bad Trials:
   if (trial_prop_thresh < 1) {
     message("Will exclude trials whose trackloss proportion is greater than : ", trial_prop_thresh)
-    exclude_trials_props <- paste(tl$Participant[tl$TracklossForTrial > trial_prop_thresh],
-                                 tl$Trial[tl$TracklossForTrial > trial_prop_thresh],
-                                 sep="_")
+    exclude_trials_props <- tl$.TrialID[tl$TracklossForTrial > trial_prop_thresh]
     message(paste("\t...removed ", length(exclude_trials_props), " trials."))
   } else {
     exclude_trials_props <- c()
   }
 
   # Bad Participants
-  part_vec <- data[[data_options$participant_col]]
   if (participant_prop_thresh < 1) {
     message("Will exclude participants whose trackloss proportion is greater than : ", participant_prop_thresh)
-    exclude_ppts_prop <- unique(tl$Participant[tl$TracklossForParticipant > participant_prop_thresh])
+    exclude_ppts_prop <- unique(tl[[data_options$participant_column]][tl$TracklossForParticipant > participant_prop_thresh])
     message(paste("\t...removed ", length(exclude_ppts_prop), " participants."))
   } else {
     exclude_ppts_prop <- c()
   }
 
-  exclude_trials <- c(exclude_trials_props, unique( data$.TrialID[part_vec %in% exclude_ppts_prop] ))
+  exclude_trials <- c(exclude_trials_props, unique( data$.TrialID[data[[data_options$participant_col]] %in% exclude_ppts_prop] ))
 
   # Remove:
   data_clean <- filter(data, ! .TrialID %in% exclude_trials)
