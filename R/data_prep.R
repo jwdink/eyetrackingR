@@ -149,7 +149,7 @@ make_eyetrackingr_data <- function(data,
   }
   
   ## Set All AOI rows with trackloss to NA:
-  message("For all AOI columns, rows with trackloss will be set to NA.")
+  # this ensures that any calculations of proportion-looking will not include trackloss in the denominator
   for (aoi in data_options$aoi_columns) {
     out[[aoi]] <- ifelse(out[[data_options$trackloss_column]], NA, out[[aoi]])
     # TO DO: check if any NAs in non-trackloss rows? that is, trackloss col should exactly track is.na() for all AOIs
