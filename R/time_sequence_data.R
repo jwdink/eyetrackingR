@@ -598,7 +598,7 @@ plot.time_sequence_data <- function(x, predictor_column = NULL, dv='Prop', model
   
   g <- g + 
     stat_summary(fun.y='mean', geom='line', linetype = 'F1') + 
-    stat_summary(fun.dat=mean_se, geom='ribbon', alpha= .25, colour=NA)
+    stat_summary(fun.data=mean_se, geom='ribbon', alpha= .25, colour=NA)
   
   if (!is.null(model)) {
     g <- g +

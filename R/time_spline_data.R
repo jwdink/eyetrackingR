@@ -423,7 +423,7 @@ plot.boot_splines_analysis <- function(x, ...) {
   # we have a MeanDiff and CI for both within- and between-subjects...
   g <- ggplot(x, aes(x=Time, y=MeanDiff)) +
     geom_line() +
-    geom_ribbon(aes(ymax=CI_high, ymin=CI_low), mult=1, alpha=.2, colour=NA) +
+    geom_ribbon(aes(ymax=CI_high, ymin=CI_low), alpha=.2, colour=NA) +
     xlab('Time') +
     geom_hline(yintercept = 0, linetype="dashed")
 
