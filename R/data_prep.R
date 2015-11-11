@@ -109,10 +109,13 @@ make_eyetrackingr_data <- function(data,
   check_then_convert <- function(x, checkfunc, convertfunc, colname) {
     if (!checkfunc(x)) {
       message("Converting ", colname, " to proper type.")
-      convertfunc(x)
-    } else {
-      x
+      x <- convertfunc(x)
+    } 
+    if (colname=="Trackloss" & any(is.na(x))) {
+      warning("Found NAs in trackloss column, these will be treated as TRACKLOSS=FALSE.")
+      x <- ifelse(is.na(x), FALSE, x)
     }
+    return(x)
   }
   col_type_converter <- list(participant_column = function(x) check_then_convert(x, is.factor, as.factor, "Participants"),
                              time_column = function(x) check_then_convert(x, is.numeric, as.numeric2, "Time"),
@@ -132,6 +135,13 @@ make_eyetrackingr_data <- function(data,
   ## Deal with Non-AOI looks:
   if (treat_non_aoi_looks_as_missing) {
     out <- .convert_non_aoi_to_missing(out, data_options)
+  }
+  
+  ## Set All AOI rows with trackloss to NA:
+  message("For all AOI columns, rows with trackloss will be set to NA.")
+  for (aoi in data_options$aoi_columns) {
+    out[[aoi]] <- ifelse(out[[data_options$trackloss_column]], NA, out[[aoi]])
+    # TO DO: check if any NAs in non-trackloss rows? that is, trackloss col should exactly track is.na() for all AOIs
   }
   
   ## Assign attribute:

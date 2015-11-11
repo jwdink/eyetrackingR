@@ -22,6 +22,7 @@ response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)',
                                                   yes = 'Inanimate', 
                                                   no  = 'Animate') )
 
+set.seed(5)
 response_window_clean$PupilDilation <- suppressWarnings( rnorm(n = nrow(response_window_clean), 
                                                                mean = response_window_clean$Inanimate 
                                                                & (response_window_clean$Target=="Inanimate"),
@@ -65,8 +66,8 @@ test_that(desc = "The function analyze_time_bins has necessary eyetrackingR attr
   expect_equal( nrow(tb1), 55 )
   expect_false( is.null( attr(tb1,"eyetrackingR") ) )
 })
-test_that(desc = "The function analyze_time_bins returns 2 negative runs for arbitrary 'PupilDilation' DV.", code = {
-  expect_equal( length(unique(tb1$NegativeRuns)), 2)
+test_that(desc = "The function analyze_time_bins returns 3 negative runs for arbitrary 'PupilDilation' DV (with seed = 5)", code = {
+  expect_equal( length(unique(tb1$NegativeRuns)), 3)
 })
 
 
