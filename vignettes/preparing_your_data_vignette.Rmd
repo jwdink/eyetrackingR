@@ -113,7 +113,7 @@ animate_aoi <- read.csv("./interest_areas_for_animate_aoi.csv")
 data <- add_aoi(data = data, aoi_dataframe = animate_aoi, 
                x_col = "GazeX", y_col = "GazeY", 
                aoi_name = "Animate",
-               xmin_col = "Left",xmax_col = "Top", ymin_col = "Right",ymax_col = "Bottom")
+               x_min_col = "Left", x_max_col = "Right", y_min_col = "Top", y_max_col = "Bottom")
 ```
 
 This can be done for each AOI: just load in a csv file and run the `add_aoi` function for each.
