@@ -14,7 +14,7 @@ make_boot_splines_data = function(data, predictor_column, within_subj, aoi,smoot
 #' @param predictor_column What predictor var to split by? Maximum two conditions
 #' @param within_subj Are the two conditions within or between subjects?
 #' @param aoi Which AOI do you wish to perform the analysis on?
-#' @param smoother Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing
+#' @param smoother Smooth data using "smooth.spline," "loess," or "none" for no smoothing
 #' @param samples How many iterations to run bootstrap resampling? Default 1000
 #' @param resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100
 #'   intervals per second, or hundredths of a second. Default is the same size as time-bins.
