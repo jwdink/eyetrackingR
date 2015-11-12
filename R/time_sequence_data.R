@@ -582,7 +582,7 @@ plot.time_sequence_data <- function(x, predictor_column = NULL, dv='Prop', model
 
   ## Plot:
   if (numeric_predictor_col) {
-    message("Condition factor is numeric, performing median split...")
+    message("Predictor is continuous/numeric, performing median split for visualization...")
     the_median <- median(df_plot[[predictor_column]], na.rm=TRUE)
     df_plot[["GroupFactor"]] <- ifelse(df_plot[[predictor_column]] > the_median,
                                       paste0("High (>", round(the_median,2), ")"),

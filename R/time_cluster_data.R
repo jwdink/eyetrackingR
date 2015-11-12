@@ -482,7 +482,7 @@ plot.cluster_analysis <- function(x, ...) {
     geom_density() +
     geom_histogram(aes(y=..density..), binwidth = sd(x$null_distribution)/5, alpha=.75 ) +
     coord_cartesian(xlim = c(x_min, x_max)) +
-    geom_vline(data = df_plot2, aes(xintercept = SumStat, color = Cluster), linetype="dashed", size=1, show_guide = TRUE) +
+    geom_vline(data = df_plot2, aes(xintercept = SumStat, color = Cluster), linetype="dashed", size=1, show.legend = TRUE) +
     xlab(paste("Distribution of summed statistics from", x$test )) + ylab("Density")
 
 }
