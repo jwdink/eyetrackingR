@@ -395,7 +395,7 @@ plot.boot_splines_data = function(x, ...) {
 
     g <- ggplot(x, aes_string(x='Time', y='Mean', color=bootstrap_attr$predictor_column)) +
       geom_line() +
-      geom_ribbon(aes_string(ymax='CI_high', ymin='CI_low', fill=bootstrap_attr$predictor_column), mult=1, alpha=.2, colour=NA) +
+      geom_ribbon(aes_string(ymax='CI_high', ymin='CI_low', fill=bootstrap_attr$predictor_column), alpha=.2, colour=NA) +
       xlab('Time') +
       ylab('Proportion')
   }
