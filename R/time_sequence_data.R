@@ -290,22 +290,23 @@ analyze_time_bins.time_sequence_data <- function(data,
   }
 
   # Run a model for each time-bin
-  cc <- match.call(expand.dots = TRUE)
-  paired <- cc[["paired"]]
+  cc <- lazyeval::lazy_dots(...)
+  paired <- cc[["paired"]]$expr
   if (!is.null(paired)) {
     if (paired=="T") paired = TRUE # I can't even right now.
-  }
+    if (!paired %in% c(TRUE,FALSE)) warning("Unclear how to interpret 'paired'.")
+  } 
   if (!quiet) message("Computing ", test, " for each time bin...")
   if (test=="lmer") {
     the_test <- .make_function_fail_informatively(lme4::lmer)
   } else {
     the_test <- .make_function_fail_informatively(get(test))
   }
-  #the_test <- function(x) {warning("OMG!"); return(5)}
   if (quiet) pblapply <- lapply
   the_errors <- list()
   the_warnings <- list()
   models= pblapply(unique(data$Time), function(tb) {
+
     # get data:
     temp_dat <- filter(data, Time==tb)
     # Make paired test more robust to unpaired observations within a bin:

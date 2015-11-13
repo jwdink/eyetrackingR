@@ -642,7 +642,8 @@ describe_data <- function(data, describe_column, group_columns) {
                        SD   = interp( ~sd(DV_COL, na.rm=TRUE),      DV_COL = as.name(describe_column) ),
                        Var  = interp( ~var(DV_COL, na.rm=TRUE),     DV_COL = as.name(describe_column) ),
                        Min  = interp( ~min(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) ),
-                       Max  = interp( ~max(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) )
+                       Max  = interp( ~max(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) ),
+                       N    = ~ n()
   )
   if (data_options$trial_column %in% colnames(data)) {
     summarize_expr$NumTrials = interp( ~n_distinct(TRIAL_COL), TRIAL_COL = as.name(data_options$trial_column))

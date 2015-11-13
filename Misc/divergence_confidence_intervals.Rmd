@@ -16,28 +16,28 @@ library("eyetrackingR")
 library("dplyr")
 data("word_recognition")
 
-# set data options
-data_options = set_data_options( 
-  participant_column = "ParticipantName",
-  trial_column = "Trial",
-  time_column = "TimeFromTrialOnset",
-  trackloss_column = "TrackLoss",
-  aoi_columns = c('Animate','Inanimate')
+data <- make_eyetrackingr_data(word_recognition, treat_non_aoi_looks_as_missing = TRUE,
+                               participant_column = "ParticipantName",
+                               trial_column = "Trial",
+                               time_column = "TimeFromTrialOnset",
+                               trackloss_column = "TrackLoss",
+                               aoi_columns = c('Animate','Inanimate')
 )
-data <- verify_dataset(word_recognition, data_options)
-response_window <- subset_by_window(data, data_options, 
+
+response_window <- subset_by_window(data, 
                                     window_start_time = 15500, 
                                     window_end_time = 21000, 
                                     rezero = FALSE)
-response_window <- convert_non_aoi_to_trackloss(response_window, data_options)
 response_window_clean <- clean_by_trackloss(data = response_window,
-                                            data_options = data_options, 
                                             trial_prop_thresh = .25)
 response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', response_window_clean$Trial), 
                                                   yes = 'Inanimate', 
                                                   no  = 'Animate') )
 response_window_clean$TrialTarget <- with(response_window_clean, ifelse(Target == "Animate", Animate, Inanimate))
-df_time = make_time_sequence_data(response_window_clean,data_options, time_bin_size = 100, aois = "Animate", predictor_columns = "Target")
+df_time = make_time_sequence_data(response_window_clean, time_bin_size = 100, 
+                                  aois = "Animate", 
+                                  predictor_columns = "Target")
+df_time$TargetC <- ifelse(df_time$Target=="Animate",.5,-.5)
 ```
 
 ### Difference Across Conditions
@@ -46,11 +46,21 @@ For each subject, take the mean difference between conditions for each timebin
 
 ```{r, warning=FALSE}
 library("lme4")
+library("mgcv")
 df_time$Predict = 0
-## try uncommenting these two lines when you've run through this whole vignette once:
+# # try uncommenting these two lines when you've run through this whole vignette once:
 # fit = lmer(data =df_time, formula = Prop ~ Target*(ot1+ot2+ot3+ot4) + (Target*(ot1+ot2+ot3+ot4) | ParticipantName ))
 # df_time$Predict = predict(fit, df_time)
-##
+# #
+
+# # or try this for gam (random slopes not working well enough though)
+# df_time <- filter(df_time, !is.na(Prop))
+# fitg = gamm(formula = round(Prop) ~ s(ot1,TargetC), random = list(ParticipantName = ~ 1+TargetC+ot1), family = "binomial",
+#              data = df_time)
+# fit<-fitg$lme
+# df_time$Predict = boot::inv.logit(predict(fit))
+# #
+
 df_diff_pred = df_time %>%
   group_by(ParticipantName, Target, Time) %>%
   summarise(Predict = mean(Predict, na.rm=TRUE)) %>%

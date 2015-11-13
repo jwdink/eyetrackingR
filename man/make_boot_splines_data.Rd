@@ -21,7 +21,7 @@ make_boot_splines_data(data, predictor_column, within_subj, aoi, smoother,
 
 \item{aoi}{Which AOI do you wish to perform the analysis on?}
 
-\item{smoother}{Smooth data using "smooth.spline," "loess," or leave NULL for no smoothing}
+\item{smoother}{Smooth data using "smooth.spline," "loess," or "none" for no smoothing}
 
 \item{samples}{How many iterations to run bootstrap resampling? Default 1000}
 
