@@ -135,30 +135,6 @@ mean(abs(res_overall$statistic)>2.06) # perfect
 
 LMER seems to control false-alarm rate, because we added a random-intercept for trial. If we remove this random-intercept (see comment in code above), then the false-alarm rate goes way up.
 
-We can also check on cluster-analysis:
-
-```{r}
-if (test_cluster) {
-  cl_fa <- sapply(res_clust, function(x) x$prop_fa)
-  mean(cl_fa) # false-alarm rate for boot-splines
-  hist(cl_fa*55, breaks=15, main = "Number of FAs (out of 55 time-bins)")
-  mean(cl_fa==0)
-}
-```
-
-Cluster-analysis seems to have controlled the false-alarm rate: on average, only 1/20 time-bins was spuriously significant. Looking at an example:
-
-```{r}
-if (test_cluster) {
-  plot(cl_anal)
-  summary(cl_anal)
-}
-```
-
-In this example, and lots of others, we have some spurious (and very low p-value) time-bins. This is at least a little counter-intuitive. I might've thought that cluster-analysis controls the false-alarm rate such that, only in 1/20 experiments do we get any false-alarms at all. But this doesn't seem to be the promise it's making. Instead, the guarantee is more about the *average* number of false-alarms, relative to the number of time-bins. The modal experiment has no false-alarms whatsoever (45% of the time), but on more than half the experiments, we'll get at least one. We're just guaranteed not to get more than 5% of our timebins, in the average/long-run.
-
-It's especially important to avoid a tempting misconception: the p-value we get in an individual cluster analysis should be thought of as entirely binary: either greater or lesser than threshold. P-values that are close-but-not-quite .05 are not "approaching" significance, and tiny p-values are not "especially" significant. The clusters' p-values are going to virtually always fall in a fairly low range (that's sort of how the clusters were selected), and they're going to fluctuate depending on this size of the biggest cluster. While one might feel uneasy about the fact that, no matter how wimpy some spurious cluster looks, it virtually always gets a p-value around .02-.10, it turns out that's OK: the p-value in this test being "pretty close" isn't indicating how close to being reliable that cluster is. All its doing is controlling the long term FA rate. (That's sort of always true of p-values, but it's especially worth emphasizing here.)
-
 #### Boot-Splines Approach:
 
 Here's the false-alarm rate for boot-splines:

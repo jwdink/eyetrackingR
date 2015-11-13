@@ -16,7 +16,7 @@ vignette: >
 
 In this vignette, we want to ascertain when a predictor had a significant effect during a trial. Analyses that aggregate over the trial window tell us *whether* an effect was significant, growth curve analyses tell us the trajectory of our effect over the course of the trial, and onset-contingent analyses can tell you reaction times for certain experimental designs. But none of these approaches allow you to ask: What is the onset of some predictor's effect, and how long does the effect last? eyetrackingR includes two types of analyses for answering these questions, both of which we cover here.
 
-## prerequisites
+## Prerequisites
 
 Before performing this analysis, we'll need to prepare and clean our dataset. Here we will to do this quickly and with few notes but, for more information, see the vignette on [preparing your data](preparing_your_data_vignette.html).
 
