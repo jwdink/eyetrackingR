@@ -10,20 +10,22 @@ output:
 
 ### Prepare Data:
 
-```{r, warning=FALSE}
+```{r, warning=FALSE, echo=FALSE}
 library("Matrix")
 library("lme4")
 library("ggplot2")
 library("eyetrackingR")
-library("dplyr")
+suppressPackageStartupMessages(library("dplyr"))
 
 look_at_aoi <- function(ppt_offset, item_offset, orig_dat, time_in_trial) {
+  bump_time_start <- sample(x = time_in_trial[-length(time_in_trial)], size = 1)
+  bump_time_end <- sample(x = time_in_trial[time_in_trial>bump_time_start], size = 1)
+  bump_offset <- rnorm(n = length(time_in_trial), mean = as.numeric(time_in_trial>bump_time_start & time_in_trial<bump_time_end))
   time_in_trial <-time_in_trial - min(time_in_trial)
   time_in_trial <-time_in_trial / max(time_in_trial)
   time_offset <- rnorm(n = length(time_in_trial), mean = -time_in_trial)
   baseline_odds <- rnorm(length(orig_dat))
-  prob_vec <- boot::inv.logit(baseline_odds + ppt_offset + item_offset + time_offset)
-  #cat("\n", length(prob_vec))
+  prob_vec <- boot::inv.logit(baseline_odds + ppt_offset + item_offset + time_offset + bump_offset)
   rbinom(n = length(prob_vec), size = 1, prob = prob_vec)
 }
 
@@ -60,11 +62,13 @@ response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)',
 
 ### Generate Fake Data, Run Tests, Repeat:
 
-```{r}
+```{r, warning=FALSE}
+test_cluster <- TRUE
 sigma_item_offset <- 1/2 # try values from 1/100 to 2
 res_overall <- list()
 res_bs <- list()
-set.seed(42)
+res_clust <- list()
+set.seed(41)
 for (i in 1:20) {
   # Make Data:
   fake_data <- response_window_clean %>%
@@ -85,6 +89,8 @@ for (i in 1:20) {
   res_overall[[i]] <- broom::tidy(fit, effects="fixed")
   
   # Bootsplines:
+  ts_dat_long <- make_time_sequence_data(fake_data, time_bin_size = 100, 
+                                    aois = "Animate", predictor_columns = "Target")
   ts_dat <- make_time_sequence_data(fake_data, time_bin_size = 100, 
                                     aois = "Animate", predictor_columns = "Target", summarize_by = "ParticipantName")
   bs_dat <- make_boot_splines_data(ts_dat, predictor_column = "Target", within_subj = TRUE,
@@ -95,6 +101,25 @@ for (i in 1:20) {
     prop_fa = length(which(bs_anal$Significant)) / length(bs_anal$Significant), 
     mean_diff = mean(ifelse(bs_anal$Significant, bs_anal$MeanDiff, NA), na.rm=TRUE)
   )
+  
+  # Cluster
+  if (test_cluster) {
+    effect_dir <- sign(res_overall[[i]]$estimate[2])
+    cl_dat <- make_time_cluster_data(ts_dat_long, predictor_column = "Target", test = "lmer", 
+                           threshold = effect_dir * 2.06, 
+                           formula = Prop ~ Target + (1|ParticipantName) + (1|Trial))
+    if (nrow(get_time_clusters(cl_dat))>1) {
+      cl_anal <- analyze_time_clusters(cl_dat, within_subj = TRUE, samples = 500, parallel = TRUE)
+      clusts <- get_time_clusters(cl_anal)
+      res_clust[[i]] <- list(
+        prop_fa = sum( with(clusts,NumBins[Prob < .025]) ) / nrow(cl_anal$time_bin_summary)
+      )
+    } else {
+      res_clust[[i]] <- list(
+        prop_fa = 0
+      )
+    }
+  }
 }
 ```
 
@@ -110,15 +135,41 @@ mean(abs(res_overall$statistic)>2.06) # perfect
 
 LMER seems to control false-alarm rate, because we added a random-intercept for trial. If we remove this random-intercept (see comment in code above), then the false-alarm rate goes way up.
 
+We can also check on cluster-analysis:
+
+```{r}
+if (test_cluster) {
+  cl_fa <- sapply(res_clust, function(x) x$prop_fa)
+  mean(cl_fa) # false-alarm rate for boot-splines
+  hist(cl_fa*55, breaks=15, main = "Number of FAs (out of 55 time-bins)")
+  mean(cl_fa==0)
+}
+```
+
+Cluster-analysis seems to have controlled the false-alarm rate: on average, only 1/20 time-bins was spuriously significant. Looking at an example:
+
+```{r}
+if (test_cluster) {
+  plot(cl_anal)
+  summary(cl_anal)
+}
+```
+
+In this example, and lots of others, we have some spurious (and very low p-value) time-bins. This is at least a little counter-intuitive. I might've thought that cluster-analysis controls the false-alarm rate such that, only in 1/20 experiments do we get any false-alarms at all. But this doesn't seem to be the promise it's making. Instead, the guarantee is more about the *average* number of false-alarms, relative to the number of time-bins. The modal experiment has no false-alarms whatsoever (45% of the time), but on more than half the experiments, we'll get at least one. We're just guaranteed not to get more than 5% of our timebins, in the average/long-run.
+
+It's especially important to avoid a tempting misconception: the p-value we get in an individual cluster analysis should be thought of as entirely binary: either greater or lesser than threshold. P-values that are close-but-not-quite .05 are not "approaching" significance, and tiny p-values are not "especially" significant. The clusters' p-values are going to virtually always fall in a fairly low range (that's sort of how the clusters were selected), and they're going to fluctuate depending on this size of the biggest cluster. While one might feel uneasy about the fact that, no matter how wimpy some spurious cluster looks, it virtually always gets a p-value around .02-.10, it turns out that's OK: the p-value in this test being "pretty close" isn't indicating how close to being reliable that cluster is. All its doing is controlling the long term FA rate. (That's sort of always true of p-values, but it's especially worth emphasizing here.)
+
 #### Boot-Splines Approach:
 
-Here's the false-alarm rate:
+Here's the false-alarm rate for boot-splines:
+
 ```{r}
 bs_fa <- sapply(res_bs, function(x) x$prop_fa)
 mean(bs_fa) # false-alarm rate for boot-splines
 ```
 
 And here's the average estimated size of the effect for bins where it was judged significant:
+
 ```{r}
 bs_mean_diff <- sapply(res_bs, function(x) ifelse(is.nan(x$mean_diff), 0, x$mean_diff))
 plot(bs_mean_diff); abline(h=0)
@@ -126,14 +177,17 @@ plot(bs_mean_diff); abline(h=0)
 
 Here's an example:
 ```{r}
+plot(ts_dat, predictor_column = "Target")
 plot(bs_anal) # an example
 ```
 
-Boot-splines can't control the false-alarm rate when items potentially vary a lot. Random variation in the items creates what looks like systematic patterns in the looking-times when you ignore those items.
+Boot-splines can't control the false-alarm rate when items potentially vary a lot (bonferroni alone can't fix this). Random variation in the items creates what looks like systematic patterns in the looking-times when you ignore those items.
 
 The obvious fix here is to run both by-participants and by-items boot-splines. You can try this by setting `within_subj=FALSE,` and `summarize_by = 'Trial'`. This alone doesn't get the false-alarm rate down; however, if you *also* do bonferoni correction, then the false-alarm rate is (finally) controlled.
 
 ## Test 2: Cluster Analysis and Missing Data
+
+Let's test out cluster-analysis on its weakness: noisy data. First, here's baseline:
 
 ```{r}
 df_time <- make_time_sequence_data(data = response_window_clean, time_bin_size = 100, aois = "Animate", 
@@ -185,7 +239,7 @@ summary(df_clust_md)
 In this case, the effect is so massive that it's reliable in the two other main clusters still. Still, we have to make this weird (and fallacious) conclusion that our effect didn't occur in the middle of the trial.
 
 ```{r, warning=FALSE}
-cluster_anal_md <- analyze_time_clusters(df_clust_md, within_subj = T, paired=T, samples = 200)
+cluster_anal_md <- analyze_time_clusters(df_clust_md, within_subj = T, paired=T, samples = 200, parallel = T)
 plot(cluster_anal_md)
 summary(cluster_anal_md)
 ```
@@ -200,9 +254,9 @@ plot(bs_dat_md)
 summary(analyze_boot_splines(bs_dat_md))
 ```
 
-Boot-splines doesn't even flinch. 
+The missing/noisy data doesn't cause any problem for boot-splines whatsoever.
 
-But what if, instead of getting the same parameter estimate during that period (but with lower certainty), we actually got a lower parameter estimate (with *high* certainty)? Can the splining procedure capture this?
+But what if, instead of getting the same parameter estimate during that period but with lower certainty, we actually got a lower parameter estimate with *high* certainty? Can the splining procedure capture this?
 
 In other words, boot-splines should hopefully smooth away uncertainty, but maintain certain but abrupt shifts.
 
