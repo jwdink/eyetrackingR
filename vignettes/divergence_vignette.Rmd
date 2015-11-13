@@ -111,6 +111,28 @@ summary(bootstrap_analysis_familiar)
 
 This analysis suggests that the effect is significant for virtually the entire time-window, starting as early as 15900ms.
 
+Note that, for designs such as this one, it's often good to examine the effect in terms of the random-structure that comes with items, not just participants. While heirarchical approaches helped us do this in previous vignettes, these approaches aren't applicable to the boot-splines analysis. What we can do instead is repeat the boot-splines analysis, but this time collapsing within *items* instead of *subjects*. Ideally, both analyses should give very similar results.
+
+EyetrackingR makes this easy. We simply make a new `time_sequence` dataset, this time summarized by item. When we compute boot-splines this time, we want to set `within_subj` to FALSE-- this argument now essentially means `within_items`, and this is not true of this dataset (each item was either animate or inanimate).
+
+```{r, warning=FALSE}
+response_time_item <- make_time_sequence_data(response_window_clean,
+                                  time_bin_size = 100, 
+                                  predictor_columns = c("Target"),
+                                  aois = "Animate",
+                                  summarize_by = "Trial") # <---"Trial" corresponds to both item and trial 
+bootstrapped_familiar_item <- make_boot_splines_data(response_time_item, 
+                                              predictor_column = 'Target', 
+                                              within_subj = FALSE, 
+                                              samples = 1000, 
+                                              alpha = .05,
+                                              smoother = "smooth.spline") 
+plot(bootstrapped_familiar_item)
+bootstrap_analysis_familiar_item <- analyze_boot_splines(bootstrapped_familiar_item)
+plot(bootstrap_analysis_familiar_item)
+summary(bootstrap_analysis_familiar_item)
+```
+
 ## Bootstrapped cluster-based permutation analysis
 
 Our second approach is to perform a different type of bootstrapping analyses, referred to as a cluster-based permutation analysis (Maris & Oostenveld, 2007). This analysis takes a summed statistic for each cluster of time bins that pass some level of significance, and compares each to the "null" distribution of sum statistics (obtained by bootstrap resampling data within the largest of the clusters).
@@ -132,13 +154,19 @@ Here's the procedure eyetrackingR implements under the hood:
 
 To perform this procedure using eyetrackingR, we'll need to make a `time_sequence_data` dataframe. In this case, we already made above (`response_window`).
 
-Next, we'll set the threshold for the t-statistic that will be considered a divergence. Note that this is just a threshold for grouping samples into initial clusters -- lowering this `threshold` parameter won't make your divergences any more "significant" or increase your Type I error rate. Here we'll set the threshold based on the appropriate t-statistic for a sample of this size and an alpha of .05.
+Next, we'll set the threshold for the t-statistic that will be considered a divergence. This can be a source of misconceptions.
+
+* The _size_ of the initial threshold you set doesn't matter too much, but you should set it in a principled way (e.g., don't run the cluster analysis, examine the result, then decide you want to use a different threshold). Here, we'll just set it based on the t-distribution: ~2.06 corresponds to the usual statistic we would use in a t-test for this sample.
+* The _sign_ of the initial threshold you set is very important. The results you'll eventually get from the cluster analysis are on the assumption you had an hypothesis going in about which direction your effect would be in. If you think your effect will increase across conditions, you should give a positive threshold, if you think it will decrease, you should give a negative threshold.
+* If you _don't_ come into your experiment with an idea about which direction your effect will be in, you can just run this function twice (once with a negative threshold, once with a positive threshold). However, you'll want to adjust your alpha at the end of the cluster-analysis (see below).
 
 ```{r, warning=FALSE}
-alpha = .05
 num_sub = length(unique((response_window_clean$ParticipantName)))
-threshold_t = qt(p = 1 - alpha/2, 
+threshold_t = qt(p = 1 - .05/2, 
                  df = num_sub-1) # pick threshold t based on alpha = .05 two tailed
+levels(response_window_clean$Target) 
+# for a paired t-tests, positive effects mean level1 - level2 is positive.
+# so we should give a positive threshold if we're predicting more looking in the animate-target condition
 ```
 
 We can then look for initial clusters:
@@ -154,15 +182,31 @@ plot(df_timeclust) +
 summary(df_timeclust)
 ```
 
-Finally, bootstrap p-values for each of these clusters by asking how likely we are to see a cluster with that "Sum Statistic" given a permutation-based null distribution derived from our largest cluster.
+The above tells us there are two potential clusters. As described in the procedure above, eyetrackingR next takes the largest cluster and bootstraps a "null" distribution, which can be visualized:
 
 ```{r, warning=FALSE}
 clust_analysis <- analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, 
                                         samples=100) # in practice, you should use a lot more
-summary(clust_analysis)
-
 plot(clust_analysis)
 ```
+
+How can we interpret these results? 
+
+```{r, warning=FALSE}
+summary(clust_analysis)
+```
+
+If we came into the experiment with an *a prior* hypothesis about the direction of the effect, the probabilities listed above tell us the probability of seeing the effect of each cluster (or bigger) by chance. So we can report these as p-values with alpha=.05. Each cluster that passes criterion is a cluster whose stretch of time exhibited a reliable effect.
+
+*However,* if we didn't come into the experiment with this prediction, we should cut our alpha in half to .025, since this cluster-analysis gives a one-tailed test.
+
+## Summary
+
+The two methods described here have several advantages and disadvantages. 
+
+The boot-splines method is especially well-suited for simple designs with large but noisy effects. The splines help smooth over noise, and with such large effects, sensitivity-sacrificing methods that control for the false-alarm rate are less of a concern.
+
+The time-cluster is better-suited for subtle but less noisy effects. This method is extremely sensitive, while setting an upper-bound on the false-alarm rate (% of spurious time-bins). This method also allows for a wider range of experimental designs and predictors that simply cannot be captured by the boot-splines method (e.g, continuous predictors, covariates, or anything else available to hierarchical models). The main disadvantage of this method is that it does not gracefully deal with noisy data. Because we simply group time-bins by adjacency, a single noisy time-bin (perhaps one with missing data) can break up a time-cluster that otherwise reliably exhibits an effect. In simple experimental designs with noisy data (many infants studies), the boot-splines method can avoid this pitfall.
 
 ## References
 
