@@ -207,7 +207,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
           data[first(rows_of_participants[[i]]),attrs$predictor_column]
       }
       
-      # this gives a dataframe where the "condition" label has been resampled for participants/items
+      # this gives a dataframe where the "condition" label has been shuffled for participants/items
       # run analyze time bins on it to get sum statistic for cluster
       df_resampled$Cluster <- NULL
       attr(df_resampled, "eyetrackingR")$clusters <- NULL
@@ -241,14 +241,15 @@ analyze_time_clusters.time_cluster_data <-function(data,
     
   }
 
-  # Get p-values (one tailed based on sign of original threshold):
+  # Get p-values (two-tailed):
   out <-c(list(null_distribution = null_distribution), attr(data, "eyetrackingR"))
   probs <-sapply(out$clusters$SumStatistic,
-                 FUN= function(ss) min(c(
-                   mean(ss<out$null_distribution, na.rm=TRUE),
-                   mean(ss>out$null_distribution, na.rm=TRUE)
-                 ))
-  )
+                 FUN= function(ss) { sum( 
+                   sum(out$null_distribution <= min(ss, -ss)) / length(out$null_distribution),  # left-tail
+                   sum(out$null_distribution >= max(ss, -ss)) / length(out$null_distribution)  # right-tail
+                 )
+            })
+  
   out$clusters$Probability <- probs
   
   #
