@@ -4,7 +4,7 @@
 \alias{simulate_eyetrackingr_data}
 \title{Simulate an eyetrackingR dataset}
 \usage{
-simulate_eyetrackingr_data(...)
+simulate_eyetrackingr_data(num_trials_per_condition = 1, ...)
 }
 \arguments{
 \item{...}{Ignored}
@@ -16,10 +16,5 @@ Prints a list of divergence-times.
 This function creates an eyetrackingR dataset (i.e., already run through make_eyetrackingr_data).
 This can be helpful for examining the false-alarm and sensitivity of analysis-techniques via
 simulations.
-}
-\details{
-The data is an experiment with 6 items and two (within-subjects, across-items) conditions.
-
-There are two AOIs, and \code{treat_non_aoi_looks_as_missing = TRUE}.
 }
 
