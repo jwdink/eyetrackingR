@@ -42,7 +42,7 @@ A cluster-analysis object, which can be plotted and summarized to examine which 
 Takes data whose time bins have been clustered by significance (using the \code{make_time_cluster_data}
 function) and performs a bootstrapping analyses (Maris & Oostenveld, 2007). This analysis takes a summed
 statistic for each cluster, and compares it to the "null" distribution of sum statistics obtained by
-resampling data within the largest of the clusters.
+shuffling/resampling the data and extracting the largest cluster from each resample.
 }
 \section{Methods (by class)}{
 \itemize{

@@ -38,7 +38,7 @@ The original data, augmented with information about clusters. Calling summary on
 \description{
 Takes data that has been summarized into time-bins by \code{make_time_sequence_data()}, finds adjacent time
 bins that pass some threshold of significance, and assigns these adjacent bins into groups (clusters).
-Output is ready for a bootstrapping analyses (Maris & Oostenveld, 2007)
+Output is ready for a cluster permutation-based analyses (Maris & Oostenveld, 2007)
 }
 \section{Methods (by class)}{
 \itemize{
