@@ -2,6 +2,17 @@ library(eyetrackingR)
 library(ggplot2)
 library(pbapply)
 set.seed(42)
+
+# notes:
+  # vary within versus between-subj
+  # vary N(subjects) and N(trials)
+
+# things to compare:
+  # Any divergence?
+  # Total prop of divergence time?
+  # Magnitude of divergence?
+  # Average distance between cluster and bootstrapped?
+
 # Prelim --------------------------------------------------------------------------------------
 ##
 tb_size = 10
@@ -23,7 +34,7 @@ num_time_bins <- length(unique(df_time$TimeBin))
 
 # Consecutive t-tests --------------------------------------------------------------------------------
 set.seed(5)
-tb_res_fa <- pbreplicate(1:40, expr {
+tb_res_fa <- pbreplicate(40, expr = {
   df <- simulate_eyetrackingr_data()
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
                                          summarize_by = "Participant")

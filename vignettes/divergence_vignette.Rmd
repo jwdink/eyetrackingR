@@ -150,7 +150,7 @@ Here's the procedure eyetrackingR implements under the hood:
 4. Take the data and randomly shuffle it.
 5. Perform 1-3 on the shuffled dataset. Save the biggest sum-statistic.
 6. Repeat steps (4) and (5) hundreds of times. This will lead to a distribution of summed-statistics, each representing the results of a statistical test on shuffled data. Intuitively, this distribution represents what kind of sum-statistics we would expect to get by chance, if no effect were present (i.e., if the data were just randomly shuffled).
-7. Compare the cluster-statistics from step (3) to the distribution found in (6) to obtain a p-value. So, for example, imagine we get a distribution of sum-statistics, and 6.4% of the sum-statistics in this distribution are greater than the sum-statistic of our cluster, then our *p*-value for this cluster is *p* = .064 (with alpha for a two-tailed test being .025)
+7. Compare the cluster-statistics from step (3) to the distribution found in (6) to obtain a p-value. So, for example, imagine we get a distribution of sum-statistics, and 6.4% of the sum-statistics in this distribution are more extreme the sum-statistic of our cluster, then our *p*-value for this cluster is *p* = .064.
 
 To perform this procedure using eyetrackingR, we'll need to make a `time_sequence_data` dataframe. In this case, we already made above (`response_window`).
 
@@ -161,8 +161,6 @@ num_sub = length(unique((response_window_clean$ParticipantName)))
 threshold_t = qt(p = 1 - .05/2, 
                  df = num_sub-1) # pick threshold t based on alpha = .05 two tailed
 levels(response_window_clean$Target) 
-# for a paired t-tests, positive effects mean level1 - level2 is positive.
-# so we should give a positive threshold if we're predicting more looking in the animate-target condition
 ```
 
 We can then look for initial clusters:
@@ -192,7 +190,7 @@ How can we interpret these results?
 summary(clust_analysis)
 ```
 
-The probabilities listed above tell us the probability of seeing the effect of each cluster (or bigger) by chance. So we can report these as p-values with alpha=.025. Each cluster that passes criterion is a cluster whose stretch of time exhibited a reliable effect.
+The probabilities listed above tell us the probability of seeing the effect of each cluster (or bigger) by chance. So we can report these as p-values with alpha=.05. Each cluster that passes criterion is a cluster whose stretch of time exhibited a reliable effect.
 
 ## Summary
 
