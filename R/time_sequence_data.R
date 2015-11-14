@@ -345,6 +345,7 @@ analyze_time_bins.time_sequence_data <- function(data,
               "\n...received the following error message(s): \n\t`", error_types[i], "`",
               "\nThis means something went wrong when running ", test, " on these timebins. ",
               "Model results for these timebins have been replaced by `NA` in the output.\n")
+      if (grepl(pattern = "not found", x = error_types[i])) stop(error_types[i])
     }
   }
   
