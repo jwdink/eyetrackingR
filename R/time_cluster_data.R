@@ -15,13 +15,14 @@ analyze_time_clusters <-function(data, ...) {
 #' @param samples       How many iterations should be performed in the bootstrap resampling procedure?
 #' @param formula       Formula for test. Should be identical to that passed to make_time_cluster_data fxn (if
 #'   arg ignored there, can be ignored here)
-#' @param shuffle_by  If the predictor_column is numeric *and* within-subjects, then observations with the
+#' @param shuffle_by    If the predictor_column is numeric *and* within-subjects, then observations with the
 #'   same predictor value could nevertheless correspond to distinct conditions/categories that should be
 #'   shuffled separately. For example, when using vocabulary scores to predict looking behavior, a participant
 #'   might get identical vocab scores for verbs and nouns; these are nevertheless distinct categories that
 #'   should be re-assigned separately when bootstrap-resampling data. The 'shuffle_by' argument allows you to
 #'   specify a column which indicates these kinds of distinct categories that should be resampled separately--
 #'   but it's only needed if you've specified a numeric *and* within-subjects predictor column.
+#' @param parallel      Use foreach for speed boost? By default off. May not work on Windows.
 #' @param ...            Other args for to selected 'test' function; should be identical to those passed to
 #'   \code{make_time_cluster_data} function
 #'   
@@ -47,11 +48,12 @@ analyze_time_clusters <-function(data, ...) {
 #' plot(time_cluster_data)
 #' 
 #' # analyze time clusters in a non-parametric analysis
-#' # note: use more than 20 samples in a real analysis (ideally 1000+)
+#' \dontrun{
 #' tc_analysis <- analyze_time_clusters(time_cluster_data, within_subj = FALSE,
-#'                                      samples = 20)
+#'                                      samples = 2000)
 #' plot(tc_analysis)
 #' summary(tc_analysis)
+#' }
 #'   
 #' @export
 #' @return A cluster-analysis object, which can be plotted and summarized to examine which temporal periods
@@ -61,6 +63,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
                                                    samples = 2000,
                                                    formula = NULL,
                                                    shuffle_by = NULL,
+                                                   parallel = FALSE,
                                                    ...) {
 
   # Get important information about type of data/analyses, input when running make_time_cluster_data
@@ -76,15 +79,25 @@ analyze_time_clusters.time_cluster_data <-function(data,
     }
   }
 
-  # Progress Bar:
-  if (!requireNamespace("pbapply", quietly = TRUE)) {
-    pbsapply <- sapply
-    message("Install package 'pbapply' for a progress bar in this function.")
+  # Progress Bar / Parallel:
+  if (parallel) {
+    success <- c(requireNamespace("foreach", quietly = TRUE),
+                 requireNamespace("parallel", quietly = TRUE),
+                 requireNamespace("doMC", quietly = TRUE))
+    if (!all(success)) stop("For parallel = TRUE, the 'doMC' package must be installed.")
+    doMC::registerDoMC()
   } else {
-    pbsapply <- pbapply::pbsapply
+    if (!requireNamespace("pbapply", quietly = TRUE)) {
+      pbsapply <- sapply
+      message("Install package 'pbapply' for a progress bar in this function.")
+    } else {
+      pbsapply <- pbapply::pbsapply
+    }
   }
 
   # Arg check:
+  if (attrs$test == "wilcox.test") stop("Wilcox test is temporarily unavailable in this function. ",
+                                        "Email jacobwdink@gmail.com to encourage him to get this fixed.")
   if (is.null(formula)) {
     message("Using formula that was supplied in 'make_time_cluster_data'.")
     formula <-attrs$formula
@@ -92,10 +105,8 @@ analyze_time_clusters.time_cluster_data <-function(data,
     if (attrs$formula != formula) stop("Formula given in 'make_time_cluster_data' does not match formula given here.")
   }
   if (attrs$test %in% c("t.test", "wilcox.test")) {
-    paired = list(...)[['paired']]
-    if (!is.null(paired)) {
-      if (paired=="T") paired = TRUE # I can't even right now.
-    }
+    cc <- lazyeval::lazy_dots(...)
+    paired <- eval(cc[["paired"]]$expr)
     if (within_subj==TRUE) {
       # if within_subj is true, we need to confirm they overrode default
       if (!identical(paired, TRUE)) stop("For ", attrs$test, ", if 'within_subj' is TRUE, then 'paired' should also be TRUE.")
@@ -110,38 +121,29 @@ analyze_time_clusters.time_cluster_data <-function(data,
   # what are we grouping our resampling by? default is by participant:
   summarized_by <- attrs$summarized_by
   if (is.null(summarized_by)) summarized_by <- data_options$participant_column
-
-  # get data for biggest cluster
-  df_biggclust <-data[!is.na(data[[attrs$predictor_column]]),]
-  if (sign(attrs$threshold)==1) {
-    df_biggclust <- filter(df_biggclust, Cluster == which.max(attrs$clusters["SumStat",]))
-  } else {
-    df_biggclust <- filter(df_biggclust, Cluster == which.min(attrs$clusters["SumStat",]))
-  }
   
   # Resample this data and get sum statistic each time, creating null distribution
   if (within_subj) {
 
     # Within-Subjects
-
-    participants <-unique(df_biggclust[[summarized_by]])
+    participants <-unique(data[[summarized_by]])
 
     # get a list of list of rows. outer list corresponds to participants/items, inner to conditions
     list_of_list_of_rows <-lapply(X = participants, FUN = function(ppt) {
-      ppt_logical <-(df_biggclust[[summarized_by]] == ppt)
+      ppt_logical <-(data[[summarized_by]] == ppt)
 
       # for each participant, get the rows for each of level of the shuffle_by col
-      this_ppt_levels <-unique(df_biggclust[[shuffle_by]][ppt_logical])
+      this_ppt_levels <-unique(data[[shuffle_by]][ppt_logical])
       out <- lapply(X = this_ppt_levels, FUN = function(lev) {
-        which(ppt_logical & df_biggclust[[shuffle_by]] == lev)
+        which(ppt_logical & data[[shuffle_by]] == lev)
       })
       names(out) <- this_ppt_levels
       return(out)
     })
-
-    null_distribution <-pbsapply(1:samples, FUN = function(iter) {
-      df_resampled <- df_biggclust
-
+    
+    get_resampled_sum_stat_within <- function(data, list_of_list_of_rows, attrs, formula, ...) {
+      df_resampled <- data
+      
       # for each participant, randomly resample rows to be assigned to each possible level of the predictor
       # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
       # gets reassigned once per condition across all participants/items (rather than once per condition per participant)
@@ -150,79 +152,128 @@ analyze_time_clusters.time_cluster_data <-function(data,
         for (i in seq_along(resampled)) {
           rows_orig <-list_of_rows[[i]]
           rows_new <-resampled[[i]]
-          df_resampled[rows_new,attrs$predictor_column] <- df_biggclust[first(rows_orig),attrs$predictor_column]
+          df_resampled[rows_new,attrs$predictor_column] <- data[first(rows_orig),attrs$predictor_column]
         }
       }
+      
+      # this gives a dataframe where the "predictor" label has been resampled within each participant
+      # perform the clustering procedure on this
+      df_resampled$Cluster <- NULL
+      attr(df_resampled, "eyetrackingR")$clusters <- NULL
+      attr(df_resampled, "eyetrackingR")$time_bin_summary <- NULL
+      shuffled_cluster_data <- make_time_cluster_data(df_resampled,
+                                                      predictor_column = attrs$predictor_column,
+                                                      test = attrs$test,
+                                                      threshold = attrs$threshold,
+                                                      formula = formula,
+                                                      quiet = TRUE,
+                                                      ... = ...)
+      clusters <- get_time_clusters(shuffled_cluster_data)
+      if ( nrow(clusters)>0 ) {
+        ss <- clusters$SumStatistic
+        return( ss[which.max(abs(ss))] )
+      } else {
+        return(0)
+      }
 
-      # this gives a dataframe where the "condition" label has been resampled within each participant
-      # run analyze time bins on it to get sum statistic for cluster
-      time_bin_summary_resampled <-analyze_time_bins(df_resampled,
-                                                     predictor_column = attrs$predictor_column,
-                                                     test = attrs$test,
-                                                     threshold = attrs$threshold,
-                                                     alpha = attrs$alpha,
-                                                     formula = formula,
-                                                     return_model = FALSE,
-                                                     quiet = TRUE,
-                                                     ...)
-
-      return( sum(time_bin_summary_resampled$Statistic, na.rm=TRUE) )
-    })
-
+   }
+    
+    if (parallel) {
+      null_distribution <- foreach::`%dopar%`(foreach::foreach(iter = 1:samples, .combine = 'c', .inorder = FALSE),
+                                              get_resampled_sum_stat_within(data, list_of_list_of_rows, attrs, formula, ... = ...))
+    } else {
+      null_distribution <- pbsapply(1:samples, 
+                                    FUN = function(iter) get_resampled_sum_stat_within(data, list_of_list_of_rows, 
+                                                                                attrs, formula, ... = ...) )
+    }
+    
 
   } else {
 
     # Between Subjects
 
     # get rows for each participant
-    participants <-unique(df_biggclust[[summarized_by]])
-    rows_of_participants <- lapply(participants, FUN = function(ppt) which(df_biggclust[[summarized_by]] == ppt))
+    participants <-unique(data[[summarized_by]])
+    rows_of_participants <- lapply(participants, FUN = function(ppt) which(data[[summarized_by]] == ppt))
 
-    null_distribution <- pbsapply(1:samples, FUN = function(iter) {
-      df_resampled <- df_biggclust
-
+    get_resampled_sum_stat_btwn <- function(data, rows_of_participants, attrs, formula, ...) {
+      df_resampled <- data
+      
       # randomly re-assign each participant/item to a condition:
       rows_of_participants_resampled <- sample(rows_of_participants, size=length(rows_of_participants), replace=FALSE)
       for (i in seq_along(rows_of_participants_resampled)) {
         # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
         # gets reassigned once per condition across all participants/items (rather than once per participant)
         df_resampled[rows_of_participants_resampled[[i]], attrs$predictor_column] <-
-          df_biggclust[first(rows_of_participants[[i]]),attrs$predictor_column]
+          data[first(rows_of_participants[[i]]),attrs$predictor_column]
       }
-
+      
       # this gives a dataframe where the "condition" label has been resampled for participants/items
       # run analyze time bins on it to get sum statistic for cluster
-      time_bin_summary_resampled <-analyze_time_bins(df_resampled,
-                                                     predictor_column = attrs$predictor_column,
-                                                     test = attrs$test,
-                                                     threshold = attrs$threshold,
-                                                     alpha = NULL,
-                                                     formula = formula,
-                                                     return_model = FALSE,
-                                                     quiet = TRUE,
-                                                     ...)
+      df_resampled$Cluster <- NULL
+      attr(df_resampled, "eyetrackingR")$clusters <- NULL
+      attr(df_resampled, "eyetrackingR")$time_bin_summary <- NULL
+      shuffled_cluster_data <- make_time_cluster_data(df_resampled,
+                                                      predictor_column = attrs$predictor_column,
+                                                      test = attrs$test,
+                                                      threshold = attrs$threshold,
+                                                      formula = formula,
+                                                      quiet = TRUE,
+                                                      ... = ...)
+      
+      clusters <- get_time_clusters(shuffled_cluster_data)
+      if ( nrow(clusters)>0 ) {
+        ss <- clusters$SumStatistic
+        return( ss[which.max(abs(ss))] )
+      } else {
+        return(0)
+      }
+      
+    }
 
-      return( sum(time_bin_summary_resampled$Statistic, na.rm=TRUE) )
-
-    })
-
+    if (parallel) {
+      null_distribution <- foreach::`%dopar%`(foreach::foreach(iter = 1:samples, .combine = 'c', .inorder = FALSE),
+                                              get_resampled_sum_stat_btwn(data, rows_of_participants, attrs, formula, ... = ...))
+    } else {
+      null_distribution <- pbsapply(1:samples, 
+                                    FUN = function(iter) get_resampled_sum_stat_btwn(data, rows_of_participants, 
+                                                                                attrs, formula, ... = ...) )
+    }
+    
   }
 
   # Get p-values (one tailed based on sign of original threshold):
   out <-c(list(null_distribution = null_distribution), attr(data, "eyetrackingR"))
-  probs <-sapply(out$clusters["SumStat",],
-                 FUN= function(ss) ifelse(sign(out$threshold)==1,
+  probs <-sapply(out$clusters$SumStatistic,
+                 FUN= function(ss) min(c(
                    mean(ss<out$null_distribution, na.rm=TRUE),
                    mean(ss>out$null_distribution, na.rm=TRUE)
-                 )
+                 ))
   )
-  out$clusters <-rbind(out$clusters, matrix(probs, nrow = 1))
-  row.names(out$clusters)[nrow(out$clusters)] <- "Prob"
-
+  out$clusters$Probability <- probs
+  
   #
   class(out)  <- "cluster_analysis"
   return(out)
 
+}
+
+#' Get information about the clusters in a cluster-analysis
+#' @param  object The output of the \code{analyze_time_clusters} function
+#' @export
+#' @return A dataframe with information about the clusters
+get_time_clusters <- function(object) UseMethod("get_time_clusters")
+
+#' @describeIn get_time_clusters Get time clusters dataframe
+#' @export
+get_time_clusters.time_cluster_data<- function(object) {
+  attr(object, "eyetrackingR")$clusters
+}
+
+#' @describeIn get_time_clusters Get time clusters dataframe
+#' @export
+get_time_clusters.cluster_analysis<- function(object){
+  object$clusters
 }
 
 #' Summary Method for Cluster Analysis
@@ -231,22 +282,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
 #' @export
 #' @return Prints information about the bootstrapped null distribution, as well as information about each cluster.
 summary.cluster_analysis <- function(object, ...) {
-  clusters <- object$clusters
-  cat(
-    "Test Type:\t", object$test,
-    "\nPredictor:\t", object$predictor_column,
-    "\nFormula:\t", Reduce(paste, deparse(object$formula)),
-    "\nNull Distribution =====",
-    "\n\tMean:\t\t", round(mean(object$null_distribution, na.rm=TRUE), digits = 4),
-    "\n\tSD:\t\t", round(sd(object$null_distribution, na.rm=TRUE), digits = 4),
-    paste(
-      "\nCluster", clusters["Cluster",], " =====",
-      "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
-      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 4),
-      "\n\tProbability:\t", round(clusters["Prob",], digits = 5)
-    )
-  )
-  invisible(object)
+  print(object)
 }
 
 #' Print Method for Cluster Analysis
@@ -261,16 +297,13 @@ print.cluster_analysis <- function(x, ...) {
     "Test Type:\t", object$test,
     "\nPredictor:\t", object$predictor_column,
     "\nFormula:\t", Reduce(paste, deparse(object$formula)),
-    "\nNull Distribution =====",
-    "\n\tMean:\t\t", round(mean(object$null_distribution, na.rm=TRUE), digits = 4),
-    "\n\tSD:\t\t", round(sd(object$null_distribution, na.rm=TRUE), digits = 4),
-    paste(
-      "\nCluster", clusters["Cluster",], " =====",
-      "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
-      "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 4),
-      "\n\tProbability:\t", round(clusters["Prob",], digits = 5)
-    )
+    "\nNull Distribution   ======",
+    "\n Mean:\t\t", round(mean(object$null_distribution, na.rm=TRUE), digits = 4),
+    "\n 2.5%:\t\t", round(quantile(object$null_distribution, probs = .025, na.rm=TRUE), digits = 4),
+    "\n97.5%:\t\t", round(quantile(object$null_distribution, probs = .975, na.rm=TRUE), digits = 4),
+    "\nSummary of Clusters ======\n"
   )
+  print(clusters)
   invisible(object)
 }
 
@@ -283,17 +316,17 @@ print.cluster_analysis <- function(x, ...) {
 make_time_cluster_data <-function(data, ...) {
   UseMethod("make_time_cluster_data")
 }
-#' @describeIn make_time_cluster_data
+#' @describeIn make_time_cluster_data Make data for time cluster analysis
 #' @param data   The output of the \code{make_time_sequence_data} function
 #' @param predictor_column  The variable whose test statistic you are interested in. Testing the
-#'   intercept and interaction terms not currently supported
+#'   intercept or interaction terms not currently supported
 #' @param aoi               If this dataframe has multiple AOIs, you must specify which to analyze
 #' @param test              What type of test should be performed in each time bin? Supports
 #'   \code{t.test}, \code{wilcox}, \code{lm}, or \code{lmer}.
-#' @param threshold         Value of statistic used in determining significance. Note the sign! This
-#'   test is directional.
+#' @param threshold         Value of statistic used in determining significance. Non-directional (two-tailed).
 #' @param formula           What formula should be used for test? Optional (for all but \code{lmer}), if unset
 #'   uses \code{Prop ~ [predictor_column]}
+#' @param quiet             Show messages?
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
 #'   var.equal, etc.)
 #'   
@@ -347,18 +380,15 @@ make_time_cluster_data.time_sequence_data <- function(data,
                                                      predictor_column,
                                                      aoi = NULL,
                                                      test,
-                                                     threshold = NULL,
+                                                     threshold,
                                                      formula = NULL,
+                                                     quiet = FALSE,
                                                      ...) {
   
   
   attrs <- attr(data, "eyetrackingR")
   data_options <- attrs$data_options
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
-
-  # Check Arg:
-  if (is.null(threshold)) stop("This function requires a 'threshold' for each test. ",
-                               "Since this method is directional, take care when choosing the sign of the threshold.")
 
   # Filter Data:
   if (is.null(aoi)) {
@@ -381,40 +411,39 @@ make_time_cluster_data.time_sequence_data <- function(data,
                                        alpha = NULL,
                                        formula = formula,
                                        return_model = FALSE,
-                                       ...)
+                                       quiet = quiet,
+                                       ...) %>%
+    rename(ClusterPos = PositiveRuns, ClusterNeg = NegativeRuns)
   formula <- attr(time_bin_summary, "eyetrackingR")$formula
 
-  # Label Adjacent Clusters:
-  if (sign(threshold)==1) {
-    time_bin_summary$CritStatistic <- time_bin_summary$CritStatisticPos
-    time_bin_summary$CritStatisticNeg <- time_bin_summary$CritStatistic
-    time_bin_summary$Significant <- time_bin_summary$Statistic > time_bin_summary$CritStatistic
-  } else {
-    time_bin_summary$CritStatistic <- time_bin_summary$CritStatisticNeg
-    time_bin_summary$CritStatisticPos <- time_bin_summary$CritStatistic
-    time_bin_summary$Significant <- time_bin_summary$Statistic < time_bin_summary$CritStatistic
+  # Compute Sum Statistic for each Positive Cluster
+  sum_stat_pos <- c()
+  for (clust in na.omit(unique(time_bin_summary$ClusterPos))) {
+    sum_stat_pos[clust] <- sum(time_bin_summary$Statistic[which(time_bin_summary$ClusterPos==clust)])
   }
-  time_bin_summary$Cluster = .label_consecutive(time_bin_summary$Significant)
-
-  # Compute Sum Statistic for each Cluster
-  sum_stat <- c()
-  for (clust in na.omit(unique(time_bin_summary$Cluster))) {
-    sum_stat[clust] = sum(time_bin_summary$Statistic[which(time_bin_summary$Cluster==clust)])
+  sum_stat_neg <- c()
+  for (clust in na.omit(unique(time_bin_summary$ClusterNeg))) {
+    sum_stat_neg[clust] <- sum(time_bin_summary$Statistic[which(time_bin_summary$ClusterNeg==clust)])
   }
 
   # Merge cluster info into original data
-  df_timeclust <- left_join(data, time_bin_summary[,c('Time','AOI','Cluster')], by=c('Time','AOI'))
+  df_timeclust <- left_join(data, time_bin_summary[,c('Time','AOI','ClusterNeg','ClusterPos')], by=c('Time','AOI'))
   
   # Collect info about each cluster:
-  start_times <- sapply(seq_along(sum_stat),
-                       FUN = function(clust) time_bin_summary$Time[first(which(time_bin_summary$Cluster==clust))]
-  )
-  end_times <- sapply(seq_along(sum_stat),
-                     FUN = function(clust) time_bin_summary$Time[last(which(time_bin_summary$Cluster==clust))]
-  )
-  clusters <- sapply(seq_along(sum_stat), function(i) {
-    c(Cluster = i, SumStat = sum_stat[i], StartTime = start_times[i], EndTime = end_times[i]+attrs$time_bin_size)
-  })
+  clusters = data.frame(Cluster = seq_along(c(sum_stat_pos, sum_stat_neg)),
+                        Direction = unlist(c(rep("Positive", length.out = length(sum_stat_pos)), 
+                                             rep("Negative", length.out = length(sum_stat_neg)))),
+                        SumStatistic = c(sum_stat_pos, sum_stat_neg),
+                        StartTime = unlist(c(sapply(seq_along(sum_stat_pos),
+                                                    FUN = function(clust) time_bin_summary$Time[first(which(time_bin_summary$ClusterPos==clust))] ),
+                                             sapply(seq_along(sum_stat_neg),
+                                                    FUN = function(clust) time_bin_summary$Time[first(which(time_bin_summary$ClusterNeg==clust))] ) )),
+                        EndTime = unlist(c(sapply(seq_along(sum_stat_pos),
+                                                  FUN = function(clust) time_bin_summary$Time[last(which(time_bin_summary$ClusterPos==clust))] ),
+                                           sapply(seq_along(sum_stat_neg),
+                                                  FUN = function(clust) time_bin_summary$Time[last(which(time_bin_summary$ClusterNeg==clust))] ) ))
+  ) 
+  clusters$EndTime <-clusters$EndTime + attrs$time_bin_size
 
   # Output data, add attributes w/ relevant info
   df_timeclust <- as.data.frame(df_timeclust)
@@ -450,12 +479,9 @@ summary.time_cluster_data <- function(object, ...) {
       "Test Type:\t", attr(object, "eyetrackingR")$test,
       "\nPredictor:\t", attr(object, "eyetrackingR")$predictor_column,
       "\nFormula:\t", Reduce(paste, deparse(attr(object, "eyetrackingR")$formula)),
-      paste(
-        "\nCluster", clusters["Cluster",], " =====",
-        "\n\tTime:\t\t", clusters["StartTime",], "-", clusters["EndTime",],
-        "\n\tSum Statistic:\t", round(clusters["SumStat",], digits = 5)
+      "\nSummary of Clusters ======\n"
       )
-    )
+    print(clusters)
   }
   invisible(object)
 }
@@ -471,13 +497,13 @@ summary.time_cluster_data <- function(object, ...) {
 #' @export
 #' @return A ggplot object
 plot.cluster_analysis <- function(x, ...) {
-  dat <- c(x$clusters['SumStat',], x$null_distribution)
+  dat <- c(x$clusters$SumStatistic, x$null_distribution)
   x_min <- min(dat, na.rm=TRUE) - sd(dat)
   x_max <- max(dat, na.rm=TRUE) + sd(dat)
-  cluster_names <- as.factor(x$clusters['Cluster',])
+  cluster_names <- as.factor(x$clusters$Cluster)
   df_plot1 <- data.frame(NullDistribution = x$null_distribution)
-  df_plot2 <- data.frame(SumStat = x$clusters['SumStat',],
-                         Cluster = as.factor(x$clusters['Cluster',]))
+  df_plot2 <- data.frame(SumStat = x$clusters$SumStatistic,
+                         Cluster = cluster_names)
   ggplot(data = df_plot1, aes(x = NullDistribution)) +
     geom_density() +
     geom_histogram(aes(y=..density..), binwidth = sd(x$null_distribution)/5, alpha=.75 ) +
@@ -501,34 +527,7 @@ plot.time_cluster_data <- function(x, clusters = NULL, ...) {
   attrs <- attr(x, "eyetrackingR")
   g <- plot(attrs$time_bin_summary)
 
-  if (is.null(clusters)) clusters <- unique(na.omit(attrs$time_bin_summary$Cluster))
-
-  if (any(!is.na(attrs$time_bin_summary$Cluster))) {
-    # Make data for shaded region
-    time_vec <- seq(from = min(attrs$time_bin_summary$Time, na.rm=TRUE),
-                   to = max(attrs$time_bin_summary$Time, na.rm=TRUE),
-                   length.out = length(attrs$time_bin_summary$Time)*50)
-    cluster_vec <- sapply(X = time_vec, function(x) with(attrs$time_bin_summary[!is.na(attrs$time_bin_summary$Cluster),], Cluster[which.min(abs(x - Time))]))
-    stat_vec <- with(attrs$time_bin_summary, approxfun(x = Time, y = Statistic)(time_vec))
-    if (sign(attrs$threshold)==1) {
-      crit_stat_vec <- with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticPos)(time_vec))
-      ribbon_max <- ifelse(test = stat_vec>crit_stat_vec & cluster_vec %in% clusters, stat_vec, NA)
-      ribbon_min <- ifelse(test = stat_vec>crit_stat_vec & cluster_vec %in% clusters, crit_stat_vec, NA)
-    } else {
-      crit_stat_vec <- with(attrs$time_bin_summary, approxfun(x = Time, y = CritStatisticNeg)(time_vec))
-      ribbon_min <- ifelse(test = stat_vec<crit_stat_vec & cluster_vec %in% clusters, stat_vec, NA)
-      ribbon_max <- ifelse(test = stat_vec<crit_stat_vec & cluster_vec %in% clusters, crit_stat_vec, NA)
-    }
-
-    ribbons <- data.frame(
-      Time = time_vec,
-      ribbon_max = ribbon_max,
-      ribbon_min = ribbon_min
-    )
-
-    # add to plot:
-    g <- g + geom_ribbon(data = ribbons, aes(x= Time, ymin= ribbon_min, ymax= ribbon_max), fill= "gray", alpha= .75, colour= NA)
-
-  }
+  # TO DO
+  
   g
 }

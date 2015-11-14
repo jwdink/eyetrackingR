@@ -3,8 +3,6 @@
 \name{analyze_time_clusters}
 \alias{analyze_time_clusters}
 \alias{analyze_time_clusters.time_cluster_data}
-\alias{get_time_clusters.cluster_analysis}
-\alias{get_time_clusters.time_cluster_data}
 \title{Bootstrap analysis of time-clusters.}
 \usage{
 analyze_time_clusters(data, ...)
@@ -12,10 +10,6 @@ analyze_time_clusters(data, ...)
 \method{analyze_time_clusters}{time_cluster_data}(data, within_subj,
   samples = 2000, formula = NULL, shuffle_by = NULL, parallel = FALSE,
   ...)
-
-\method{get_time_clusters}{time_cluster_data}(object)
-
-\method{get_time_clusters}{cluster_analysis}(object)
 }
 \arguments{
 \item{data}{The output of the \code{make_time_cluster_data} function}
@@ -37,6 +31,8 @@ might get identical vocab scores for verbs and nouns; these are nevertheless dis
 should be re-assigned separately when bootstrap-resampling data. The 'shuffle_by' argument allows you to
 specify a column which indicates these kinds of distinct categories that should be resampled separately--
 but it's only needed if you've specified a numeric *and* within-subjects predictor column.}
+
+\item{parallel}{Use foreach for speed boost? By default off. May not work on Windows.}
 }
 \value{
 A cluster-analysis object, which can be plotted and summarized to examine which temporal periods
@@ -51,10 +47,6 @@ resampling data within the largest of the clusters.
 \section{Methods (by class)}{
 \itemize{
 \item \code{time_cluster_data}: 
-
-\item \code{time_cluster_data}: Get time clusters dataframe
-
-\item \code{cluster_analysis}: Get time clusters dataframe
 }}
 \examples{
 data(word_recognition)
@@ -78,11 +70,12 @@ summary(time_cluster_data)
 plot(time_cluster_data)
 
 # analyze time clusters in a non-parametric analysis
-# note: use more than 20 samples in a real analysis (ideally 1000+)
+\dontrun{
 tc_analysis <- analyze_time_clusters(time_cluster_data, within_subj = FALSE,
-                                     samples = 20)
+                                     samples = 2000)
 plot(tc_analysis)
 summary(tc_analysis)
+}
   
 }
 

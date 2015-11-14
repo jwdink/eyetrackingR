@@ -7,6 +7,8 @@
 simulate_eyetrackingr_data(num_trials_per_condition = 1, ...)
 }
 \arguments{
+\item{num_trials_per_condition}{Number of trials per-subject per-condition.}
+
 \item{...}{Ignored}
 }
 \value{

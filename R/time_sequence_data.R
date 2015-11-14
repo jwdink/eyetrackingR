@@ -223,6 +223,7 @@ analyze_time_bins.time_sequence_data <- function(data,
 
   ## Helper:
   .fix_unpaired = function(data, data_options, predictor_column, dv) {
+    if (!is.factor(data[[predictor_column]])) stop("Your condition column should be a factor.")
     lvl1 <- levels(data[[predictor_column]])[1]
     df_no_na   <- filter_(data, interp(~!is.na(DV), DV = as.name(dv)))
     summarized_by <- attr(data, "eyetrackingR")$summarized_by
@@ -244,7 +245,7 @@ analyze_time_bins.time_sequence_data <- function(data,
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   if (!requireNamespace("pbapply", quietly = TRUE)) {
     pblapply <- lapply
-    message("Install package 'pbapply' for a progress bar in this function.")
+    if (!quiet) message("Install package 'pbapply' for a progress bar in this function.")
   } else {
     pblapply <- pbapply::pblapply
   }
@@ -291,11 +292,7 @@ analyze_time_bins.time_sequence_data <- function(data,
 
   # Run a model for each time-bin
   cc <- lazyeval::lazy_dots(...)
-  paired <- cc[["paired"]]$expr
-  if (!is.null(paired)) {
-    if (paired=="T") paired = TRUE # I can't even right now.
-    if (!paired %in% c(TRUE,FALSE)) warning("Unclear how to interpret 'paired'.")
-  } 
+  paired <- eval(cc[["paired"]]$expr)
   if (!quiet) message("Computing ", test, " for each time bin...")
   if (test=="lmer") {
     the_test <- .make_function_fail_informatively(lme4::lmer)

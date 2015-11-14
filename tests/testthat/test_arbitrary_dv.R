@@ -48,6 +48,7 @@ test_that(desc = "Arbitrary DV in sequence data",code = {
 })
 
 num_time_bins <- length(unique(df_time$TimeBin))
+T <- TRUE
 tb1 <- analyze_time_bins(df_time, 
                         formula = PupilDilation ~ Target,
                         predictor_column = "Target", 

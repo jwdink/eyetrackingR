@@ -2,12 +2,18 @@
 % Please edit documentation in R/time_cluster_data.R
 \name{get_time_clusters}
 \alias{get_time_clusters}
+\alias{get_time_clusters.cluster_analysis}
+\alias{get_time_clusters.time_cluster_data}
 \title{Get information about the clusters in a cluster-analysis}
 \usage{
 get_time_clusters(object)
+
+\method{get_time_clusters}{time_cluster_data}(object)
+
+\method{get_time_clusters}{cluster_analysis}(object)
 }
 \arguments{
-\item{cluster_analysis}{The output of the \code{analyze_time_clusters} function}
+\item{object}{The output of the \code{analyze_time_clusters} function}
 }
 \value{
 A dataframe with information about the clusters
@@ -15,4 +21,10 @@ A dataframe with information about the clusters
 \description{
 Get information about the clusters in a cluster-analysis
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{time_cluster_data}: Get time clusters dataframe
+
+\item \code{cluster_analysis}: Get time clusters dataframe
+}}
 

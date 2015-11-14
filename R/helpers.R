@@ -18,10 +18,10 @@
 #' A helper function for make_time_window_data and make_time_sequence_data. Takes a dataframe, groups it, and
 #' returns proportion looking and relevant transformations
 #'
-#' @param data
-#' @param groups
-#' @param aoi_col
-#' @return dataframe
+#' @param data       The data
+#' @param groups     The groups
+#' @param aoi_col    Name of AOI column
+#' @return dataframe Transformed dataframe
 .make_proportion_looking_summary <-
   function(data, groups, aoi_col, other_dv_columns) {
     
@@ -84,10 +84,68 @@
   }
 
 
+#' Simulate an eyetrackingR dataset
+#' 
+#' This function creates an eyetrackingR dataset (i.e., already run through make_eyetrackingr_data).
+#' This can be helpful for examining the false-alarm and sensitivity of analysis-techniques via
+#' simulations.
+#' 
+#' @param num_trials_per_condition Number of trials per-subject per-condition.
+#' @param ... Ignored
+#' @export
+#' @return Prints a list of divergence-times.
+simulate_eyetrackingr_data <- function(num_trials_per_condition = 1, ...) {
+  
+  .generate_random_trial <- function(potential_switches_per_trial, preference = .50) {
+    
+    vec_length <- qgamma(p = .5, shape = potential_switches_per_trial)
+    switch_times_unnormed <- rexp(potential_switches_per_trial)
+    switch_times_normed <- round((switch_times_unnormed/vec_length)*trial_len) +1 
+    which_aoi <- rbinom(n = length(switch_times_normed), size = 1, prob = preference)
+    out <- unlist(lapply(X = seq_along(switch_times_normed), FUN = function(i) rep(which_aoi[i], times = switch_times_normed[i])))
+    out <- out[1:trial_len]
+    out[is.na(out)] <- rbinom(1, 1, preference)
+    as.logical(out)
+
+  }
+  
+  num_participants <- 24
+  trial_len = 499
+  switchiness <- 7
+  
+  dat <- data_frame(Participant = rep(1:num_participants, each = num_trials_per_condition*trial_len) ) %>%
+    group_by(Participant) %>%
+    mutate(NumSwitches = rpois(1, lambda = switchiness)+1,
+           Trial = rep(1:num_trials_per_condition, each = n() / num_trials_per_condition),
+           Condition = ifelse( (Participant%%2)==0, "High", "Low") )  %>%
+    group_by(Participant, Trial) %>%
+    mutate(TimeInTrial = 1:n(),
+           AOI1 = .generate_random_trial(first(NumSwitches)),
+           AOI2 = !AOI1,
+           Trackloss = rbinom(n=n(), size=1, prob = .10)) %>%
+    ungroup() %>% 
+    mutate(Participant = factor(Participant),
+           Condition = factor(Condition))
+  
+  make_eyetrackingr_data(dat, 
+                         treat_non_aoi_looks_as_missing = TRUE,
+                         item_columns = "Trial",
+                         participant_column = "Participant", 
+                         trackloss_column = "Trackloss", 
+                         time_column = "TimeInTrial", 
+                         trial_column = "Trial", 
+                         aoi_columns = c("AOI1", "AOI2"))
+}
+
+
+
+
+
+
 # EyetrackingR-Friendly-Subset ----------------------------------------------------------------------------------
 
 #' EyetrackingR friendly subset
-#' @describeIn subset
+#' @describeIn subset time_sequence_data friendly subset
 #' @param x A dataframe to be subsetted
 #' @param ... further arguments to be passed to or from other methods.
 #' @export
@@ -112,37 +170,37 @@ subset.time_sequence_data <- function(x, ...) {
   return(out)
 }
 
-#' @describeIn subset
+#' @describeIn subset time_window_data friendly subset
 #' @export
 subset.time_window_data <- subset.time_sequence_data
 
-#' @describeIn subset
+#' @describeIn subset bin_analysis friendly subset
 #' @export
 subset.bin_analysis <- subset.time_sequence_data
 
-#' @describeIn subset
+#' @describeIn subset boot_splines friendly subset
 #' @export
 subset.boot_splines_data <- subset.time_sequence_data
 
-#' @describeIn subset
+#' @describeIn subset time_cluster_data friendly subset
 #' @export
 subset.time_cluster_data <- subset.time_sequence_data
 
-#' @describeIn subset
+#' @describeIn subset boot_splines_analysis friendly subset
 #' @export
 subset.boot_splines_analysis <- subset.time_sequence_data
 
-#' @describeIn subset
+#' @describeIn subset onset_data friendly subset
 #' @export
 subset.onset_data <- subset.time_sequence_data
 
-#' @describeIn subset
+#' @describeIn subset eyetrackingR friendly subset
 #' @export
 subset.eyetrackingR <- subset.time_sequence_data
 
 # Friendly Dplyr Verbs: Mutate ----------------------------------------------------------------------------------
 #' EyetrackingR friendly mutate
-#' @describeIn mutate_
+#' @describeIn mutate_ eyetrackingR friendly mutate
 #' @param .data An eyetrackingR dataframe
 #' @param ... name value pairs of expressions
 #' @param .dots Used to work around non-standard evaluation. See vignette("nse") for details.
@@ -168,38 +226,38 @@ mutate_.time_sequence_data <- function(.data, ..., .dots) {
   return(out)
 }
 
-#' @describeIn mutate_
+#' @describeIn mutate_ eyetrackingR friendly mutate
 #' @export
 mutate_.time_window_data <- mutate_.time_sequence_data
 
-#' @describeIn mutate_
+#' @describeIn mutate_ eyetrackingR friendly mutate
 #' @export
 mutate_.bin_analysis <- mutate_.time_sequence_data
 
-#' @describeIn mutate_
+#' @describeIn mutate_ eyetrackingR friendly mutate
 #' @export
 mutate_.boot_splines_data <- mutate_.time_sequence_data
 
-#' @describeIn mutate_
+#' @describeIn mutate_ eyetrackingR friendly mutate
 #' @export
 mutate_.time_cluster_data <- mutate_.time_sequence_data
 
-#' @describeIn mutate_
+#' @describeIn mutate_ eyetrackingR friendly mutate
 #' @export
 mutate_.boot_splines_analysis <- mutate_.time_sequence_data
 
-#' @describeIn mutate_
+#' @describeIn mutate_ eyetrackingR friendly mutate
 #' @export
 mutate_.onset_data <- mutate_.time_sequence_data
 
-#' @describeIn mutate_
+#' @describeIn mutate_ eyetrackingR friendly mutate
 #' @export
 mutate_.eyetrackingR <- mutate_.time_sequence_data
 
 # Friendly Dplyr Verbs: GroupBy ----------------------------------------------------------------------------------
 
 #' EyetrackingR friendly group_by
-#' @describeIn group_by_
+#' @describeIn group_by_ eyetrackingR friendly group_by
 #' @param .data An eyetrackingR dataframe
 #' @param ... variables to group by. Duplicated groups will be silently dropped.
 #' @param .dots Used to work around non-standard evaluation. See vignette("nse") for details.
@@ -227,31 +285,31 @@ group_by_.time_sequence_data <- function(.data, ..., .dots, add= FALSE) {
   return(out)
 }
 
-#' @describeIn group_by_
+#' @describeIn group_by_ eyetrackingR friendly group_by
 #' @export
 group_by_.time_window_data <- group_by_.time_sequence_data
 
-#' @describeIn group_by_
+#' @describeIn group_by_ eyetrackingR friendly group_by
 #' @export
 group_by_.bin_analysis <- group_by_.time_sequence_data
 
-#' @describeIn group_by_
+#' @describeIn group_by_ eyetrackingR friendly group_by
 #' @export
 group_by_.boot_splines_data <- group_by_.time_sequence_data
 
-#' @describeIn group_by_
+#' @describeIn group_by_ eyetrackingR friendly group_by
 #' @export
 group_by_.time_cluster_data <- group_by_.time_sequence_data
 
-#' @describeIn group_by_
+#' @describeIn group_by_ eyetrackingR friendly group_by
 #' @export
 group_by_.boot_splines_analysis <- group_by_.time_sequence_data
 
-#' @describeIn group_by_
+#' @describeIn group_by_ eyetrackingR friendly group_by
 #' @export
 group_by_.onset_data <- group_by_.time_sequence_data
 
-#' @describeIn group_by_
+#' @describeIn group_by_ eyetrackingR friendly group_by
 #' @export
 group_by_.eyetrackingR <- group_by_.time_sequence_data
 
@@ -259,7 +317,7 @@ group_by_.eyetrackingR <- group_by_.time_sequence_data
 # Friendly Dplyr Verbs: Filter ----------------------------------------------------------------------------------
 
 #' EyetrackingR friendly filter
-#' @describeIn filter_
+#' @describeIn filter_ eyetrackingR friendly filter
 #' @param .data An eyetrackingR dataframe
 #' @param ... Logical predicates. Multiple conditions are combined with &.
 #' @param .dots Used to work around non-standard evaluation. See vignette("nse") for details.
@@ -285,31 +343,31 @@ filter_.time_sequence_data <- function(.data, ..., .dots) {
   return(out)
 }
 
-#' @describeIn filter_
+#' @describeIn filter_ eyetrackingR friendly filter
 #' @export
 filter_.time_window_data <- filter_.time_sequence_data
 
-#' @describeIn filter_
+#' @describeIn filter_ eyetrackingR friendly filter
 #' @export
 filter_.bin_analysis <- filter_.time_sequence_data
 
-#' @describeIn filter_
+#' @describeIn filter_ eyetrackingR friendly filter
 #' @export
 filter_.boot_splines_data <- filter_.time_sequence_data
 
-#' @describeIn filter_
+#' @describeIn filter_ eyetrackingR friendly filter
 #' @export
 filter_.time_cluster_data <- filter_.time_sequence_data
 
-#' @describeIn filter_
+#' @describeIn filter_ eyetrackingR friendly filter
 #' @export
 filter_.boot_splines_analysis <- filter_.time_sequence_data
 
-#' @describeIn filter_
+#' @describeIn filter_ eyetrackingR friendly filter
 #' @export
 filter_.onset_data <- filter_.time_sequence_data
 
-#' @describeIn filter_
+#' @describeIn filter_ eyetrackingR friendly filter
 #' @export
 filter_.eyetrackingR <- filter_.time_sequence_data
 
@@ -317,7 +375,7 @@ filter_.eyetrackingR <- filter_.time_sequence_data
 # Friendly Dplyr Verbs: Ungroup ----------------------------------------------------------------------------------
 
 #' EyetrackingR friendly ungroup
-#' @describeIn ungroup
+#' @describeIn ungroup EyetrackingR friendly ungroup
 #' @param x An eyetrackingR dataframe
 #' @export
 #' @return An eyetrackingR dataframe, without dplyr groups
@@ -341,31 +399,31 @@ ungroup.time_sequence_data <- function(x) {
   return(out)
 }
 
-#' @describeIn ungroup
+#' @describeIn ungroup EyetrackingR friendly ungroup
 #' @export
 ungroup.time_window_data <- ungroup.time_sequence_data
 
-#' @describeIn ungroup
+#' @describeIn ungroup EyetrackingR friendly ungroup
 #' @export
 ungroup.bin_analysis <- ungroup.time_sequence_data
 
-#' @describeIn ungroup
+#' @describeIn ungroup EyetrackingR friendly ungroup
 #' @export
 ungroup.boot_splines_data <- ungroup.time_sequence_data
 
-#' @describeIn ungroup
+#' @describeIn ungroup EyetrackingR friendly ungroup
 #' @export
 ungroup.time_cluster_data <- ungroup.time_sequence_data
 
-#' @describeIn ungroup
+#' @describeIn ungroup EyetrackingR friendly ungroup
 #' @export
 ungroup.boot_splines_analysis <- ungroup.time_sequence_data
 
-#' @describeIn ungroup
+#' @describeIn ungroup EyetrackingR friendly ungroup
 #' @export
 ungroup.onset_data <- ungroup.time_sequence_data
 
-#' @describeIn ungroup
+#' @describeIn ungroup EyetrackingR friendly ungroup
 #' @export
 ungroup.eyetrackingR <- ungroup.time_sequence_data
 
@@ -373,7 +431,7 @@ ungroup.eyetrackingR <- ungroup.time_sequence_data
 # Friendly Dplyr Verbs: Left-Join ----------------------------------------------------------------------------------
 
 #' EyetrackingR friendly Left-Join
-#' @describeIn left_join
+#' @describeIn left_join  EyetrackingR friendly Left-Join
 #' @param x Left dataframe
 #' @param y Right dataframe
 #' @param by a character vector of variables to join by
@@ -405,31 +463,31 @@ left_join.time_sequence_data <-
     return(out)
   }
 
-#' @describeIn left_join
+#' @describeIn left_join EyetrackingR friendly Left-Join
 #' @export
 left_join.time_window_data <- left_join.time_sequence_data
 
-#' @describeIn left_join
+#' @describeIn left_join EyetrackingR friendly Left-Join
 #' @export
 left_join.bin_analysis <- left_join.time_sequence_data
 
-#' @describeIn left_join
+#' @describeIn left_join EyetrackingR friendly Left-Join
 #' @export
 left_join.boot_splines_data <- left_join.time_sequence_data
 
-#' @describeIn left_join
+#' @describeIn left_join EyetrackingR friendly Left-Join
 #' @export
 left_join.time_cluster_data <- left_join.time_sequence_data
 
-#' @describeIn left_join
+#' @describeIn left_join EyetrackingR friendly Left-Join
 #' @export
 left_join.boot_splines_analysis <- left_join.time_sequence_data
 
-#' @describeIn left_join
+#' @describeIn left_join EyetrackingR friendly Left-Join
 #' @export
 left_join.onset_data <- left_join.time_sequence_data
 
-#' @describeIn left_join
+#' @describeIn left_join EyetrackingR friendly Left-Join
 #' @export
 left_join.eyetrackingR <- left_join.time_sequence_data
 

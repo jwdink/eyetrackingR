@@ -28,6 +28,8 @@ intercept or interaction terms not currently supported}
 
 \item{formula}{What formula should be used for test? Optional (for all but \code{lmer}), if unset
 uses \code{Prop ~ [predictor_column]}}
+
+\item{quiet}{Show messages?}
 }
 \value{
 The original data, augmented with information about clusters. Calling summary on this data will
