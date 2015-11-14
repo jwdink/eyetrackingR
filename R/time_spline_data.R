@@ -54,7 +54,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
                                                        resolution = NULL,
                                                        alpha = .05) {
   if (!requireNamespace("pbapply", quietly = TRUE)) {
-    pbreplicate <- function(n, expr, simplify) replicate(n, expr, simplify)
+    pbreplicate <- function(n, expr, simplify = "array") replicate(n, expr, simplify)
     message("Install package 'pbapply' for a progress bar in this function.")
   } else {
     pbreplicate <- pbapply::pbreplicate
@@ -63,6 +63,12 @@ make_boot_splines_data.time_sequence_data <- function (data,
   # get attrs:
   attrs <- attr(data, "eyetrackingR")
   data_options <- attrs$data_options
+  
+  # check predictor:
+  if (!is.factor(data[[predictor_column]])) {
+    message("Coercing ", predictor_column, " to factor...")
+    data[[predictor_column]] <- factor(data[[predictor_column]])
+  }
 
   # Make sure data is summarized:  
   summarized_by <- attrs$summarized_by
