@@ -122,10 +122,11 @@ simulate_eyetrackingr_data <- function(num_trials_per_condition = 1, ...) {
     mutate(TimeInTrial = 1:n(),
            AOI1 = .generate_random_trial(first(NumSwitches)),
            AOI2 = !AOI1,
-           Trackloss = rbinom(n=n(), size=1, prob = .10)) %>%
+           Trackloss = as.logical(rbinom(n=n(), size=1, prob = .10)) ) %>%
     ungroup() %>% 
     mutate(Participant = factor(Participant),
-           Condition = factor(Condition))
+           Condition = factor(Condition),
+           Trial = factor(Trial))
   
   make_eyetrackingr_data(dat, 
                          treat_non_aoi_looks_as_missing = TRUE,

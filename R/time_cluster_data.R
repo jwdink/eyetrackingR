@@ -99,7 +99,6 @@ analyze_time_clusters.time_cluster_data <-function(data,
   if (attrs$test == "wilcox.test") stop("Wilcox test is temporarily unavailable in this function. ",
                                         "Email jacobwdink@gmail.com to encourage him to get this fixed.")
   if (is.null(formula)) {
-    message("Using formula that was supplied in 'make_time_cluster_data'.")
     formula <-attrs$formula
   } else {
     if (attrs$formula != formula) stop("Formula given in 'make_time_cluster_data' does not match formula given here.")

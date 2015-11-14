@@ -53,12 +53,6 @@ make_boot_splines_data.time_sequence_data <- function (data,
                                                        samples = 1000,
                                                        resolution = NULL,
                                                        alpha = .05) {
-  if (!requireNamespace("pbapply", quietly = TRUE)) {
-    pbreplicate <- function(n, expr, simplify = "array") replicate(n, expr, simplify)
-    message("Install package 'pbapply' for a progress bar in this function.")
-  } else {
-    pbreplicate <- pbapply::pbreplicate
-  }
   
   # get attrs:
   attrs <- attr(data, "eyetrackingR")
@@ -148,7 +142,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
       run_subjects_rows <- lapply(run_subjects, function(sub) subsetted_data$RowNum[ subsetted_data[[summarized_by]] == sub ])
 
       # bootstrap
-      bootstrapped_data <- pbreplicate(samples, sampler(subsetted_data, run_subjects_rows, data_options, resolution, smoother))
+      bootstrapped_data <- replicate(samples, sampler(subsetted_data, run_subjects_rows, data_options, resolution, smoother))
       bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
 
       # label each sample by number
@@ -189,7 +183,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
     run_subjects_rows = lapply(run_subjects, function(sub) df_diff$RowNum[ df_diff[[summarized_by]] == sub ])
 
     # bootstrap
-    bootstrapped_data <- pbreplicate(samples, sampler(df_diff, run_subjects_rows, data_options, resolution, smoother))
+    bootstrapped_data <- replicate(samples, sampler(df_diff, run_subjects_rows, data_options, resolution, smoother))
     bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
 
     sample_rows <- paste('Sample', c(1:samples), sep="")
