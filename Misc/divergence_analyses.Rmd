@@ -15,6 +15,9 @@ Tests:
     * Correct Discovery %
     * Estimated Time-of-Divergence (bias?)
     * Magnitude of divergence?
+ * Conditioning high-FWER analyses on preliminary overall analyses
+    * Only run boot-splines when there's an overall effect across entire window
+    * Only run boot-splines when there's an interaction term in the growth-curve
  * By-Items Analysis vs. Collapsing Across Items
     * Cluster-Analysis does well
     * Splines does poorly, but easy to fix
@@ -103,7 +106,9 @@ results1 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
        data.frame(false_alarm_bins = sum(Sig[Time <  effect_start-tb_size]),
             correct_discovery_bins = sum(Sig[Time >= effect_start]),
             first_discovery_time = Time[Time >= effect_start-tb_size & Sig][1],
-            avg_rt = mean(df$RT, na.rm=TRUE)
+            avg_rt = mean(df$RT, na.rm=TRUE),
+            rt_lower_quart = quantile(df$RT, probs = .25),
+            rt_upper_quart = quantile(df$RT, probs = .75)
        ))
 }) )
 
@@ -111,7 +116,7 @@ cat(sep = "",
   "\nSensitivity:",
   "\n\tAverage Correct-Discovery Rate:\t", mean(results1$correct_discovery_bins) / (num_time_bins/2),
   "\n\tRate of No Discovery:\t\t", mean(results1$correct_discovery_bins==0),
-  "\n\tAverage Time of 1st Divergence:\t", mean(results1$first_discovery_time, na.rm=TRUE), " ",
+  "\n\tAvg. Time of 1st Diverg. (CI):\t", mean(results1$first_discovery_time, na.rm=TRUE), " ",
   "(",paste(round(quantile(boot::boot(results1$first_discovery_time, f, R=500)$t, probs = c(.025, .975))), collapse=", "),")",
   "\n\tActual Time of Effect Onset:\t", effect_start, 
   "\n\tAverage RT:\t\t\t", mean(results1$avg_rt),
