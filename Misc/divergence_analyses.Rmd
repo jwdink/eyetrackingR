@@ -18,11 +18,8 @@ other things to check:
 - [ ] Magnitude of divergence?
 - [ ] Average distance between cluster and bootstrapped? 
 
-### Example Fake Data with No Effect
 
-No preference for either AOI (5 second trial, N=16, 6 items per participant, between subjects)
-
-```{r}
+```{r, echo=FALSE}
 library("eyetrackingR")
 library("ggplot2")
 suppressPackageStartupMessages(library("dplyr"))
@@ -30,7 +27,14 @@ library("pbapply")
 
 set.seed(40)
 tb_size = 250
+f <- function(d, i) mean(d[i], na.rm=TRUE)
+```
 
+### Example Fake Data with No Effect
+
+No preference for either AOI (5 second trial, N=16, 6 items per participant, between subjects)
+
+```{r}
 df <- simulate_eyetrackingr_data()
 df_time <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1")
 plot(df_time, predictor_column = "Condition")
@@ -92,6 +96,7 @@ cat(
   "\n\tAverage Correct-Discovery Rate:\t", mean(results1$correct_discovery_bins) / num_time_bins,
   "\n\tRate of No Discovery:\t\t ", mean(results1$correct_discovery_bins==0),
   "\n\tAverage Time of 1st Divergence:\t", mean(results1$first_discovery_time, na.rm=TRUE),
+  "(",round(quantile(boot::boot(results1$first_discovery_time, f, R=500)$t, probs = c(.025, .975))),")",
   "\n\tActual Time of Effect Onset:\t", mean(results1$true_effect_onset),
   "\nFalse Alarms:",
   "\n\tAverage FA Rate:\t", mean(results1$false_alarm_bins) / num_time_bins,
@@ -123,6 +128,7 @@ cat(
   "\n\tAverage Correct-Discovery Rate:\t", mean(results2$correct_discovery_bins) / num_time_bins,
   "\n\tRate of No Discovery:\t\t ", mean(results2$correct_discovery_bins==0),
   "\n\tAverage Time of 1st Divergence:\t", mean(results2$first_discovery_time, na.rm=TRUE),
+  "(",round(quantile(boot::boot(results2$first_discovery_time, f, R=500)$t, probs = c(.025, .975))),")",
   "\n\tActual Time of Effect Onset:\t", mean(results2$true_effect_onset),
   "\nFalse Alarms:",
   "\n\tAverage FA Rate:\t", mean(results2$false_alarm_bins) / num_time_bins,
@@ -156,6 +162,7 @@ cat(
   "\n\tAverage Correct-Discovery Rate:\t", mean(results3$correct_discovery_bins) / num_time_bins,
   "\n\tRate of No Discovery:\t\t ", mean(results3$correct_discovery_bins==0),
   "\n\tAverage Time of 1st Divergence:\t", mean(results3$first_discovery_time, na.rm=TRUE),
+  "(",round(quantile(boot::boot(results3$first_discovery_time, f, R=500)$t, probs = c(.025, .975))),")",
   "\n\tActual Time of Effect Onset:\t", mean(results3$true_effect_onset),
   "\nFalse Alarms:",
   "\n\tAverage FA Rate:\t", mean(results3$false_alarm_bins) / num_time_bins,
@@ -188,6 +195,7 @@ cat(
   "\n\tAverage Correct-Discovery Rate:\t", mean(results4$correct_discovery_bins) / num_time_bins,
   "\n\tRate of No Discovery:\t\t ", mean(results4$correct_discovery_bins==0),
   "\n\tAverage Time of 1st Divergence:\t", mean(results4$first_discovery_time, na.rm=TRUE),
+  "(",round(quantile(boot::boot(results4$first_discovery_time, f, R=500)$t, probs = c(.025, .975))),")",
   "\n\tActual Time of Effect Onset:\t", mean(results4$true_effect_onset),
   "\nFalse Alarms:",
   "\n\tAverage FA Rate:\t", mean(results4$false_alarm_bins) / num_time_bins,
