@@ -21,6 +21,9 @@ Tests:
  * Effects of time-bin with high amount of noise 
     * Splines do well
     * Cluster-analysis does poorly
+ * Adjusting Threshold of Cluster-Analysis
+    * A prior
+    * Post-hoc
  * Abrupt End-of-Divergence for Brief Period
     * Does splines falsely smooth this away?
 
@@ -220,6 +223,9 @@ cat(sep = "",
 )
 ```
 
+### Cluster Analysis:
+
+Note, this uses a t-test on each bin (not lmer).
 
 ```{r}
 set.seed(.1)
@@ -229,17 +235,25 @@ results5 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
                                          summarize_by = "Participant")
   cl_dat <- make_time_cluster_data(data = df_time_sub, predictor_column = "Condition", test = "t.test", threshold = 2.13, quiet = TRUE)
-  cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = 50, parallel = TRUE)
-  cl_clusts <- get_time_clusters(cl_anal)
-  cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
-  cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05)
-  with(cl_sig_clusts, 
-       data.frame(false_alarm_bins = sum(NumBins[StartTime <  effect_start-tb_size]),
-                  correct_discovery_bins = sum(NumBins[StartTime >= effect_start]),
-                  first_discovery_time = StartTime[StartTime >= effect_start-tb_size][1],
-                  avg_rt = mean(df$RT, na.rm=TRUE)
-       ))
-}) )
+  if ( nrow(get_time_clusters(cl_dat))>0 ) {
+    cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = 50, parallel = TRUE)
+    cl_clusts <- get_time_clusters(cl_anal)
+    cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
+    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05)
+    out <- with(cl_sig_clusts, 
+         data.frame(false_alarm_bins = sum(NumBins[StartTime <  effect_start-tb_size]),
+                    correct_discovery_bins = sum(NumBins[StartTime >= effect_start]),
+                    first_discovery_time = StartTime[StartTime >= effect_start-tb_size][1],
+                    avg_rt = mean(df$RT, na.rm=TRUE)
+         ))
+  } else {
+    out <- data.frame(false_alarm_bins = 0, 
+                      correct_discovery_bins = 10,  # <----- hard-coded, fix later
+                      first_discovery_time = NA, 
+                      avg_rt = mean(df$RT, na.rm=TRUE) )
+  }
+  return(out)
+}))
 
 cat(sep = "",
   "\nSensitivity:",

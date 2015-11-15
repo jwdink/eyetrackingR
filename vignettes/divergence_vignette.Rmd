@@ -135,7 +135,7 @@ summary(bootstrap_analysis_familiar_item)
 
 ## Bootstrapped cluster-based permutation analysis
 
-Our second approach is to perform a different type of bootstrapping analyses, referred to as a cluster-based permutation analysis (Maris & Oostenveld, 2007). This analysis takes a summed statistic for each cluster of time bins that pass some level of significance, and compares each to the "null" distribution of sum statistics (obtained by bootstrap resampling data within the largest of the clusters).
+Our second approach is to perform a different type of bootstrapping analyses, referred to as a cluster-based permutation analysis (Maris & Oostenveld, 2007). This analysis takes a summed statistic for each cluster of time bins that pass some level of significance, and compares each to the "null" distribution of sum statistics (obtained by bootstrap resampling).
 
 This type of analysis should often give similar results to the above, but it has two main advanatges. 
 
