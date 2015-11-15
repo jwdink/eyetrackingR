@@ -53,7 +53,7 @@ num_time_bins <- length(unique(df_time$TimeBin))
 A strong preference for AOI1 in the "high" condition emerges halfway through the trial (5 second trial, N=16, 6 items per participant, between subjects).
 
 ```{r}
-set.seed(50)
+set.seed(48)
 df <- simulate_eyetrackingr_data(pref = .80, pref_window = c(2500,5000))
 df_time <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1")
 plot(df_time, predictor_column = "Condition")
@@ -67,12 +67,14 @@ ggplot(df_time, aes(x = Time, y = Prop, group = Condition, color=Condition)) +
   facet_wrap(~ Item)
 ```
 
-### Consecutive t-tests, no correction:
+## T.Tests
+
+### No Correction:
 
 ```{r}
 set.seed(5)
 effect_start <- 2500
-results <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
+results1 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
   df <- simulate_eyetrackingr_data(pref = .80, pref_window = c(effect_start,5000))
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
                                          summarize_by = "Participant")
@@ -87,22 +89,24 @@ results <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
        ))
 }) )
 
-message("Sensitivity:")
-message("Average Correct-Discovery Rate:", mean(results$correct_discovery_bins) / num_time_bins)
-message("Rate of No Discovery: ", mean(results$correct_discovery_bins==0))
-message("Average Time of First Divergence: ", mean(results$first_discovery_time, na.rm=TRUE))
-message("Actual Time of Effect Onset: ", mean(results$true_effect_onset))
-message("False Alarms")
-message("Average FA Rate:", mean(results$false_alarm_bins) / num_time_bins)
-message("Average FWER", mean(results$false_alarm_bins != 0))
+cat(
+  "\nSensitivity:",
+  "\n\tAverage Correct-Discovery Rate:\t", mean(results1$correct_discovery_bins) / num_time_bins,
+  "\n\tRate of No Discovery:\t\t ", mean(results1$correct_discovery_bins==0),
+  "\n\tAverage Time of 1st Divergence:\t", mean(results1$first_discovery_time, na.rm=TRUE),
+  "\n\tActual Time of Effect Onset:\t", mean(results1$true_effect_onset),
+  "\nFalse Alarms:",
+  "\n\tAverage FA Rate:\t", mean(results1$false_alarm_bins) / num_time_bins,
+  "\n\tAverage FWER:\t\t", mean(results1$false_alarm_bins != 0)
+)
 ```
 
-### Consecutive t-tests, Bonferroni
+### Bonf. correction:
 
 ```{r}
 set.seed(5)
 effect_start <- 2500
-results <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
+results2 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
   df <- simulate_eyetrackingr_data(pref = .80, pref_window = c(effect_start,5000))
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
                                          summarize_by = "Participant")
@@ -117,12 +121,81 @@ results <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
        ))
 }) )
 
-message("Sensitivity:")
-message("Average Correct-Discovery Rate:", mean(results$correct_discovery_bins) / num_time_bins)
-message("Rate of No Discovery: ", mean(results$correct_discovery_bins==0))
-message("Average Time of First Divergence: ", mean(results$first_discovery_time, na.rm=TRUE))
-message("Actual Time of Effect Onset: ", mean(results$true_effect_onset))
-message("False Alarms")
-message("Average FA Rate:", mean(results$false_alarm_bins) / num_time_bins)
-message("Average FWER", mean(results$false_alarm_bins != 0))
+cat(
+  "\nSensitivity:",
+  "\n\tAverage Correct-Discovery Rate:\t", mean(results2$correct_discovery_bins) / num_time_bins,
+  "\n\tRate of No Discovery:\t\t ", mean(results2$correct_discovery_bins==0),
+  "\n\tAverage Time of 1st Divergence:\t", mean(results2$first_discovery_time, na.rm=TRUE),
+  "\n\tActual Time of Effect Onset:\t", mean(results2$true_effect_onset),
+  "\nFalse Alarms:",
+  "\n\tAverage FA Rate:\t", mean(results2$false_alarm_bins) / num_time_bins,
+  "\n\tAverage FWER:\t\t", mean(results2$false_alarm_bins != 0)
+)
+```
+
+## Boot-Splines
+
+### No Correction:
+
+```{r}
+set.seed(5)
+effect_start <- 2500
+results3 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
+  df <- simulate_eyetrackingr_data(pref = .80, pref_window = c(effect_start,5000))
+  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
+                                         summarize_by = "Participant")
+  bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, alpha = .05, samples = 250)
+  bs_anal <- analyze_boot_splines(bs_dat)
+  with(bs_anal, 
+       data.frame(false_alarm_bins = sum(Significant[Time <  effect_start-tb_size]),
+            correct_discovery_bins = sum(Significant[Time >= effect_start]),
+            first_discovery_time = Time[Time >= effect_start-tb_size & Significant][1],
+            true_effect_onset = effect_start + 
+              mean(describe_data(df, describe_column = "PrefOnset", group_columns = "Participant")[["Mean"]])
+       ))
+}) )
+
+cat(
+  "\nSensitivity:",
+  "\n\tAverage Correct-Discovery Rate:\t", mean(results3$correct_discovery_bins) / num_time_bins,
+  "\n\tRate of No Discovery:\t\t ", mean(results3$correct_discovery_bins==0),
+  "\n\tAverage Time of 1st Divergence:\t", mean(results3$first_discovery_time, na.rm=TRUE),
+  "\n\tActual Time of Effect Onset:\t", mean(results3$true_effect_onset),
+  "\nFalse Alarms:",
+  "\n\tAverage FA Rate:\t", mean(results3$false_alarm_bins) / num_time_bins,
+  "\n\tAverage FWER:\t\t", mean(results3$false_alarm_bins != 0)
+)
+```
+
+### Bonf. Correction:
+
+```{r}
+set.seed(8)
+effect_start <- 2500
+results4 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
+  df <- simulate_eyetrackingr_data(pref = .80, pref_window = c(effect_start,5000))
+  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
+                                         summarize_by = "Participant")
+  bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, alpha = .05/num_time_bins, 
+                                   samples = 250)
+  bs_anal <- analyze_boot_splines(bs_dat)
+  with(bs_anal, 
+       data.frame(false_alarm_bins = sum(Significant[Time <  effect_start-tb_size]),
+            correct_discovery_bins = sum(Significant[Time >= effect_start]),
+            first_discovery_time = Time[Time >= effect_start-tb_size & Significant][1],
+            true_effect_onset = effect_start + 
+              mean(describe_data(df, describe_column = "PrefOnset", group_columns = "Participant")[["Mean"]])
+       ))
+}) )
+
+cat(
+  "\nSensitivity:",
+  "\n\tAverage Correct-Discovery Rate:\t", mean(results4$correct_discovery_bins) / num_time_bins,
+  "\n\tRate of No Discovery:\t\t ", mean(results4$correct_discovery_bins==0),
+  "\n\tAverage Time of 1st Divergence:\t", mean(results4$first_discovery_time, na.rm=TRUE),
+  "\n\tActual Time of Effect Onset:\t", mean(results4$true_effect_onset),
+  "\nFalse Alarms:",
+  "\n\tAverage FA Rate:\t", mean(results4$false_alarm_bins) / num_time_bins,
+  "\n\tAverage FWER:\t\t", mean(results4$false_alarm_bins != 0)
+)
 ```

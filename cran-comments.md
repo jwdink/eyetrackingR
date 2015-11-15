@@ -5,7 +5,9 @@
 ## R CMD check results
 There were no ERRORs or WARNINGs. 
 
-There were no NOTEs. 
+There were 1 NOTE (Windows build only):
+
+* *Package suggested but not available for checking: 'doMC'.* I believe this is because the suggested package is only available for Windows.
 
 ## Downstream dependencies
 There are currently no downstream dependencies for this package
