@@ -6,6 +6,7 @@ set.seed(42)
 # notes:
   # vary within versus between-subj
   # vary N(subjects) and N(trials)
+  # vary length of trial
 
 # things to compare:
   # Any divergence?
@@ -46,11 +47,11 @@ cat("Average Family-wise FA: ", mean(tb_res_fa!=0) )
 
 # Boot-Splines --------------------------------------------------------------------------------
 ## Boot-splines, subjects, no alpha correction (FA rate)
-bs_res_fa <- pbreplicate(20, expr = {
-  df <- simulate_eyetrackingr_data()
+bs_res_fa <- pbreplicate(100, expr = {
+  df <- simulate_eyetrackingr_data(num_trials_per_condition=6)
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
                                          summarize_by = "Participant")
-  bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, samples=200)
+  bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, samples=1000)
   bs_anal <- analyze_boot_splines(bs_dat)
   sum(bs_anal$Significant)
 })
@@ -85,7 +86,7 @@ cat("Average Family-wise FA: ", mean(bs_res_fa_bonf!=0) )
 # Cluster Analysis ----------------------------------------------------------------------------
 ## Cluster, subjects t-test, no alpha correction (FA rate)
 set.seed(5)
-cl_res_fa <- pbreplicate(40, expr = {
+cl_res_fa <- pbreplicate(100, expr = {
   df <- simulate_eyetrackingr_data()
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
                                          summarize_by = "Participant") 
@@ -94,7 +95,7 @@ cl_res_fa <- pbreplicate(40, expr = {
     cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, parallel = TRUE, samples = 100)
     cl_clusts <- get_time_clusters(cl_anal)
     cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime) / tb_size)
-    return( with(cl_clusts, sum(NumBins[Probability<.025])) )
+    return( with(cl_clusts, sum(NumBins[Probability<.05])) )
   } else {
     return( 0 )
   }
