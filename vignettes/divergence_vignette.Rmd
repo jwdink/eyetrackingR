@@ -190,7 +190,7 @@ How can we interpret these results?
 summary(clust_analysis)
 ```
 
-The probabilities listed above tell us the probability of seeing the effect of each cluster (or bigger) by chance. So we can report these as p-values with alpha=.05. Each cluster that passes criterion is a cluster whose stretch of time exhibited a reliable effect.
+The probabilities listed above tell us the probability of seeing the effect of each cluster (or bigger) by chance. So we can report these as p-values with alpha=.05 (two-tailed). Each cluster that passes criterion is a cluster whose stretch of time exhibited a reliable effect.
 
 ## Summary
 
