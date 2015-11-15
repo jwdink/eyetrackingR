@@ -3,22 +3,13 @@ library(ggplot2)
 library(pbapply)
 set.seed(42)
 
-# notes:
-  # vary within versus between-subj
-  # vary N(subjects) and N(trials)
-  # vary length of trial
 
-# things to compare:
-  # Any divergence?
-  # Total prop of divergence time?
-  # Magnitude of divergence?
-  # Average distance between cluster and bootstrapped?
 
 # Prelim --------------------------------------------------------------------------------------
 ##
 tb_size = 10
 
-df <- simulate_eyetrackingr_data(2)
+df <- simulate_eyetrackingr_data(num_items_per_condition = 2, .75)
 df_time <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1")
 plot(df_time, predictor_column = "Condition")
 
@@ -85,7 +76,7 @@ cat("Average Family-wise FA: ", mean(bs_res_fa_bonf!=0) )
 
 # Cluster Analysis ----------------------------------------------------------------------------
 ## Cluster, subjects t-test, no alpha correction (FA rate)
-set.seed(5)
+set.seed(35)
 cl_res_fa <- pbreplicate(100, expr = {
   df <- simulate_eyetrackingr_data()
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 

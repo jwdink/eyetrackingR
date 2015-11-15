@@ -87,50 +87,83 @@
 #' Simulate an eyetrackingR dataset
 #' 
 #' This function creates an eyetrackingR dataset (i.e., already run through make_eyetrackingr_data).
-#' This can be helpful for examining the false-alarm and sensitivity of analysis-techniques via
+#' This can be helpful for examining the false-alarm and sensitivity of analysis-techniques via 
 #' simulations.
 #' 
-#' @param num_trials_per_condition Number of trials per-subject per-condition.
-#' @param ... Ignored
+#' @param num_participants        Number of participants
+#' @param num_items_per_condition Number of trials per-subject per-condition.
+#' @param trial_length            How long is the trial (in ms)?
+#' @param pref                    Their preference between the two AOIs in the "high" condition, 
+#'   where 1 is 100% preference for AOI1, and 0 is 100% preference for AOI2. Default is .5 (equal 
+#'   preference). In the "low" condition, their preference between the two AOIs is equal, so default
+#'   is no effect of condition.
+#' @param pref_window             Vector of length two, specifying start and end of time-window in
+#'   which they expressed the preference specified in \code{pref}. Default is the entire trial
+#' @param ...                     Ignored
 #' @export
 #' @return Prints a list of divergence-times.
-simulate_eyetrackingr_data <- function(num_trials_per_condition = 1, ...) {
+simulate_eyetrackingr_data <- function(num_participants= 16, 
+                                       num_items_per_condition = 6, 
+                                       trial_length = 5000, 
+                                       pref =.50, 
+                                       pref_window = c(1,trial_length),
+                                       ...) {
   
-  .generate_random_trial <- function(potential_switches_per_trial, preference = .50) {
+  .generate_random_trial <- function(potential_switches_per_trial, pref = .50) {
     
-    vec_length <- qgamma(p = .5, shape = potential_switches_per_trial)
-    switch_times_unnormed <- rexp(potential_switches_per_trial)
-    switch_times_normed <- round((switch_times_unnormed/vec_length)*trial_len) +1 
-    which_aoi <- rbinom(n = length(switch_times_normed), size = 1, prob = preference)
-    out <- unlist(lapply(X = seq_along(switch_times_normed), FUN = function(i) rep(which_aoi[i], times = switch_times_normed[i])))
-    out <- out[1:trial_len]
-    out[is.na(out)] <- rbinom(1, 1, preference)
+    # Randomly generate potential switch times via poisson process:
+    switch_diffs_unnormed <- rexp(potential_switches_per_trial+1)
+    switch_diffs_normed <- round((switch_diffs_unnormed/sum(switch_diffs_unnormed))*trial_len) +1 
+    switch_diffs_normed <- switch_diffs_normed[1:potential_switches_per_trial]
+    switch_times_normed <- cumsum(switch_diffs_normed)
+    
+    # Determine preference/which-aoi based on time in trial:
+    inside_pref_wind  <- (switch_times_normed>pref_wind[1] & switch_times_normed<pref_wind[2])
+    aoi_vec_inside_window  <- rbinom(n = length(switch_times_normed), size = 1, prob = pref)
+    aoi_vec_outside_window <- rbinom(n = length(switch_times_normed), size = 1, prob = .5)
+    which_aoi <- ifelse(inside_pref_wind, aoi_vec_inside_window, aoi_vec_outside_window)
+    
+    # Generate list of looks:
+    out <- unlist(lapply(X = seq_along(switch_diffs_normed), FUN = function(i) rep(which_aoi[i], times = switch_diffs_normed[i])))
+    last_ind <- length(out)
+    out <- out[1:trial_len] # make sure vector is of length trial_len
+    out[is.na(out)] <- out[last_ind] # if it was too short before, pad with last place they were looking
     as.logical(out)
-
   }
   
-  num_participants <- 24
-  trial_len = 499
-  switchiness <- 7
+  .random_odds <- function(avg_odds = 1) {
+    rnorm(1, mean = avg_odds, sd = .50)
+  }
   
-  dat <- data_frame(Participant = rep(1:num_participants, each = num_trials_per_condition*trial_len) ) %>%
+  pref_wind <- pref_window/10 - 1
+  trial_len = (trial_length/10) - 1
+  switchiness <- round(trial_len / 60)
+  
+  dat <- data_frame(Participant = rep(1:num_participants, each = num_items_per_condition*trial_len) ) %>%
     group_by(Participant) %>%
     mutate(NumSwitches = rpois(1, lambda = switchiness)+1,
-           Trial = rep(1:num_trials_per_condition, each = n() / num_trials_per_condition),
-           Condition = ifelse( (Participant%%2)==0, "High", "Low") )  %>%
+           Trial = rep(1:num_items_per_condition, each = n() / num_items_per_condition),
+           Item  = Trial,
+           Condition = ifelse( (Participant%%2)==0, "High", "Low"),
+           ParticipantLogOdds = ifelse(Condition == "High", .random_odds(qlogis(pref)), .random_odds(qlogis(.50)) ))  %>%
+    group_by(Trial) %>%
+    mutate(TrialLogOdds = ifelse(Condition == "High", .random_odds(qlogis(pref)), .random_odds(qlogis(.50)) )) %>%
     group_by(Participant, Trial) %>%
-    mutate(TimeInTrial = 1:n(),
-           AOI1 = .generate_random_trial(first(NumSwitches)),
+    mutate(TimeInTrial = (1:n())*10,
+           AOI1 = .generate_random_trial(first(NumSwitches), 
+                                         pref = plogis( (first(TrialLogOdds)+first(ParticipantLogOdds))/2 )),
+                                        # each trial pref is avg of that item "pref" w/ that participant pref
            AOI2 = !AOI1,
            Trackloss = as.logical(rbinom(n=n(), size=1, prob = .10)) ) %>%
     ungroup() %>% 
     mutate(Participant = factor(Participant),
            Condition = factor(Condition),
-           Trial = factor(Trial))
+           Trial = factor(Trial),
+           Item  = factor(Item))
   
   make_eyetrackingr_data(dat, 
                          treat_non_aoi_looks_as_missing = TRUE,
-                         item_columns = "Trial",
+                         item_columns = "Item",
                          participant_column = "Participant", 
                          trackloss_column = "Trackloss", 
                          time_column = "TimeInTrial", 
