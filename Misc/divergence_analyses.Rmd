@@ -8,15 +8,15 @@ output: html_document
 ### Notes/Brainstorming:
 
 wrap each of the tests below in a for loop that varies
-* sample-size (both subjects, items)
-* effect-size
-* length of trial
+- sample-size (both subjects, items)
+- effect-size
+- length of trial
 
 other things to check:
-[x] Any divergence?
-[x] Total prop of divergence time?
-[ ] Magnitude of divergence?
-[ ] Average distance between cluster and bootstrapped? 
+- [x] Any divergence?
+- [x] Total prop of divergence time?
+- [ ] Magnitude of divergence?
+- [ ] Average distance between cluster and bootstrapped? 
 
 ### Example Fake Data with No Effect
 
@@ -25,14 +25,13 @@ No preference for either AOI (5 second trial, N=16, 6 items per participant, bet
 ```{r}
 library("eyetrackingR")
 library("ggplot2")
-library("dplyr")
+suppressPackageStartupMessages(library("dplyr"))
 library("pbapply")
 
 set.seed(40)
 tb_size = 250
 
 df <- simulate_eyetrackingr_data()
-describe_data(df, describe_column = "AOI1", group_columns = c("Condition","Participant","Item"))
 df_time <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1")
 plot(df_time, predictor_column = "Condition")
 
@@ -84,8 +83,7 @@ results1 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
        data.frame(false_alarm_bins = sum(Sig[Time <  effect_start-tb_size]),
             correct_discovery_bins = sum(Sig[Time >= effect_start]),
             first_discovery_time = Time[Time >= effect_start-tb_size & Sig][1],
-            true_effect_onset = effect_start + 
-              mean(describe_data(df, describe_column = "PrefOnset", group_columns = "Participant")[["Mean"]])
+            true_effect_onset = effect_start + mean(df$RT, na.rm=TRUE)
        ))
 }) )
 
@@ -116,8 +114,7 @@ results2 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
        data.frame(false_alarm_bins = sum(Sig[Time <  effect_start-tb_size]),
             correct_discovery_bins = sum(Sig[Time >= effect_start]),
             first_discovery_time = Time[Time >= effect_start-tb_size & Sig][1],
-            true_effect_onset = effect_start + 
-              mean(describe_data(df, describe_column = "PrefOnset", group_columns = "Participant")[["Mean"]])
+            true_effect_onset = effect_start + mean(df$RT, na.rm=TRUE)
        ))
 }) )
 
@@ -150,8 +147,7 @@ results3 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
        data.frame(false_alarm_bins = sum(Significant[Time <  effect_start-tb_size]),
             correct_discovery_bins = sum(Significant[Time >= effect_start]),
             first_discovery_time = Time[Time >= effect_start-tb_size & Significant][1],
-            true_effect_onset = effect_start + 
-              mean(describe_data(df, describe_column = "PrefOnset", group_columns = "Participant")[["Mean"]])
+            true_effect_onset = effect_start + mean(df$RT, na.rm=TRUE)
        ))
 }) )
 
@@ -183,8 +179,7 @@ results4 <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
        data.frame(false_alarm_bins = sum(Significant[Time <  effect_start-tb_size]),
             correct_discovery_bins = sum(Significant[Time >= effect_start]),
             first_discovery_time = Time[Time >= effect_start-tb_size & Significant][1],
-            true_effect_onset = effect_start + 
-              mean(describe_data(df, describe_column = "PrefOnset", group_columns = "Participant")[["Mean"]])
+            true_effect_onset = effect_start + mean(df$RT, na.rm=TRUE)
        ))
 }) )
 

@@ -142,9 +142,8 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
   
   dat <- data_frame(Participant = rep(1:num_participants, each = num_items_per_condition*trial_len) ) %>%
     group_by(Participant) %>%
-    mutate(NumSwitches = rpois(1, lambda = switchiness)+1,
-           PrefOnset = pref_wind[1] + rexp(1, 5/pref_wind_len), # ensures ~ 99% of onsets occur before offset,
-           PrefOnset = ifelse(PrefOnset>=pref_wind[2], pref_wind[1], PrefOnset), # for the 1%
+    mutate(.NumSwitches = rpois(1, lambda = switchiness)+1,
+           .SpeedOffset = rnorm(1, sd = 5),
            Trial = rep(1:num_items_per_condition, each = n() / num_items_per_condition),
            Item  = Trial,
            Condition = ifelse( (Participant%%2)==0, "High", "Low"),
@@ -153,15 +152,18 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
     mutate(TrialLogOdds = ifelse(Condition == "High", .random_odds(qlogis(pref)), .random_odds(qlogis(.50)) )) %>%
     group_by(Participant, Trial) %>%
     mutate(TimeInTrial = (1:n())*10,
-           AOI1 = .generate_random_trial(unique(NumSwitches), 
+           RT = rexp(1, rate = abs( (50+.SpeedOffset)^-1 ) )*10,# abs prevents error on 1 in a mil. chance it's negative
+           .PrefOnset = pref_wind[1] + RT/10,
+           .PrefOnset = ifelse(.PrefOnset>pref_wind[2], pref_wind[2], .PrefOnset),
+           AOI1 = .generate_random_trial(unique(.NumSwitches), 
                                          pref = plogis( (unique(TrialLogOdds)+unique(ParticipantLogOdds))/2 ),
                                          # each trial pref is avg of that item "pref" w/ that participant pref
-                                         pref_onset = unique(PrefOnset)),
+                                         pref_onset = unique(.PrefOnset)),
                                          # each subject is delayed by a certain amount in when their preference emerges
                                         
            AOI2 = !AOI1,
            Trackloss = as.logical(rbinom(n=n(), size=1, prob = .10)) ) %>%
-    ungroup() %>% 
+    ungroup() %>% select(-.PrefOnset, -.NumSwitches, -.SpeedOffset) %>%
     mutate(Participant = factor(Participant),
            Condition = factor(Condition),
            Trial = factor(Trial),
