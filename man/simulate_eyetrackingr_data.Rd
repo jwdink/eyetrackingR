@@ -4,10 +4,24 @@
 \alias{simulate_eyetrackingr_data}
 \title{Simulate an eyetrackingR dataset}
 \usage{
-simulate_eyetrackingr_data(num_trials_per_condition = 1, ...)
+simulate_eyetrackingr_data(num_participants = 16,
+  num_items_per_condition = 6, trial_length = 5000, pref = 0.5,
+  pref_window = c(1, trial_length), ...)
 }
 \arguments{
-\item{num_trials_per_condition}{Number of trials per-subject per-condition.}
+\item{num_participants}{Number of participants}
+
+\item{num_items_per_condition}{Number of trials per-subject per-condition.}
+
+\item{trial_length}{How long is the trial (in ms)?}
+
+\item{pref}{Their preference between the two AOIs in the "high" condition, 
+where 1 is 100% preference for AOI1, and 0 is 100% preference for AOI2. Default is .5 (equal 
+preference). In the "low" condition, their preference between the two AOIs is equal, so default
+is no effect of condition.}
+
+\item{pref_window}{Vector of length two, specifying start and end of time-window in
+which they expressed the preference specified in \code{pref}. Default is the entire trial}
 
 \item{...}{Ignored}
 }
@@ -16,7 +30,7 @@ Prints a list of divergence-times.
 }
 \description{
 This function creates an eyetrackingR dataset (i.e., already run through make_eyetrackingr_data).
-This can be helpful for examining the false-alarm and sensitivity of analysis-techniques via
+This can be helpful for examining the false-alarm and sensitivity of analysis-techniques via 
 simulations.
 }
 

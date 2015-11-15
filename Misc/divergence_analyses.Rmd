@@ -21,8 +21,13 @@ things to compare:
 No preference for either AOI (5 second trial, N=16, 6 items per participant, between subjects)
 
 ```{r}
+library("eyetrackingR")
+library("ggplot2")
+library("dplyr")
+library("pbapply")
+
 set.seed(40)
-tb_size = 100
+tb_size = 250
 
 df <- simulate_eyetrackingr_data()
 describe_data(df, describe_column = "AOI1", group_columns = c("Condition","Participant","Item"))
@@ -47,7 +52,7 @@ A strong preference for AOI1 in the "high" condition emerges halfway through the
 
 ```{r}
 set.seed(50)
-df <- simulate_eyetrackingr_data(pref = .99, pref_window = c(2500,5000))
+df <- simulate_eyetrackingr_data(pref = .80, pref_window = c(2500,5000))
 df_time <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1")
 plot(df_time, predictor_column = "Condition")
 
@@ -55,37 +60,47 @@ plot(df_time, predictor_column = "Condition")
 ggplot(df_time, aes(x = Time, y = Prop, group = Condition, color=Condition)) +
   stat_summary(fun.y = mean, geom="line") +
   facet_wrap(~ Participant)
+ggplot(df_time, aes(x = Time, y = Prop, group = Condition, color=Condition)) +
+  stat_summary(fun.y = mean, geom="line") +
+  facet_wrap(~ Item)
 ```
 
 ### Consecutive t-tests, no correction:
 
-###
+#### False Alarms
 
 ```{r}
 set.seed(5)
-tb_res_fa <- pbreplicate(50, expr = {
+results <- bind_rows( pbreplicate(50, simplify= FALSE, expr = {
   df <- simulate_eyetrackingr_data()
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
                                          summarize_by = "Participant")
   tb_anal <- analyze_time_bins(df_time_sub, predictor_column = "Condition", test = "t.test", alpha = .05, quiet=TRUE)
-  sum(!is.na(tb_anal$PositiveRuns))
-})
-cat("Average FA Rate: ", mean(tb_res_fa) / num_time_bins)
-cat("Average Family-wise FA: ", mean(tb_res_fa!=0) )
+  data.frame(false_alarm_bins = sum(!is.na(tb_anal$PositiveRuns)))
+}) )
+cat("Average FA Rate: ", mean(results$false_alarm_bins) / num_time_bins)
+cat("Average FWER: ", mean(results$false_alarm_bins!=0) )
 ```
 
-### Consecutive t-tests
+#### Sensitivity
 
 ```{r}
 set.seed(5)
-tb_res_fa <- pbreplicate(50, expr = {
-  df <- simulate_eyetrackingr_data()
+results <- bind_rows( pbreplicate(50, simplify = FALSE, expr = {
+  df <- simulate_eyetrackingr_data(pref = .80, pref_window = c(2500,5000))
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
                                          summarize_by = "Participant")
   tb_anal <- analyze_time_bins(df_time_sub, predictor_column = "Condition", test = "t.test", alpha = .05, quiet=TRUE)
-  sum(!is.na(tb_anal$PositiveRuns))
-})
-cat("Average FA Rate: ", mean(tb_res_fa) / num_time_bins)
-cat("Average Family-wise FA: ", mean(tb_res_fa!=0) )
-```
+  tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
+  with(tb_anal, 
+       data.frame(false_alarm_bins = sum(Sig[Time <  2250]),
+            correct_discovery_bins = sum(Sig[Time >= 2500]),
+            first_discovery_time = Time[Time >= 2250 & Sig][1])
+       )
+}) )
 
+cat("Average FA Rate:", mean(results$false_alarm_bins) / num_time_bins)
+cat("Average Correct-Discovery Rate:", mean(results$correct_discovery_bins) / num_time_bins)
+cat("Average FWER", mean(results$false_alarm_bins != 0))
+cat("Average Time of First Divergence (when discovered)", mean(results$first_discovery_time, na.rm=TRUE))
+```

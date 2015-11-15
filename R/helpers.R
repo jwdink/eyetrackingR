@@ -109,7 +109,7 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
                                        pref_window = c(1,trial_length),
                                        ...) {
   
-  .generate_random_trial <- function(potential_switches_per_trial, pref = .50) {
+  .generate_random_trial <- function(potential_switches_per_trial, pref, pref_onset) {
     
     # Randomly generate potential switch times via poisson process:
     switch_diffs_unnormed <- rexp(potential_switches_per_trial+1)
@@ -118,7 +118,7 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
     switch_times_normed <- cumsum(switch_diffs_normed)
     
     # Determine preference/which-aoi based on time in trial:
-    inside_pref_wind  <- (switch_times_normed>pref_wind[1] & switch_times_normed<pref_wind[2])
+    inside_pref_wind  <- (switch_times_normed>pref_onset & switch_times_normed<pref_wind[2])
     aoi_vec_inside_window  <- rbinom(n = length(switch_times_normed), size = 1, prob = pref)
     aoi_vec_outside_window <- rbinom(n = length(switch_times_normed), size = 1, prob = .5)
     which_aoi <- ifelse(inside_pref_wind, aoi_vec_inside_window, aoi_vec_outside_window)
@@ -136,12 +136,15 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
   }
   
   pref_wind <- pref_window/10 - 1
+  pref_wind_len <- pref_wind[2] - pref_wind[1]
   trial_len = (trial_length/10) - 1
   switchiness <- round(trial_len / 60)
   
   dat <- data_frame(Participant = rep(1:num_participants, each = num_items_per_condition*trial_len) ) %>%
     group_by(Participant) %>%
     mutate(NumSwitches = rpois(1, lambda = switchiness)+1,
+           PrefOnset = pref_wind[1] + rexp(1, 5/pref_wind_len), # ensures ~ 99% of onsets occur before offset,
+           PrefOnset = ifelse(PrefOnset>=pref_wind[2], pref_wind[1], PrefOnset), # for the 1%
            Trial = rep(1:num_items_per_condition, each = n() / num_items_per_condition),
            Item  = Trial,
            Condition = ifelse( (Participant%%2)==0, "High", "Low"),
@@ -150,9 +153,12 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
     mutate(TrialLogOdds = ifelse(Condition == "High", .random_odds(qlogis(pref)), .random_odds(qlogis(.50)) )) %>%
     group_by(Participant, Trial) %>%
     mutate(TimeInTrial = (1:n())*10,
-           AOI1 = .generate_random_trial(first(NumSwitches), 
-                                         pref = plogis( (first(TrialLogOdds)+first(ParticipantLogOdds))/2 )),
-                                        # each trial pref is avg of that item "pref" w/ that participant pref
+           AOI1 = .generate_random_trial(unique(NumSwitches), 
+                                         pref = plogis( (unique(TrialLogOdds)+unique(ParticipantLogOdds))/2 ),
+                                         # each trial pref is avg of that item "pref" w/ that participant pref
+                                         pref_onset = unique(PrefOnset)),
+                                         # each subject is delayed by a certain amount in when their preference emerges
+                                        
            AOI2 = !AOI1,
            Trackloss = as.logical(rbinom(n=n(), size=1, prob = .10)) ) %>%
     ungroup() %>% 

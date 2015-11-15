@@ -10,6 +10,9 @@
 #' @importFrom lazyeval interp
 #' @import ggplot2
 #' @import dplyr
+#' @importFrom stats  plogis
+#' @importFrom stats  qlogis
+#' @importFrom stats  rnorm
 #' @importFrom stats  qgamma
 #' @importFrom stats  rbinom
 #' @importFrom stats  rexp
@@ -72,7 +75,10 @@ utils::globalVariables(c('Prop',
                          'TracklossForParticipant',
                          'AOI1',
                          'Condition',
-                         'NegativeRuns',
+                         'NegativeRuns', 
+                         'ParticipantLogOdds',
+                         'TrialLogOdds',
+                         'Item',
                          'NumSwitches',
                          'Participant',
                          'PositiveRuns',
