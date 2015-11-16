@@ -45,7 +45,7 @@ Before we run the final analyses:
 
 
 ```{r, echo=FALSE}
-devtools::install_github('jwdink/eyetrackingR')
+#devtools::install_github('jwdink/eyetrackingR')
 library("eyetrackingR")
 library("ggplot2")
 suppressPackageStartupMessages(library("dplyr"))
@@ -59,7 +59,7 @@ sim_factor <- 20 # of simulations for each Nsubjects/Nitems/pref cell
   # create vectors for permutations
   N_subjects = rep(c(10,30,50,70,90), each=sim_factor*4) # multipying factor equals length(N_items) * pref
   N_items = c(10)
-  pref = rep(c(.65,.75,.85),each=2) # multipying factor equals length(N_items)
+  pref = rep(c(.65,.75,.85),each=1) # multipying factor equals length(N_items)
 
 n_bootstrap_samples <- 250 # (for clusters and bootstraps)
 effect_start <- 2500
