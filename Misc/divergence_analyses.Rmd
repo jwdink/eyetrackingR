@@ -50,16 +50,18 @@ library("eyetrackingR")
 library("ggplot2")
 suppressPackageStartupMessages(library("dplyr"))
 library("pbapply")
+suppressPackageStartupMessages(library("foreach"))
+doMC::registerDoMC()
 
 #set.seed(40)
 
-tb_size <- 50
-sim_factor <- 20 # of simulations for each Nsubjects/Nitems/pref cell
+tb_size <- 100
+sim_factor <- 10 # of simulations for each Nsubjects/Nitems/pref cell
 
   # create vectors for permutations
-  N_subjects = rep(c(10,30,50,70,90), each=sim_factor*3) # multipying factor equals length(N_items) * pref
+  N_subjects = rep(c(50), each=sim_factor)
   N_items = c(10)
-  pref = rep(c(.65,.75,.85),each=1) # multipying factor equals length(N_items)
+  pref = c(.65,.75,.85)
 
 n_bootstrap_samples <- 250 # (for clusters and bootstraps)
 effect_start <- 2500
@@ -77,25 +79,12 @@ f <- function(d, i) mean(d[i], na.rm=TRUE)
 t_tests <- data.frame(
                   test = 't_tests',
                   correction_factor = 0,
-                  effective_alpha = .05,
-                  N_subjects = N_subjects,
-                  N_items = N_items,
-                  pref = pref,
-                  effect_onset = effect_start,
-                  avg_rt = NA,
-                  rt_lower_quart = NA,
-                  rt_upper_quart = NA,
-                  false_alarm_bins = NA,
-                  correct_discovery_bins = NA,
-                  first_discovery_time = NA,
-                  n_clusters = NA
+                  effective_alpha = .05
               ) 
 
-t_tests_results <- data.frame(matrix(unlist(apply(t_tests, 1, function (x) {
-  N_subjects = as.numeric(x[['N_subjects']])
-  N_items = as.numeric(x[['N_items']])
-  pref = as.numeric(x[['pref']])
-  
+t_tests_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+                   foreach(N_items=N_items, .combine=rbind) %:%
+                   foreach(pref=pref, .combine=rbind) %dopar% {
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
@@ -105,7 +94,10 @@ t_tests_results <- data.frame(matrix(unlist(apply(t_tests, 1, function (x) {
   
   # begin return data
   with(tb_anal,
-       list(
+       data.frame(
+          N_subjects = N_subjects,
+          N_items = N_items,
+          pref = pref,
           avg_rt = mean(df$RT, na.rm=TRUE),
           rt_lower_quart = quantile(df$RT, probs = .25),
           rt_upper_quart = quantile(df$RT, probs = .75),
@@ -116,11 +108,10 @@ t_tests_results <- data.frame(matrix(unlist(apply(t_tests, 1, function (x) {
         )
        )
   # end return data
-  
-})), nrow=nrow(t_tests), byrow=TRUE))
+}
 
 # merge results into dataframe
-t_tests[, 8:ncol(t_tests)] <- t_tests_results
+t_tests <- cbind(t_tests, t_tests_results)
 ```
 
 ### Bonferoni correction:
@@ -129,25 +120,13 @@ t_tests[, 8:ncol(t_tests)] <- t_tests_results
 t_tests_bonf <- data.frame(
                   test = 't_tests_bonf',
                   correction_factor = num_time_bins,
-                  effective_alpha = .05/num_time_bins,
-                  N_subjects = N_subjects,
-                  N_items = N_items,
-                  pref = pref,
-                  effect_onset = effect_start,
-                  avg_rt = NA,
-                  rt_lower_quart = NA,
-                  rt_upper_quart = NA,
-                  false_alarm_bins = NA,
-                  correct_discovery_bins = NA,
-                  first_discovery_time = NA,
-                  n_clusters = NA
+                  effective_alpha = .05/num_time_bins
               )
 
-t_tests_bonf_results <- data.frame(matrix(unlist(pbapply(t_tests_bonf, 1, function (x) {
-  N_subjects = as.numeric(x[['N_subjects']])
-  N_items = as.numeric(x[['N_items']])
-  pref = as.numeric(x[['pref']])
-  
+t_tests_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+                   foreach(N_items=N_items, .combine=rbind) %:%
+                   foreach(pref=pref, .combine=rbind) %dopar% {
+
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
@@ -157,7 +136,10 @@ t_tests_bonf_results <- data.frame(matrix(unlist(pbapply(t_tests_bonf, 1, functi
   
   # begin return data
   with(tb_anal,
-       list(
+       data.frame(
+          N_subjects = N_subjects,
+          N_items = N_items,
+          pref = pref,
           avg_rt = mean(df$RT, na.rm=TRUE),
           rt_lower_quart = quantile(df$RT, probs = .25),
           rt_upper_quart = quantile(df$RT, probs = .75),
@@ -169,10 +151,10 @@ t_tests_bonf_results <- data.frame(matrix(unlist(pbapply(t_tests_bonf, 1, functi
        )
   # end return data
   
-})), nrow=nrow(t_tests_bonf), byrow=TRUE))
+}
 
 # merge results into dataframe
-t_tests_bonf[, 8:ncol(t_tests_bonf)] <- t_tests_bonf_results
+t_tests_bonf <- cbind(t_tests_bonf,t_tests_bonf_results)
 ```
 
 ### FDR correction:
@@ -184,24 +166,12 @@ fdr_correction <- mean(t_tests$false_alarm_bins != 0) / .05
 t_tests_fdr <- data.frame(
                   test = 't_tests_fdr',
                   correction_factor = fdr_correction,
-                  effective_alpha = .05/fdr_correction,
-                  N_subjects = N_subjects,
-                  N_items = N_items,
-                  pref = pref,
-                  effect_onset = effect_start,
-                  avg_rt = NA,
-                  rt_lower_quart = NA,
-                  rt_upper_quart = NA,
-                  false_alarm_bins = NA,
-                  correct_discovery_bins = NA,
-                  first_discovery_time = NA,
-                  n_clusters = NA
+                  effective_alpha = .05/fdr_correction
               )
 
-t_tests_fdr_results <- data.frame(matrix(unlist(apply(t_tests_fdr, 1, function (x) {
-  N_subjects = as.numeric(x[['N_subjects']])
-  N_items = as.numeric(x[['N_items']])
-  pref = as.numeric(x[['pref']])
+t_tests_fdr_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+                   foreach(N_items=N_items, .combine=rbind) %:%
+                   foreach(pref=pref, .combine=rbind) %dopar% {
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
@@ -212,7 +182,10 @@ t_tests_fdr_results <- data.frame(matrix(unlist(apply(t_tests_fdr, 1, function (
   
   # begin return data
   with(tb_anal,
-       list(
+       data.frame(
+          N_subjects = N_subjects,
+          N_items = N_items,
+          pref = pref,
           avg_rt = mean(df$RT, na.rm=TRUE),
           rt_lower_quart = quantile(df$RT, probs = .25),
           rt_upper_quart = quantile(df$RT, probs = .75),
@@ -224,10 +197,10 @@ t_tests_fdr_results <- data.frame(matrix(unlist(apply(t_tests_fdr, 1, function (
        )
   # end return data
   
-})), nrow=nrow(t_tests_fdr), byrow=TRUE))
+}
 
 # merge results into dataframe
-t_tests_fdr[, 8:ncol(t_tests_fdr)] <- t_tests_fdr_results
+t_tests_fdr <- cbind(t_tests_fdr, t_tests_fdr_results)
 ```
 
 ## Bootstrapped Smoothing Splines
@@ -238,24 +211,12 @@ t_tests_fdr[, 8:ncol(t_tests_fdr)] <- t_tests_fdr_results
 boot_splines <- data.frame(
                   test = 'boot_splines',
                   correction_factor = 0,
-                  effective_alpha = .05,
-                  N_subjects = N_subjects,
-                  N_items = N_items,
-                  pref = pref,
-                  effect_onset = effect_start,
-                  avg_rt = NA,
-                  rt_lower_quart = NA,
-                  rt_upper_quart = NA,
-                  false_alarm_bins = NA,
-                  correct_discovery_bins = NA,
-                  first_discovery_time = NA,
-                  n_clusters = NA
+                  effective_alpha = .05
               )
 
-boot_splines_results <- data.frame(matrix(unlist(apply(boot_splines, 1, function (x) {
-  N_subjects = as.numeric(x[['N_subjects']])
-  N_items = as.numeric(x[['N_items']])
-  pref = as.numeric(x[['pref']])
+boot_splines_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+                   foreach(N_items=N_items, .combine=rbind) %:%
+                   foreach(pref=pref, .combine=rbind) %dopar% {
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
@@ -266,7 +227,10 @@ boot_splines_results <- data.frame(matrix(unlist(apply(boot_splines, 1, function
   
   # begin return data
   with(bs_anal,
-       list(
+       data.frame(
+          N_subjects = N_subjects,
+          N_items = N_items,
+          pref = pref, 
           avg_rt = mean(df$RT, na.rm=TRUE),
           rt_lower_quart = quantile(df$RT, probs = .25),
           rt_upper_quart = quantile(df$RT, probs = .75),
@@ -278,10 +242,10 @@ boot_splines_results <- data.frame(matrix(unlist(apply(boot_splines, 1, function
        )
   # end return data
   
-})), nrow=nrow(boot_splines), byrow=TRUE))
+}
 
 # merge results into dataframe
-boot_splines[, 8:ncol(boot_splines)] <- boot_splines_results
+boot_splines <- cbind(boot_splines, boot_splines_results)
 ```
 
 ### Bonferoni correction:
@@ -290,24 +254,12 @@ boot_splines[, 8:ncol(boot_splines)] <- boot_splines_results
 boot_splines_bonf <- data.frame(
                   test = 'boot_splines_bonf',
                   correction_factor = num_time_bins,
-                  effective_alpha = .05/num_time_bins,
-                  N_subjects = N_subjects,
-                  N_items = N_items,
-                  pref = pref,
-                  effect_onset = effect_start,
-                  avg_rt = NA,
-                  rt_lower_quart = NA,
-                  rt_upper_quart = NA,
-                  false_alarm_bins = NA,
-                  correct_discovery_bins = NA,
-                  first_discovery_time = NA,
-                  n_clusters = NA
+                  effective_alpha = .05/num_time_bins
               )
 
-boot_splines_bonf_results <- data.frame(matrix(unlist(apply(boot_splines_bonf, 1, function (x) {
-  N_subjects = as.numeric(x[['N_subjects']])
-  N_items = as.numeric(x[['N_items']])
-  pref = as.numeric(x[['pref']])
+boot_splines_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+                   foreach(N_items=N_items, .combine=rbind) %:%
+                   foreach(pref=pref, .combine=rbind) %dopar% {
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
@@ -318,7 +270,10 @@ boot_splines_bonf_results <- data.frame(matrix(unlist(apply(boot_splines_bonf, 1
   
   # begin return data
   with(bs_anal,
-       list(
+       data.frame(
+          N_subjects = N_subjects,
+          N_items = N_items,
+          pref = pref, 
           avg_rt = mean(df$RT, na.rm=TRUE),
           rt_lower_quart = quantile(df$RT, probs = .25),
           rt_upper_quart = quantile(df$RT, probs = .75),
@@ -330,10 +285,10 @@ boot_splines_bonf_results <- data.frame(matrix(unlist(apply(boot_splines_bonf, 1
        )
   # end return data
   
-})), nrow=nrow(boot_splines_bonf), byrow=TRUE))
+}
 
 # merge results into dataframe
-boot_splines_bonf[, 8:ncol(boot_splines_bonf)] <- boot_splines_bonf_results
+boot_splines_bonf <- cbind(boot_splines_bonf, boot_splines_bonf_results)
 ```
 
 ### FDR correction:
@@ -345,24 +300,12 @@ fdr_correction <- mean(boot_splines$false_alarm_bins != 0) / .05
 boot_splines_fdr <- data.frame(
                   test = 'boot_splines_fdr',
                   correction_factor = fdr_correction,
-                  effective_alpha = .05/fdr_correction,
-                  N_subjects = N_subjects,
-                  N_items = N_items,
-                  pref = pref,
-                  effect_onset = effect_start,
-                  avg_rt = NA,
-                  rt_lower_quart = NA,
-                  rt_upper_quart = NA,
-                  false_alarm_bins = NA,
-                  correct_discovery_bins = NA,
-                  first_discovery_time = NA,
-                  n_clusters = NA
+                  effective_alpha = .05/fdr_correction
               )
 
-boot_splines_fdr_results <- data.frame(matrix(unlist(apply(boot_splines_fdr, 1, function (x) {
-  N_subjects = as.numeric(x[['N_subjects']])
-  N_items = as.numeric(x[['N_items']])
-  pref = as.numeric(x[['pref']])
+boot_splines_fdr_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+                   foreach(N_items=N_items, .combine=rbind) %:%
+                   foreach(pref=pref, .combine=rbind) %dopar% {
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
@@ -373,7 +316,10 @@ boot_splines_fdr_results <- data.frame(matrix(unlist(apply(boot_splines_fdr, 1, 
   
   # begin return data
   with(bs_anal,
-       list(
+       data.frame(
+          N_subjects = N_subjects,
+          N_items = N_items,
+          pref = pref, 
           avg_rt = mean(df$RT, na.rm=TRUE),
           rt_lower_quart = quantile(df$RT, probs = .25),
           rt_upper_quart = quantile(df$RT, probs = .75),
@@ -385,10 +331,10 @@ boot_splines_fdr_results <- data.frame(matrix(unlist(apply(boot_splines_fdr, 1, 
        )
   # end return data
   
-})), nrow=nrow(boot_splines_fdr), byrow=TRUE))
+}
 
 # merge results into dataframe
-boot_splines_fdr[, 8:ncol(boot_splines_fdr)] <- boot_splines_fdr_results
+boot_splines_fdr <- cbind(boot_splines_fdr, boot_splines_fdr_results)
 ```
 
 ## Clusters
@@ -399,24 +345,12 @@ boot_splines_fdr[, 8:ncol(boot_splines_fdr)] <- boot_splines_fdr_results
 clusters <- data.frame(
                   test = 'clusters',
                   correction_factor = 0,
-                  effective_alpha = .05,
-                  N_subjects = N_subjects,
-                  N_items = N_items,
-                  pref = pref,
-                  effect_onset = effect_start,
-                  avg_rt = NA,
-                  rt_lower_quart = NA,
-                  rt_upper_quart = NA,
-                  false_alarm_bins = NA,
-                  correct_discovery_bins = NA,
-                  first_discovery_time = NA,
-                  n_clusters = NA
+                  effective_alpha = .05
               )
 
-clusters_results <- data.frame(matrix(unlist(apply(clusters, 1, function (x) {
-  N_subjects = as.numeric(x[['N_subjects']])
-  N_items = as.numeric(x[['N_items']])
-  pref = as.numeric(x[['pref']])
+clusters_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+                   foreach(N_items=N_items, .combine=rbind) %:%
+                   foreach(pref=pref, .combine=rbind) %dopar% {
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
@@ -434,7 +368,10 @@ clusters_results <- data.frame(matrix(unlist(apply(clusters, 1, function (x) {
     cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
     cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<alpha)
     out <- with(cl_sig_clusts, 
-              list(
+              data.frame(
+                N_subjects = N_subjects,
+                N_items = N_items,
+                pref = pref, 
                 avg_rt = mean(df$RT, na.rm=TRUE),
                 rt_lower_quart = quantile(df$RT, probs = .25),
                 rt_upper_quart = quantile(df$RT, probs = .75),
@@ -445,7 +382,10 @@ clusters_results <- data.frame(matrix(unlist(apply(clusters, 1, function (x) {
               )  
         )
   } else {
-    out <- list(
+    out <- data.frame(
+                N_subjects = N_subjects,
+                N_items = N_items,
+                pref = pref, 
                 avg_rt = mean(df$RT, na.rm=TRUE),
                 rt_lower_quart = quantile(df$RT, probs = .25),
                 rt_upper_quart = quantile(df$RT, probs = .75),
@@ -461,10 +401,10 @@ clusters_results <- data.frame(matrix(unlist(apply(clusters, 1, function (x) {
   return(out)
   # end return data
   
-})), nrow=nrow(clusters), byrow=TRUE))
+}
 
 # merge results into dataframe
-clusters[, 8:ncol(clusters)] <- clusters_results
+clusters <- cbind(clusters, clusters_results)
 ```
 
 ### Bonferoni correction:
@@ -473,24 +413,12 @@ clusters[, 8:ncol(clusters)] <- clusters_results
 clusters_bonf <- data.frame(
                   test = 'clusters_bonf',
                   correction_factor = num_time_bins,
-                  effective_alpha = .05/num_time_bins,
-                  N_subjects = N_subjects,
-                  N_items = N_items,
-                  pref = pref,
-                  effect_onset = effect_start,
-                  avg_rt = NA,
-                  rt_lower_quart = NA,
-                  rt_upper_quart = NA,
-                  false_alarm_bins = NA,
-                  correct_discovery_bins = NA,
-                  first_discovery_time = NA,
-                  n_clusters = NA
+                  effective_alpha = .05/num_time_bins
               )
 
-clusters_bonf_results <- data.frame(matrix(unlist(apply(clusters_bonf, 1, function (x) {
-  N_subjects = as.numeric(x[['N_subjects']])
-  N_items = as.numeric(x[['N_items']])
-  pref = as.numeric(x[['pref']])
+clusters_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+                   foreach(N_items=N_items, .combine=rbind) %:%
+                   foreach(pref=pref, .combine=rbind) %dopar% {
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
@@ -503,18 +431,24 @@ clusters_bonf_results <- data.frame(matrix(unlist(apply(clusters_bonf, 1, functi
     cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
     cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05/num_time_bins)
     out <- with(cl_sig_clusts, 
-              list(
+              data.frame(
+                N_subjects = N_subjects,
+                N_items = N_items,
+                pref = pref, 
                 avg_rt = mean(df$RT, na.rm=TRUE),
                 rt_lower_quart = quantile(df$RT, probs = .25),
                 rt_upper_quart = quantile(df$RT, probs = .75),
                 false_alarm_bins = sum((EndTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)] - StartTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size, ((effect_start-tb_size)-StartTime[EndTime >= (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size),
                 correct_discovery_bins = sum((EndTime[StartTime >= (effect_start-tb_size)] - StartTime[StartTime >= (effect_start-tb_size)])/tb_size, (EndTime[StartTime < (effect_start-tb_size) & EndTime > (effect_start-tb_size)]-(effect_start-tb_size))/tb_size),
-                first_discovery_time = StartTime[EndTime >= effect_start-tb_size][1],
+                first_discovery_time = StartTime[EndTime >= (effect_start-tb_size)][1],
                 n_clusters = nrow(get_time_clusters(cl_dat))
               )  
         )
   } else {
-    out <- list(
+    out <- data.frame(
+                N_subjects = N_subjects,
+                N_items = N_items,
+                pref = pref, 
                 avg_rt = mean(df$RT, na.rm=TRUE),
                 rt_lower_quart = quantile(df$RT, probs = .25),
                 rt_upper_quart = quantile(df$RT, probs = .75),
@@ -530,82 +464,10 @@ clusters_bonf_results <- data.frame(matrix(unlist(apply(clusters_bonf, 1, functi
   return(out)
   # end return data
   
-})), nrow=nrow(clusters_bonf), byrow=TRUE))
+}
 
 # merge results into dataframe
-clusters_bonf[, 8:ncol(clusters_bonf)] <- clusters_bonf_results
-```
-
-### FDR correction:
-
-```{r}
-# calculate FDR correction based on FDR rate
-fdr_correction <- mean(clusters$false_alarm_bins != 0) / .05
-
-clusters_fdr <- data.frame(
-                  test = 'clusters_fdr',
-                  correction_factor = fdr_correction,
-                  effective_alpha = .05/fdr_correction,
-                  N_subjects = N_subjects,
-                  N_items = N_items,
-                  pref = pref,
-                  effect_onset = effect_start,
-                  avg_rt = NA,
-                  rt_lower_quart = NA,
-                  rt_upper_quart = NA,
-                  false_alarm_bins = NA,
-                  correct_discovery_bins = NA,
-                  first_discovery_time = NA,
-                  n_clusters = NA
-              )
-
-clusters_fdr_results <- data.frame(matrix(unlist(apply(clusters_fdr, 1, function (x) {
-  N_subjects = as.numeric(x[['N_subjects']])
-  N_items = as.numeric(x[['N_items']])
-  pref = as.numeric(x[['pref']])
-  
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
-  
-  cl_dat <- make_time_cluster_data(data = df_time_sub, predictor_column = "Condition", test = "t.test", threshold = 2, quiet = TRUE, formula = Elog ~ Condition)
-  if ( nrow(get_time_clusters(cl_dat))>0 ) {
-    cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = n_bootstrap_samples, parallel = TRUE)
-    cl_clusts <- get_time_clusters(cl_anal)
-    cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
-    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05/fdr_correction)
-    out <- with(cl_sig_clusts, 
-              list(
-                avg_rt = mean(df$RT, na.rm=TRUE),
-                rt_lower_quart = quantile(df$RT, probs = .25),
-                rt_upper_quart = quantile(df$RT, probs = .75),
-                false_alarm_bins = sum((EndTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)] - StartTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size, ((effect_start-tb_size)-StartTime[EndTime >= (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size),
-                correct_discovery_bins = sum((EndTime[StartTime >= (effect_start-tb_size)] - StartTime[StartTime >= (effect_start-tb_size)])/tb_size, (EndTime[StartTime < (effect_start-tb_size) & EndTime > (effect_start-tb_size)]-(effect_start-tb_size))/tb_size),
-                first_discovery_time = StartTime[EndTime >= effect_start-tb_size][1],
-                n_clusters = nrow(get_time_clusters(cl_dat))
-              )  
-        )
-  } else {
-    out <- list(
-                avg_rt = mean(df$RT, na.rm=TRUE),
-                rt_lower_quart = quantile(df$RT, probs = .25),
-                rt_upper_quart = quantile(df$RT, probs = .75),
-                false_alarm_bins = 0,
-                correct_discovery_bins = 0,
-                first_discovery_time = NA,
-                n_clusters = 0
-            )
-  }
-  # end analysis
-  
-  # begin return data
-  return(out)
-  # end return data
-  
-})), nrow=nrow(clusters_fdr), byrow=TRUE))
-
-# merge results into dataframe
-clusters_fdr[, 8:ncol(clusters_fdr)] <- clusters_fdr_results
+clusters_bonf <- cbind(clusters_bonf, clusters_bonf_results)
 ```
 
 # Summarise Simulation results
@@ -619,8 +481,7 @@ all_tests <- rbind(
               boot_splines_bonf,
               boot_splines_fdr,
               clusters,
-              clusters_bonf#,
-              #clusters_fdr
+              clusters_bonf
             )
 
 summary <- all_tests %>%
@@ -642,13 +503,13 @@ summary_long <- summary %>%
            tidyr::gather('Measure', 'Value', CorrectDiscoveryRate, NoDiscoveryRate, FalseDiscoveryRate, FamilyWiseErrorRate,NumClusters)
 
 # visualize measures in a high power (N=90) design
-ggplot(subset(summary_long, Measure != 'NumClusters' & N_subjects == 90), aes(x=as.factor(N_subjects), y=Value, fill=test)) +
+ggplot(subset(summary_long, Measure != 'NumClusters'), aes(x=as.factor(N_subjects), y=Value, fill=test)) +
                   scale_fill_manual(values=c('#333333','#444444','#555555',
                                              '#4f186d','#b864e7','#d2b6ea',
                                              '#fa8072','#ee8262')) + #,'#ff7256')) +
                   stat_summary(fun.y='mean', geom='bar', position=position_dodge()) +
                   # geom_line(size=2) + # uncomment when we have enough tests for it to be clean
-                  facet_grid(~Measure)
+                  facet_grid(Measure~pref)
 
 # visualize # of clusters
 ggplot(subset(summary_long, Measure == 'NumClusters'), aes(x=as.factor(test), y=Value)) +
