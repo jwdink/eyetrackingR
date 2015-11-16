@@ -51,7 +51,7 @@ doMC::registerDoMC()
 #set.seed(40)
 
 tb_size <- 100
-sim_factor <- 20 # of simulations for each Nsubjects/Nitems/pref cell
+sim_factor <- 50 # of simulations for each Nsubjects/Nitems/pref cell
 
   # create vectors for permutations
   N_subjects = rep(c(10,30,50,70), each=sim_factor)
@@ -424,7 +424,7 @@ clusters_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
     cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = n_bootstrap_samples, parallel = TRUE)
     cl_clusts <- get_time_clusters(cl_anal)
     cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
-    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05/num_time_bins)
+    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05)
     out <- with(cl_sig_clusts, 
               data.frame(
                 N_subjects = N_subjects,
@@ -468,13 +468,13 @@ clusters_bonf <- cbind(clusters_bonf, clusters_bonf_results)
 ### FDR correction:
 
 ```{r}
-clusters_bonf <- data.frame(
-                  test = 'clusters_bonf',
+clusters_fdr <- data.frame(
+                  test = 'clusters_fdr',
                   correction_factor = fdr_correction,
                   effective_alpha = .05/fdr_correction
               )
 
-clusters_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+clusters_fdr_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
                    foreach(N_items=N_items, .combine=rbind) %:%
                    foreach(pref=pref, .combine=rbind) %dopar% {
   
@@ -492,7 +492,7 @@ clusters_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
     cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = n_bootstrap_samples, parallel = TRUE)
     cl_clusts <- get_time_clusters(cl_anal)
     cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
-    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05/fdr_correction)
+    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05)
     out <- with(cl_sig_clusts, 
               data.frame(
                 N_subjects = N_subjects,
@@ -530,7 +530,7 @@ clusters_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
 }
 
 # merge results into dataframe
-clusters_bonf <- cbind(clusters_bonf, clusters_bonf_results)
+clusters_fdr <- cbind(clusters_fdr, clusters_fdr_results)
 ```
 
 # Summarise Simulation results
@@ -544,7 +544,8 @@ all_tests <- rbind(
               boot_splines_bonf,
               boot_splines_fdr,
               clusters,
-              clusters_bonf
+              clusters_bonf,
+              clusters_fdr
             )
 
 summary <- all_tests %>%
@@ -567,16 +568,21 @@ summary_long <- summary %>%
 
 # visualize measures in a high power (N=90) design
 ggplot(subset(summary_long, Measure != 'NumClusters'), aes(x=as.factor(N_subjects), y=Value, fill=test)) +
-                  scale_fill_manual(values=c('#333333','#444444','#555555',
-                                             '#4f186d','#b864e7','#d2b6ea',
-                                             '#fa8072','#ee8262')) + #,'#ff7256')) +
+                  scale_fill_manual(values=c('#000000','#525252','#969696',
+                                             '#3f007d','#6a51a3','#9e9ac8',
+                                             '#d94801','#fd8d3c','#fdd0a2')) +
+                  scale_x_discrete(name='Number of Subjects') +
+                  scale_y_continuous(name='Proportion') +
                   stat_summary(fun.y='mean', geom='bar', position=position_dodge()) +
                   # geom_line(size=2) + # uncomment when we have enough tests for it to be clean
-                  facet_grid(Measure~pref)
+                  facet_grid(Measure~pref) +
+                  theme_bw()
 
 # visualize # of clusters
 ggplot(subset(summary_long, Measure == 'NumClusters'), aes(x=as.factor(test), y=Value)) +
                   stat_summary(fun.y='mean', geom='bar')
+
+# visualize number of diverged bins
 
 # overall summary
 summary_overall <- summary %>%
