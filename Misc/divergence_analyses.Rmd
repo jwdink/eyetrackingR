@@ -54,12 +54,12 @@ library("pbapply")
 #set.seed(40)
 
 tb_size <- 50
-sim_factor <- 10 # of simulations for each Nsubjects/Nitems/pref cell
+sim_factor <- 20 # of simulations for each Nsubjects/Nitems/pref cell
 
   # create vectors for permutations
-  N_subjects = rep(c(10,50), each=sim_factor*4) # multipying factor equals length(N_items) + pref
-  N_items = c(2,20)
-  pref = rep(c(.65,.75, .85),each=2) # multipying factor equals length(N_items)
+  N_subjects = rep(c(10,30,50,70,90), each=sim_factor*4) # multipying factor equals length(N_items) * pref
+  N_items = c(10)
+  pref = rep(c(.65,.75,.85),each=2) # multipying factor equals length(N_items)
 
 n_bootstrap_samples <- 250 # (for clusters and bootstraps)
 effect_start <- 2500
