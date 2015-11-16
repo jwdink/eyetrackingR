@@ -69,43 +69,6 @@ num_time_bins <- trial_length / tb_size
 f <- function(d, i) mean(d[i], na.rm=TRUE)
 ```
 
-### Example Fake Data with No Effect
-
-No preference for either AOI (5 second trial, N=16, 6 items per participant, between subjects)
-
-```{r}
-df <- simulate_eyetrackingr_data(trial_length = trial_length)
-df_time <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1")
-plot(df_time, predictor_column = "Condition")
-
-##
-ggplot(df_time, aes(x = Time, y = Prop, group = Condition, color=Condition)) +
-  stat_summary(fun.y = mean, geom="line") +
-  facet_wrap(~ Participant)
-
-ggplot(df_time, aes(x = Time, y = Prop, group = Condition, color=Condition)) +
-  stat_summary(fun.y = mean, geom="line") +
-  facet_wrap(~ Item)
-```
-
-### Example Fake Data with Big Effect
-
-A strong preference for AOI1 in the "high" condition emerges halfway through the trial (5 second trial, N=16, 6 items per participant, between subjects).
-
-```{r}
-df <- simulate_eyetrackingr_data(num_participants = 50, num_items_per_condition = 20, pref = .95, pref_window = c(effect_start,trial_length))
-df_time <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1")
-plot(df_time, predictor_column = "Condition")
-
-##
-ggplot(df_time, aes(x = Time, y = Prop, group = Condition, color=Condition)) +
-  stat_summary(fun.y = mean, geom="line") +
-  facet_wrap(~ Participant)
-ggplot(df_time, aes(x = Time, y = Prop, group = Condition, color=Condition)) +
-  stat_summary(fun.y = mean, geom="line") +
-  facet_wrap(~ Item)
-```
-
 ## T.Tests
 
 ### No Correction:
@@ -126,7 +89,7 @@ t_tests <- data.frame(
                   correct_discovery_bins = NA,
                   first_discovery_time = NA,
                   n_clusters = NA
-              )
+              ) 
 
 t_tests_results <- data.frame(matrix(unlist(apply(t_tests, 1, function (x) {
   N_subjects = as.numeric(x[['N_subjects']])
@@ -180,7 +143,7 @@ t_tests_bonf <- data.frame(
                   n_clusters = NA
               )
 
-t_tests_bonf_results <- data.frame(matrix(unlist(apply(t_tests, 1, function (x) {
+t_tests_bonf_results <- data.frame(matrix(unlist(pbapply(t_tests_bonf, 1, function (x) {
   N_subjects = as.numeric(x[['N_subjects']])
   N_items = as.numeric(x[['N_items']])
   pref = as.numeric(x[['pref']])
@@ -235,7 +198,7 @@ t_tests_fdr <- data.frame(
                   n_clusters = NA
               )
 
-t_tests_fdr_results <- data.frame(matrix(unlist(apply(t_tests, 1, function (x) {
+t_tests_fdr_results <- data.frame(matrix(unlist(apply(t_tests_fdr, 1, function (x) {
   N_subjects = as.numeric(x[['N_subjects']])
   N_items = as.numeric(x[['N_items']])
   pref = as.numeric(x[['pref']])
