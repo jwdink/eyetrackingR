@@ -57,7 +57,7 @@ tb_size <- 50
 sim_factor <- 20 # of simulations for each Nsubjects/Nitems/pref cell
 
   # create vectors for permutations
-  N_subjects = rep(c(10,30,50,70,90), each=sim_factor*4) # multipying factor equals length(N_items) * pref
+  N_subjects = rep(c(10,30,50,70,90), each=sim_factor*3) # multipying factor equals length(N_items) * pref
   N_items = c(10)
   pref = rep(c(.65,.75,.85),each=1) # multipying factor equals length(N_items)
 
