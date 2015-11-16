@@ -610,7 +610,7 @@ clusters_fdr_results <- data.frame(matrix(unlist(apply(clusters_fdr, 1, function
     cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = n_bootstrap_samples, parallel = TRUE)
     cl_clusts <- get_time_clusters(cl_anal)
     cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
-    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<alpha/fdr_correction)
+    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05/fdr_correction)
     out <- with(cl_sig_clusts, 
               list(
                 avg_rt = mean(df$RT, na.rm=TRUE),
@@ -648,7 +648,7 @@ clusters_fdr[, 8:ncol(clusters_fdr)] <- clusters_fdr_results
 # Summarise Simulation results
 
 ```{r}
-summary <- rbind(
+all_tests <- rbind(
               t_tests,
               t_tests_bonf,
               t_tests_fdr,
@@ -656,16 +656,18 @@ summary <- rbind(
               boot_splines_bonf,
               boot_splines_fdr,
               clusters,
-              clusters_bonf,
-              clusters_fdr
-            ) %>%
+              clusters_bonf#,
+              #clusters_fdr
+            )
+
+summary <- all_tests %>%
            group_by(test, correction_factor, effective_alpha, N_subjects, N_items, pref) %>%
            summarise(
              CorrectDiscoveryRate = mean(correct_discovery_bins) / (num_time_bins/2),
              NoDiscoveryRate = mean(correct_discovery_bins == 0),
              MeanFirstDivergence = mean(first_discovery_time, na.rm=TRUE),
-             FalseAlarmRate = mean(false_alarm_bins) / (num_time_bins/2),
-             FalseDiscoveryRate = mean(false_alarm_bins != 0),
+             FalseDiscoveryRate = mean(false_alarm_bins) / (num_time_bins/2),
+             FamilyWiseErrorRate = mean(false_alarm_bins != 0),
              NumClusters = mean(n_clusters)
            ) %>%
            ungroup() %>%
@@ -674,13 +676,16 @@ summary <- rbind(
            )
 
 summary_long <- summary %>%
-           tidyr::gather('Measure', 'Value', CorrectDiscoveryRate, NoDiscoveryRate, FalseAlarmRate, FalseDiscoveryRate,NumClusters)
+           tidyr::gather('Measure', 'Value', CorrectDiscoveryRate, NoDiscoveryRate, FalseDiscoveryRate, FamilyWiseErrorRate,NumClusters)
 
-# visualize measures
-ggplot(subset(summary_long, Measure != 'NumClusters'), aes(x=N_subjects, y=Value, color=pref)) +
-                  stat_smooth(method="lm", se=FALSE, size=2) +
+# visualize measures in a high power (N=90) design
+ggplot(subset(summary_long, Measure != 'NumClusters' & N_subjects == 90), aes(x=as.factor(N_subjects), y=Value, fill=test)) +
+                  scale_fill_manual(values=c('#333333','#444444','#555555',
+                                             '#4f186d','#b864e7','#d2b6ea',
+                                             '#fa8072','#ee8262')) + #,'#ff7256')) +
+                  stat_summary(fun.y='mean', geom='bar', position=position_dodge()) +
                   # geom_line(size=2) + # uncomment when we have enough tests for it to be clean
-                  facet_grid(test~Measure)
+                  facet_grid(~Measure)
 
 # visualize # of clusters
 ggplot(subset(summary_long, Measure == 'NumClusters'), aes(x=as.factor(test), y=Value)) +
@@ -693,8 +698,8 @@ summary_overall <- summary %>%
                      CorrectDiscoveryRate = mean(CorrectDiscoveryRate),
                      NoDiscoveryRate = mean(NoDiscoveryRate),
                      MeanFirstDivergence = mean(MeanFirstDivergence,na.rm=TRUE),
-                     FalseAlarmRate = mean(FalseAlarmRate),
                      FalseDiscoveryRate = mean(FalseDiscoveryRate),
+                     FamilyWiseErrorRate = mean(FamilyWiseErrorRate),
                      NumClusters = mean(NumClusters)
                    ) %>% 
                    ungroup() %>%
