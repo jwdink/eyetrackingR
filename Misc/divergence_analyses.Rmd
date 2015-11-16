@@ -135,8 +135,8 @@ t_tests_results <- data.frame(matrix(unlist(apply(t_tests, 1, function (x) {
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant", formula = Elog ~ Condition)
-  tb_anal <- analyze_time_bins(df_time_sub, predictor_column = "Condition", test = "t.test", alpha = .05, quiet=TRUE)
+  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
+  tb_anal <- analyze_time_bins(df_time_sub, predictor_column = "Condition", test = "t.test", alpha = .05, quiet=TRUE, formula = Elog ~ Condition)
   tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
   # end analysis
   
@@ -296,8 +296,7 @@ boot_splines_results <- data.frame(matrix(unlist(apply(boot_splines, 1, function
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
-                                         summarize_by = "Participant")
+  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
   bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, alpha = .05, samples = n_bootstrap_samples)
   bs_anal <- analyze_boot_splines(bs_dat)
   # end analysis
@@ -349,8 +348,7 @@ boot_splines_bonf_results <- data.frame(matrix(unlist(apply(boot_splines_bonf, 1
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
-                                         summarize_by = "Participant")
+  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
   bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, alpha = .05/num_time_bins, samples = n_bootstrap_samples)
   bs_anal <- analyze_boot_splines(bs_dat)
   # end analysis
@@ -405,8 +403,7 @@ boot_splines_fdr_results <- data.frame(matrix(unlist(apply(boot_splines_fdr, 1, 
   
   # begin analysis
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", 
-                                         summarize_by = "Participant")
+  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
   bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, alpha = .05/fdr_correction, samples = n_bootstrap_samples)
   bs_anal <- analyze_boot_splines(bs_dat)
   # end analysis
