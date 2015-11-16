@@ -37,12 +37,7 @@ Test for Follow-up Analyses:
     * Does splines falsely smooth this away?
 
 Before we run the final analyses:
-  * decrease tb_size to 50
   * increase sim_factor to 50
-  * increase n_bootstrap_samples to 1000
-  * increase simulations_at_each_sample_size to 500 (20 per N/items/effect combination)
-  * uncomment large Nsubjects/Nitems/prefs values for EACH analysis
-
 
 ```{r, echo=FALSE}
 #devtools::install_github('jwdink/eyetrackingR')
@@ -56,17 +51,18 @@ doMC::registerDoMC()
 #set.seed(40)
 
 tb_size <- 100
-sim_factor <- 10 # of simulations for each Nsubjects/Nitems/pref cell
+sim_factor <- 20 # of simulations for each Nsubjects/Nitems/pref cell
 
   # create vectors for permutations
-  N_subjects = rep(c(50), each=sim_factor)
+  N_subjects = rep(c(10,30,50,70), each=sim_factor)
   N_items = c(10)
-  pref = c(.65,.75,.85)
+  pref = c(.60,.75,.90)
 
 n_bootstrap_samples <- 250 # (for clusters and bootstraps)
 effect_start <- 2500
 trial_length <- 5000
 num_time_bins <- trial_length / tb_size
+fdr_correction <- trial_length / 250 # set based on independent saccade bins.... experimental
 
 f <- function(d, i) mean(d[i], na.rm=TRUE)
 ```
@@ -160,9 +156,6 @@ t_tests_bonf <- cbind(t_tests_bonf,t_tests_bonf_results)
 ### FDR correction:
 
 ```{r}
-# calculate FDR correction based on FDR rate
-fdr_correction <- mean(t_tests$false_alarm_bins != 0) / .05
-
 t_tests_fdr <- data.frame(
                   test = 't_tests_fdr',
                   correction_factor = fdr_correction,
@@ -294,9 +287,6 @@ boot_splines_bonf <- cbind(boot_splines_bonf, boot_splines_bonf_results)
 ### FDR correction:
 
 ```{r}
-# calculate FDR correction based on FDR rate
-fdr_correction <- mean(boot_splines$false_alarm_bins != 0) / .05
-
 boot_splines_fdr <- data.frame(
                   test = 'boot_splines_fdr',
                   correction_factor = fdr_correction,
@@ -357,7 +347,7 @@ clusters_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
   
   alpha = .05
-  num_sub = length(unique((df$Participant)))
+  num_sub = length(unique((df_time_sub$Participant)))
   threshold_t = qt(p = 1 - alpha/2, 
                    df = num_sub-1) # pick threshold t based on alpha = .05 two tailed
   
@@ -424,12 +414,85 @@ clusters_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
   df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
   df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
   
-  cl_dat <- make_time_cluster_data(data = df_time_sub, predictor_column = "Condition", test = "t.test", threshold = 2, quiet = TRUE, formula = Elog ~ Condition)
+  alpha = .05/num_time_bins
+  num_sub = length(unique((df_time_sub$ParticipantName)))
+  threshold_t = qt(p = 1 - alpha/2, 
+                   df = num_sub-1)
+  
+  cl_dat <- make_time_cluster_data(data = df_time_sub, predictor_column = "Condition", test = "t.test", threshold = threshold_t, quiet = TRUE, formula = Elog ~ Condition)
   if ( nrow(get_time_clusters(cl_dat))>0 ) {
     cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = n_bootstrap_samples, parallel = TRUE)
     cl_clusts <- get_time_clusters(cl_anal)
     cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
     cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05/num_time_bins)
+    out <- with(cl_sig_clusts, 
+              data.frame(
+                N_subjects = N_subjects,
+                N_items = N_items,
+                pref = pref, 
+                avg_rt = mean(df$RT, na.rm=TRUE),
+                rt_lower_quart = quantile(df$RT, probs = .25),
+                rt_upper_quart = quantile(df$RT, probs = .75),
+                false_alarm_bins = sum((EndTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)] - StartTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size, ((effect_start-tb_size)-StartTime[EndTime >= (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size),
+                correct_discovery_bins = sum((EndTime[StartTime >= (effect_start-tb_size)] - StartTime[StartTime >= (effect_start-tb_size)])/tb_size, (EndTime[StartTime < (effect_start-tb_size) & EndTime > (effect_start-tb_size)]-(effect_start-tb_size))/tb_size),
+                first_discovery_time = StartTime[EndTime >= (effect_start-tb_size)][1],
+                n_clusters = nrow(get_time_clusters(cl_dat))
+              )  
+        )
+  } else {
+    out <- data.frame(
+                N_subjects = N_subjects,
+                N_items = N_items,
+                pref = pref, 
+                avg_rt = mean(df$RT, na.rm=TRUE),
+                rt_lower_quart = quantile(df$RT, probs = .25),
+                rt_upper_quart = quantile(df$RT, probs = .75),
+                false_alarm_bins = 0,
+                correct_discovery_bins = 0,
+                first_discovery_time = NA,
+                n_clusters = 0
+            )
+  }
+  # end analysis
+  
+  # begin return data
+  return(out)
+  # end return data
+  
+}
+
+# merge results into dataframe
+clusters_bonf <- cbind(clusters_bonf, clusters_bonf_results)
+```
+
+### FDR correction:
+
+```{r}
+clusters_bonf <- data.frame(
+                  test = 'clusters_bonf',
+                  correction_factor = fdr_correction,
+                  effective_alpha = .05/fdr_correction
+              )
+
+clusters_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
+                   foreach(N_items=N_items, .combine=rbind) %:%
+                   foreach(pref=pref, .combine=rbind) %dopar% {
+  
+  # begin analysis
+  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
+  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
+  
+  alpha = .05/fdr_correction
+  num_sub = length(unique((df_time_sub$ParticipantName)))
+  threshold_t = qt(p = 1 - alpha/2, 
+                   df = num_sub-1)
+  
+  cl_dat <- make_time_cluster_data(data = df_time_sub, predictor_column = "Condition", test = "t.test", threshold = threshold_t, quiet = TRUE, formula = Elog ~ Condition)
+  if ( nrow(get_time_clusters(cl_dat))>0 ) {
+    cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = n_bootstrap_samples, parallel = TRUE)
+    cl_clusts <- get_time_clusters(cl_anal)
+    cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
+    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05/fdr_correction)
     out <- with(cl_sig_clusts, 
               data.frame(
                 N_subjects = N_subjects,
