@@ -397,142 +397,6 @@ clusters_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
 clusters <- cbind(clusters, clusters_results)
 ```
 
-### Bonferoni correction:
-
-```{r}
-clusters_bonf <- data.frame(
-                  test = 'clusters_bonf',
-                  correction_factor = num_time_bins,
-                  effective_alpha = .05/num_time_bins
-              )
-
-clusters_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
-                   foreach(N_items=N_items, .combine=rbind) %:%
-                   foreach(pref=pref, .combine=rbind) %dopar% {
-  
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
-  
-  alpha = .05/num_time_bins
-  num_sub = length(unique((df_time_sub$ParticipantName)))
-  threshold_t = qt(p = 1 - alpha/2, 
-                   df = num_sub-1)
-  
-  cl_dat <- make_time_cluster_data(data = df_time_sub, predictor_column = "Condition", test = "t.test", threshold = threshold_t, quiet = TRUE, formula = Elog ~ Condition)
-  if ( nrow(get_time_clusters(cl_dat))>0 ) {
-    cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = n_bootstrap_samples, parallel = TRUE)
-    cl_clusts <- get_time_clusters(cl_anal)
-    cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
-    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05)
-    out <- with(cl_sig_clusts, 
-              data.frame(
-                N_subjects = N_subjects,
-                N_items = N_items,
-                pref = pref, 
-                avg_rt = mean(df$RT, na.rm=TRUE),
-                rt_lower_quart = quantile(df$RT, probs = .25),
-                rt_upper_quart = quantile(df$RT, probs = .75),
-                false_alarm_bins = sum((EndTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)] - StartTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size, ((effect_start-tb_size)-StartTime[EndTime >= (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size),
-                correct_discovery_bins = sum((EndTime[StartTime >= (effect_start-tb_size)] - StartTime[StartTime >= (effect_start-tb_size)])/tb_size, (EndTime[StartTime < (effect_start-tb_size) & EndTime > (effect_start-tb_size)]-(effect_start-tb_size))/tb_size),
-                first_discovery_time = StartTime[EndTime >= (effect_start-tb_size)][1],
-                n_clusters = nrow(get_time_clusters(cl_dat))
-              )  
-        )
-  } else {
-    out <- data.frame(
-                N_subjects = N_subjects,
-                N_items = N_items,
-                pref = pref, 
-                avg_rt = mean(df$RT, na.rm=TRUE),
-                rt_lower_quart = quantile(df$RT, probs = .25),
-                rt_upper_quart = quantile(df$RT, probs = .75),
-                false_alarm_bins = 0,
-                correct_discovery_bins = 0,
-                first_discovery_time = NA,
-                n_clusters = 0
-            )
-  }
-  # end analysis
-  
-  # begin return data
-  return(out)
-  # end return data
-  
-}
-
-# merge results into dataframe
-clusters_bonf <- cbind(clusters_bonf, clusters_bonf_results)
-```
-
-### FDR correction:
-
-```{r}
-clusters_fdr <- data.frame(
-                  test = 'clusters_fdr',
-                  correction_factor = fdr_correction,
-                  effective_alpha = .05/fdr_correction
-              )
-
-clusters_fdr_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
-                   foreach(N_items=N_items, .combine=rbind) %:%
-                   foreach(pref=pref, .combine=rbind) %dopar% {
-  
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
-  
-  alpha = .05/fdr_correction
-  num_sub = length(unique((df_time_sub$ParticipantName)))
-  threshold_t = qt(p = 1 - alpha/2, 
-                   df = num_sub-1)
-  
-  cl_dat <- make_time_cluster_data(data = df_time_sub, predictor_column = "Condition", test = "t.test", threshold = threshold_t, quiet = TRUE, formula = Elog ~ Condition)
-  if ( nrow(get_time_clusters(cl_dat))>0 ) {
-    cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = n_bootstrap_samples, parallel = TRUE)
-    cl_clusts <- get_time_clusters(cl_anal)
-    cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
-    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<.05)
-    out <- with(cl_sig_clusts, 
-              data.frame(
-                N_subjects = N_subjects,
-                N_items = N_items,
-                pref = pref, 
-                avg_rt = mean(df$RT, na.rm=TRUE),
-                rt_lower_quart = quantile(df$RT, probs = .25),
-                rt_upper_quart = quantile(df$RT, probs = .75),
-                false_alarm_bins = sum((EndTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)] - StartTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size, ((effect_start-tb_size)-StartTime[EndTime >= (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size),
-                correct_discovery_bins = sum((EndTime[StartTime >= (effect_start-tb_size)] - StartTime[StartTime >= (effect_start-tb_size)])/tb_size, (EndTime[StartTime < (effect_start-tb_size) & EndTime > (effect_start-tb_size)]-(effect_start-tb_size))/tb_size),
-                first_discovery_time = StartTime[EndTime >= (effect_start-tb_size)][1],
-                n_clusters = nrow(get_time_clusters(cl_dat))
-              )  
-        )
-  } else {
-    out <- data.frame(
-                N_subjects = N_subjects,
-                N_items = N_items,
-                pref = pref, 
-                avg_rt = mean(df$RT, na.rm=TRUE),
-                rt_lower_quart = quantile(df$RT, probs = .25),
-                rt_upper_quart = quantile(df$RT, probs = .75),
-                false_alarm_bins = 0,
-                correct_discovery_bins = 0,
-                first_discovery_time = NA,
-                n_clusters = 0
-            )
-  }
-  # end analysis
-  
-  # begin return data
-  return(out)
-  # end return data
-  
-}
-
-# merge results into dataframe
-clusters_fdr <- cbind(clusters_fdr, clusters_fdr_results)
-```
-
 # Summarise Simulation results
 
 ```{r}
@@ -543,18 +407,16 @@ all_tests <- rbind(
               boot_splines,
               boot_splines_bonf,
               boot_splines_fdr,
-              clusters,
-              clusters_bonf,
-              clusters_fdr
+              clusters
             )
 
 summary <- all_tests %>%
            group_by(test, correction_factor, effective_alpha, N_subjects, N_items, pref) %>%
            summarise(
-             CorrectDiscoveryRate = mean(correct_discovery_bins) / (num_time_bins/2),
-             NoDiscoveryRate = mean(correct_discovery_bins == 0),
+             DiscoveryRate = mean(correct_discovery_bins) / (num_time_bins/2),
+             FamilyWiseDiscoveryRate = (1-mean(correct_discovery_bins == 0)),
              MeanFirstDivergence = mean(first_discovery_time, na.rm=TRUE),
-             FalseDiscoveryRate = mean(false_alarm_bins) / (num_time_bins/2),
+             ErrorRate = mean(false_alarm_bins) / (num_time_bins/2),
              FamilyWiseErrorRate = mean(false_alarm_bins != 0),
              NumClusters = mean(n_clusters)
            ) %>%
@@ -564,7 +426,7 @@ summary <- all_tests %>%
            )
 
 summary_long <- summary %>%
-           tidyr::gather('Measure', 'Value', CorrectDiscoveryRate, NoDiscoveryRate, FalseDiscoveryRate, FamilyWiseErrorRate,NumClusters)
+           tidyr::gather('Measure', 'Value', DiscoveryRate, FamilyWiseDiscoveryRate, ErrorRate, FamilyWiseErrorRate,NumClusters)
 
 # visualize measures in a high power (N=90) design
 ggplot(subset(summary_long, Measure != 'NumClusters'), aes(x=as.factor(N_subjects), y=Value, fill=test)) +
@@ -585,15 +447,15 @@ ggplot(subset(summary_long, Measure == 'NumClusters'), aes(x=as.factor(test), y=
 # visualize number of diverged bins
 
 # overall summary
-summary_overall <- summary %>%
+summary_overall <- all_tests %>%
                    group_by(test, correction_factor, effective_alpha) %>%
                    summarise(
-                     CorrectDiscoveryRate = mean(CorrectDiscoveryRate),
-                     NoDiscoveryRate = mean(NoDiscoveryRate),
-                     MeanFirstDivergence = mean(MeanFirstDivergence,na.rm=TRUE),
-                     FalseDiscoveryRate = mean(FalseDiscoveryRate),
-                     FamilyWiseErrorRate = mean(FamilyWiseErrorRate),
-                     NumClusters = mean(NumClusters)
+                     DiscoveryRate = mean(correct_discovery_bins) / (num_time_bins/2),
+                     FamilyWiseDiscoveryRate = (1-mean(correct_discovery_bins == 0)),
+                     MeanFirstDivergence = mean(first_discovery_time, na.rm=TRUE),
+                     ErrorRate = mean(false_alarm_bins) / (num_time_bins/2),
+                     FamilyWiseErrorRate = mean(false_alarm_bins != 0),
+                     NumClusters = mean(n_clusters)
                    ) %>% 
                    ungroup() %>%
                    as.data.frame()
