@@ -115,13 +115,13 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
     switch_diffs_unnormed <- rexp(potential_switches_per_trial+1)
     switch_diffs_normed <- round((switch_diffs_unnormed/sum(switch_diffs_unnormed))*trial_len) +1 
     switch_diffs_normed <- switch_diffs_normed[1:potential_switches_per_trial]
-    switch_times_normed <- cumsum(switch_diffs_normed)
+    switch_times_normed <- cumsum(c(0,switch_diffs_normed))
     
     # Determine preference/which-aoi based on time in trial:
+   # cat(pref_onset,", ")
     inside_pref_wind  <- (switch_times_normed>pref_onset & switch_times_normed<pref_wind[2])
-    aoi_vec_inside_window  <- rbinom(n = length(switch_times_normed), size = 1, prob = pref)
-    aoi_vec_outside_window <- rbinom(n = length(switch_times_normed), size = 1, prob = .5)
-    which_aoi <- ifelse(inside_pref_wind, aoi_vec_inside_window, aoi_vec_outside_window)
+    which_aoi <- rbinom(length(switch_times_normed), size = 1, 
+                        prob = ifelse(inside_pref_wind, yes = pref, no = .5))
     
     # Generate list of looks:
     out <- unlist(lapply(X = seq_along(switch_diffs_normed), FUN = function(i) rep(which_aoi[i], times = switch_diffs_normed[i])))
@@ -138,7 +138,7 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
   pref_wind <- pref_window/10 - 1
   pref_wind_len <- pref_wind[2] - pref_wind[1]
   trial_len = (trial_length/10) - 1
-  switchiness <- round(trial_len / 60)
+  switchiness <- round(trial_len / 60) # corresponds to roughly 8 possible switches in a 5-second window.
   
   dat <- data_frame(Participant = rep(1:num_participants, each = num_items_per_condition*trial_len) ) %>%
     group_by(Participant) %>%
@@ -148,15 +148,15 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
            Item  = Trial,
            Condition = ifelse( (Participant%%2)==0, "High", "Low"),
            ParticipantLogOdds = ifelse(Condition == "High", .random_odds(qlogis(pref)), .random_odds(qlogis(.50)) ))  %>%
-    group_by(Trial) %>%
-    mutate(TrialLogOdds = ifelse(Condition == "High", .random_odds(qlogis(pref)), .random_odds(qlogis(.50)) )) %>%
-    group_by(Participant, Trial) %>%
+    group_by(Item) %>%
+    mutate(ItemLogOdds = ifelse(Condition == "High", .random_odds(qlogis(pref)), .random_odds(qlogis(.50)) )) %>%
+    group_by(Participant, Item) %>%
     mutate(TimeInTrial = (1:n())*10,
            RT = rgamma(1, shape = 2, scale = 3+.SpeedOffset)*100, #rexp(1, rate = abs( (50+.SpeedOffset)^-1 ) )*10, 
            .PrefOnset = pref_wind[1] + RT/10,
            .PrefOnset = ifelse(.PrefOnset>pref_wind[2], pref_wind[2], .PrefOnset),
            AOI1 = .generate_random_trial(unique(.NumSwitches), 
-                                         pref = plogis( (unique(TrialLogOdds)+unique(ParticipantLogOdds))/2 ),
+                                         pref = plogis( (unique(ItemLogOdds)+unique(ParticipantLogOdds))/2 ),
                                          # each trial pref is avg of that item "pref" w/ that participant pref
                                          pref_onset = unique(.PrefOnset)),
                                          # each subject is delayed by a certain amount in when their preference emerges
