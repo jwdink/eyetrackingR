@@ -93,7 +93,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
     # This gives you a vector specifying which rows to extract, in order to extract the data corresponding to the sampled subjects
     sampled_subject_rows <- unlist(sample(run_subjects_rows, length(run_subjects_rows), replace = TRUE))
     run_data <- run_original[sampled_subject_rows,]
-
+    
     if (smoother == "none") {
       # use straight linear approximation on the values
       run_predicted_times <- seq(min(run_original$Time), max(run_original$Time), by=resolution)
@@ -111,7 +111,6 @@ make_boot_splines_data.time_sequence_data <- function (data,
       # get interpolated spline predictions for total time at *resolution*
       run_predicted_times <- seq(min(run_original$Time), max(run_original$Time), by=resolution)
       run_predictions <- predict(run_spline, run_predicted_times)
-
       return(run_predictions$y)
     }
     else if (smoother == 'loess') {
@@ -125,6 +124,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
 
       return (run_predictions)
     }
+    
   }
 
   # this dataframe will hold our final dataset
@@ -158,6 +158,8 @@ make_boot_splines_data.time_sequence_data <- function (data,
 
       #
       combined_bootstrapped_data <- bind_rows(combined_bootstrapped_data,bootstrapped_data)
+      combined_bootstrapped_data[[predictor_column]] <- factor(combined_bootstrapped_data[[predictor_column]], 
+                                                               levels = levels(data[[predictor_column]]))
     }
   }
   else {
@@ -286,34 +288,20 @@ analyze_boot_splines.boot_splines_data <- function(data) {
   }
   else {
     samples <- bootstrap_attr$samples
-
-    # randomly resample 1 mean from each condition and subtract them to get a
-    # distribution of the difference between means
-    bootstrapped_diffs <- data.frame(matrix(nrow=length(unique(data[, 'Time'])), ncol=bootstrap_attr$samples + 1))
-    colnames(bootstrapped_diffs) <- c('Time', paste0('Diff',1:samples))
-
-    get_mean_diffs <- function(samples, mean_dist_1, mean_dist_2) {
-      return (sample(mean_dist_1,samples,replace=T) - sample(mean_dist_2,samples,replace=T))
-    }
-
-    # lay the 2 conditions side-by-side in a matrix
-    horizontal_matrix <- cbind(data[1:(nrow(data)/2), c('Time',paste0('Sample',1:bootstrap_attr$samples))], data[((nrow(data)/2)+1):nrow(data), paste0('Sample',1:bootstrap_attr$samples)])
-
-    # sample diffs between random means to generate a distribution of differences
-    sampled_mean_diffs <- apply(horizontal_matrix, 1, function(x) { get_mean_diffs(1000, x[2:(length(x) / 2)], x[((length(x) / 2)+1):length(x)]) })
-    sampled_mean_diffs <- t(sampled_mean_diffs)
+    
+    cond_lvls <- levels(data[[bootstrap_attr$predictor_column]])
+    diffs <- data[data[[bootstrap_attr$predictor_column]]==cond_lvls[1],c(-1,-2)] - data[data[[bootstrap_attr$predictor_column]]==cond_lvls[2],c(-1,-2)]
 
     # calculate means and CIs
     bootstrapped_data <- data.frame(
-      Time = horizontal_matrix$Time,
-      MeanDiff = as.vector(apply(sampled_mean_diffs, 1, mean, na.rm=TRUE)),
-      SE = as.vector(apply(sampled_mean_diffs, 1, sd, na.rm=TRUE)),
-      CI_low = as.vector(round(apply(sampled_mean_diffs, 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5)),
-      CI_high = as.vector(round(apply(sampled_mean_diffs, 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5))
+      Time = data$Time[data[[bootstrap_attr$predictor_column]]==cond_lvls[1]],
+      MeanDiff = rowMeans(diffs, na.rm=TRUE),
+      SE = as.vector(apply(diffs, 1, sd, na.rm=TRUE)),
+      CI_low = as.vector(round(apply(diffs, 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5)),
+      CI_high = as.vector(round(apply(diffs, 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5))
     )
 
-    bootstrapped_data <- mutate(bootstrapped_data,
-                                Significant = ifelse((CI_high > 0 & CI_low > 0) | (CI_high < 0 & CI_low < 0), TRUE, FALSE))
+    bootstrapped_data$Significant <- with(bootstrapped_data, (CI_high > 0 & CI_low > 0) | (CI_high < 0 & CI_low < 0) )
   }
 
   bootstrapped_data = as.data.frame(bootstrapped_data)
