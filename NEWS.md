@@ -1,5 +1,11 @@
 # eyetrackingR 
 
+Changes in 0.1.1.9000:
+
+* Added (experimental) support for `glm` and `glmer` in `analyze_time_bins` and therefore in cluster-analyses. Email any bug-reports to jacobwdink@gmail.com
+* Added `simulate_eyetrackingr_data` function to generate fake data for simulations.
+* Added *very* experimental support for `boot-splines` method within cluster analysis (investigating hybrid method, not meant for serious analyses yet).
+
 Changes in 0.1.1:
 
 * **Important** bug-fix in `clean_by_trackloss`. Previously did not work for certain column names.

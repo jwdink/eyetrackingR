@@ -14,15 +14,15 @@ library("pbapply")
 suppressPackageStartupMessages(library("foreach"))
 doMC::registerDoMC()
 
-#set.seed(40)
+set.seed(40)
 
 tb_size <- 100
 sim_factor <- 50 # of simulations for each Nsubjects/Nitems/pref cell
 
   # create vectors for permutations
-  N_subjects = rep(c(30), each=sim_factor)
+  N_subjects = rep(c(30)) # <--- removed some levels
   N_items = c(10)
-  pref = c(.60,.75,.90)
+  pref = c(.75) # <---- removed some levels
 
 n_bootstrap_samples <- 250 # (for clusters and bootstraps)
 effect_start <- 2500
@@ -40,7 +40,8 @@ clusters <- data.frame(
               ) %>%
   cbind(expand.grid(N_subjects = N_subjects, 
                     N_items = N_items, 
-                    pref = pref))
+                    pref = pref,
+                    Sim = 1:sim_factor))
 
 cluster_results <- pblapply(1:nrow(clusters), FUN = function(i) {
   
