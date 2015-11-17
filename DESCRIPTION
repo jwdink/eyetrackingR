@@ -14,17 +14,18 @@ Description: A set of tools that address tasks along the pipeline from raw
 URL: http://eyetracking-r.com
 BugReports: https://github.com/jwdink/eyetrackingR/issues
 Date: 2015-11-15 15:15:02
-Depends:
+Depends: 
     R (>= 3.2.1)
 License: MIT + file LICENSE
 LazyData: true
-Imports:
+Imports: 
     broom (>= 0.3.7),
     dplyr (>= 0.4.3),
     ggplot2 (>= 1.0.1),
     lazyeval (>= 0.1.10),
-    zoo (>= 1.7-12)
-Suggests:
+    zoo (>= 1.7-12),
+    tidyr
+Suggests: 
     pbapply,
     knitr,
     lme4 (>= 1.1-9),

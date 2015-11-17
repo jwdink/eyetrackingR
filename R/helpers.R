@@ -4,7 +4,7 @@
 #'
 #' @param vec Logical
 #' @return A numeric vector
-.get_threshold <- function(threshold, alpha, test, dfs) {
+.get_threshold <- function(threshold, alpha, test, dfs, quiet) {
   if (is.null(threshold)) {
     if (test == "lmer") {
       if (!quiet) message("Using the normal approximation for critical value on parameter in lmer.")
@@ -122,7 +122,9 @@
 #'   preference). In the "low" condition, their preference between the two AOIs is equal, so default
 #'   is no effect of condition.
 #' @param pref_window             Vector of length two, specifying start and end of time-window in
-#'   which they expressed the preference specified in \code{pref}. Default is the entire trial
+#'   which participants expressed the preference specified in \code{pref}. Default is the entire trial
+#' @param noisy_window            Vector of length two, specifying start and end of time-window in
+#'   which there was substantial trackloss during the trial.
 #' @param ...                     Ignored
 #' @export
 #' @return Prints a list of divergence-times.

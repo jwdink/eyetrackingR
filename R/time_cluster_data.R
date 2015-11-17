@@ -23,6 +23,7 @@ analyze_time_clusters <-function(data, ...) {
 #'   specify a column which indicates these kinds of distinct categories that should be resampled separately--
 #'   but it's only needed if you've specified a numeric *and* within-subjects predictor column.
 #' @param parallel      Use foreach for speed boost? By default off. May not work on Windows.
+#' @param quiet         Display progress bar? Ignored when parallel=TRUE.
 #' @param ...            Other args for to selected 'test' function; should be identical to those passed to
 #'   \code{make_time_cluster_data} function
 #'   
@@ -64,11 +65,13 @@ analyze_time_clusters.time_cluster_data <-function(data,
                                                    formula = NULL,
                                                    shuffle_by = NULL,
                                                    parallel = FALSE,
+                                                   quiet = FALSE,
                                                    ...) {
 
   # Get important information about type of data/analyses, input when running make_time_cluster_data
   attrs <-attr(data, "eyetrackingR")
   data_options <-attrs$data_options
+  dots <- lazyeval::lazy_dots(...)
 
   # Shuffle data by
   if (is.null(shuffle_by)) {
@@ -94,6 +97,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
       pbsapply <- pbapply::pbsapply
     }
   }
+  if (quiet) pbsapply <- sapply
 
   # Arg check:
   if (attrs$test == "wilcox.test") stop("Wilcox test is temporarily unavailable in this function. ",
@@ -104,8 +108,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
     if (attrs$formula != formula) stop("Formula given in 'make_time_cluster_data' does not match formula given here.")
   }
   if (attrs$test %in% c("t.test", "wilcox.test")) {
-    cc <- lazyeval::lazy_dots(...)
-    paired <- eval(cc[["paired"]]$expr)
+    paired <- eval(dots[["paired"]]$expr)
     if (within_subj==TRUE) {
       # if within_subj is true, we need to confirm they overrode default
       if (!identical(paired, TRUE)) stop("For ", attrs$test, ", if 'within_subj' is TRUE, then 'paired' should also be TRUE.")
@@ -113,8 +116,8 @@ analyze_time_clusters.time_cluster_data <-function(data,
       # if within_subj is false, we just need to confirm they didn't set paired = TRUE
       if (identical(paired, TRUE)) stop("For ", attrs$test, ", if 'within_subj' is FALSE, then 'paired' should also be FALSE.")
     }
-  } else if (attrs$test == "lm") {
-    if (within_subj == TRUE) stop("For lm, 'within_subj' must be FALSE.")
+  } else if (attrs$test %in% c("lm","glm")) {
+    if (within_subj == TRUE) warning("For lm, 'within_subj' should probably be FALSE.")
   }
   
   # what are we grouping our resampling by? default is by participant:
@@ -142,6 +145,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
     
     get_resampled_sum_stat_within <- function(data, list_of_list_of_rows, attrs, formula, ...) {
       df_resampled <- data
+      dots <- lazyeval::lazy_dots(...)
       
       # for each participant, randomly resample rows to be assigned to each possible level of the predictor
       # TO DO: keep this in mind as a performance bottleneck. if so, refactor code so that df_resampled only
@@ -160,13 +164,24 @@ analyze_time_clusters.time_cluster_data <-function(data,
       df_resampled$Cluster <- NULL
       attr(df_resampled, "eyetrackingR")$clusters <- NULL
       attr(df_resampled, "eyetrackingR")$time_bin_summary <- NULL
-      shuffled_cluster_data <- make_time_cluster_data(df_resampled,
-                                                      predictor_column = attrs$predictor_column,
-                                                      test = attrs$test,
-                                                      threshold = attrs$threshold,
-                                                      formula = formula,
-                                                      quiet = TRUE,
-                                                      ... = ...)
+      the_args = list(
+        data = df_resampled,
+        predictor_column = attrs$predictor_column,
+        test = attrs$test,
+        threshold = attrs$threshold,
+        formula = formula
+      )
+      if (attrs$test=="boot_splines") {
+        the_args$within_subj <- TRUE
+        the_args$samples <- dots$boot_samples$expr
+        the_args$alpha <- attrs$alpha
+        cat("\n", the_args$alpha)
+      }
+      for (this_arg in names(dots)) {
+        the_args[[this_arg]] <- dots[[this_arg]]$expr
+      }
+      the_args$boot_samples <- NULL
+      shuffled_cluster_data <- do.call(make_time_cluster_data, the_args)
       clusters <- get_time_clusters(shuffled_cluster_data)
       if ( nrow(clusters)>0 ) {
         ss <- clusters$SumStatistic
@@ -197,6 +212,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
 
     get_resampled_sum_stat_btwn <- function(data, rows_of_participants, attrs, formula, ...) {
       df_resampled <- data
+      dots <- lazyeval::lazy_dots(...)
       
       # randomly re-assign each participant/item to a condition:
       rows_of_participants_resampled <- sample(rows_of_participants, size=length(rows_of_participants), replace=FALSE)
@@ -212,14 +228,23 @@ analyze_time_clusters.time_cluster_data <-function(data,
       df_resampled$Cluster <- NULL
       attr(df_resampled, "eyetrackingR")$clusters <- NULL
       attr(df_resampled, "eyetrackingR")$time_bin_summary <- NULL
-      shuffled_cluster_data <- make_time_cluster_data(df_resampled,
-                                                      predictor_column = attrs$predictor_column,
-                                                      test = attrs$test,
-                                                      threshold = attrs$threshold,
-                                                      formula = formula,
-                                                      quiet = TRUE,
-                                                      ... = ...)
-      
+      the_args = list(
+        data = df_resampled,
+        predictor_column = attrs$predictor_column,
+        test = attrs$test,
+        threshold = attrs$threshold,
+        formula = formula
+      )
+      if (attrs$test=="boot_splines") {
+        the_args$within_subj <- FALSE
+        the_args$samples <- dots$boot_samples$expr
+        the_args$alpha <- attrs$alpha
+      }
+      for (this_arg in names(dots)) {
+        the_args[[this_arg]] <- dots[[this_arg]]$expr
+      }
+      the_args$boot_samples <- NULL
+      shuffled_cluster_data <- do.call(make_time_cluster_data, the_args)
       clusters <- get_time_clusters(shuffled_cluster_data)
       if ( nrow(clusters)>0 ) {
         ss <- clusters$SumStatistic
@@ -326,7 +351,6 @@ make_time_cluster_data <-function(data, ...) {
 #' @param threshold         Value of statistic used in determining significance. Non-directional (two-tailed).
 #' @param formula           What formula should be used for test? Optional (for all but \code{lmer}), if unset
 #'   uses \code{Prop ~ [predictor_column]}
-#' @param quiet             Show messages?
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
 #'   var.equal, etc.)
 #'   
@@ -380,15 +404,20 @@ make_time_cluster_data.time_sequence_data <- function(data,
                                                      predictor_column,
                                                      aoi = NULL,
                                                      test,
-                                                     threshold,
+                                                     threshold = NULL,
                                                      formula = NULL,
-                                                     quiet = FALSE,
                                                      ...) {
   
   
   attrs <- attr(data, "eyetrackingR")
   data_options <- attrs$data_options
+  dots <- lazyeval::lazy_dots(...)
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
+  if (test == "boot_splines") {
+    if (is.null(dots$alpha$expr)) stop("Please specify alpha for this test.")
+  } else {
+    if (is.null(threshold)) stop("Please specify threshold for this test.")
+  }
 
   # Filter Data:
   if (is.null(aoi)) {
@@ -404,15 +433,13 @@ make_time_cluster_data.time_sequence_data <- function(data,
   }
 
   # Compute Time Bins:
-  time_bin_summary <- analyze_time_bins(data,
-                                       predictor_column = predictor_column,
-                                       test = test,
-                                       threshold = threshold,
-                                       alpha = NULL,
-                                       formula = formula,
-                                       return_model = FALSE,
-                                       quiet = quiet,
-                                       ...) %>%
+  the_args <- list(data = data, predictor_column = predictor_column, test = test, formula = formula,
+                   return_model = FALSE, quiet = TRUE)
+  the_args[["threshold"]] <- threshold
+  for (this_arg in names(dots)) {
+    the_args[[this_arg]] <- dots[[this_arg]]$expr
+  }
+  time_bin_summary <- do.call(analyze_time_bins, the_args) %>%
     rename(ClusterPos = PositiveRuns, ClusterNeg = NegativeRuns)
   formula <- attr(time_bin_summary, "eyetrackingR")$formula
 
@@ -453,6 +480,7 @@ make_time_cluster_data.time_sequence_data <- function(data,
                                               predictor_column = predictor_column,
                                               test = test,
                                               threshold = threshold,
+                                              alpha = dots$alpha$expr,
                                               formula = formula,
                                               time_bin_summary = time_bin_summary)
   )

@@ -9,7 +9,7 @@ analyze_time_clusters(data, ...)
 
 \method{analyze_time_clusters}{time_cluster_data}(data, within_subj,
   samples = 2000, formula = NULL, shuffle_by = NULL, parallel = FALSE,
-  ...)
+  quiet = FALSE, ...)
 }
 \arguments{
 \item{data}{The output of the \code{make_time_cluster_data} function}
@@ -33,6 +33,8 @@ specify a column which indicates these kinds of distinct categories that should 
 but it's only needed if you've specified a numeric *and* within-subjects predictor column.}
 
 \item{parallel}{Use foreach for speed boost? By default off. May not work on Windows.}
+
+\item{quiet}{Display progress bar? Ignored when parallel=TRUE.}
 }
 \value{
 A cluster-analysis object, which can be plotted and summarized to examine which temporal periods

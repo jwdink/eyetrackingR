@@ -6,7 +6,7 @@
 \usage{
 simulate_eyetrackingr_data(num_participants = 16,
   num_items_per_condition = 6, trial_length = 5000, pref = 0.5,
-  pref_window = c(1, trial_length), ...)
+  pref_window = c(1, trial_length), noisy_window = NULL, ...)
 }
 \arguments{
 \item{num_participants}{Number of participants}
@@ -21,7 +21,10 @@ preference). In the "low" condition, their preference between the two AOIs is eq
 is no effect of condition.}
 
 \item{pref_window}{Vector of length two, specifying start and end of time-window in
-which they expressed the preference specified in \code{pref}. Default is the entire trial}
+which participants expressed the preference specified in \code{pref}. Default is the entire trial}
+
+\item{noisy_window}{Vector of length two, specifying start and end of time-window in
+which there was substantial trackloss during the trial.}
 
 \item{...}{Ignored}
 }

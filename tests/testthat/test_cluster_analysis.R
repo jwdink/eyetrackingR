@@ -40,7 +40,7 @@ test_that(desc = "The function make_time_cluster_data gives necessary eyetrackin
   expect_equal( nrow(attr(tclust_data_lm, "eyetrackingR")$clusters), 1 )
 })
 
-tclust_analysis_lm <- analyze_time_clusters(tclust_data_lm, within_subj = FALSE, samples = 10,
+tclust_analysis_lm <- analyze_time_clusters(tclust_data_lm, within_subj = FALSE, samples = 10, 
                                             formula = Prop ~  MCDI_Verbs + MCDI_Nouns)
 test_that(desc = "The function analyze_time_clusters gives necessary eyetrackingR class with lm", code = {
   expect_true( all(class(tclust_analysis_lm) %in% c("cluster_analysis")) )

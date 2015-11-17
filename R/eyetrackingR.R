@@ -10,6 +10,8 @@
 #' @importFrom lazyeval interp
 #' @import ggplot2
 #' @import dplyr
+#' @importFrom tidyr  gather
+#' @importFrom tidyr  spread
 #' @importFrom stats  plogis
 #' @importFrom stats  qlogis
 #' @importFrom stats  rnorm
@@ -85,4 +87,8 @@ utils::globalVariables(c('Prop',
                          'Item',
                          'Participant',
                          'PositiveRuns',
-                         'Trial'))
+                         'Trial',
+                         'Lvl1',
+                         'Lvl2',
+                         'Prob',
+                         'Val'))

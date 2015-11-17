@@ -8,7 +8,7 @@
 analyze_time_bins(data, ...)
 
 \method{analyze_time_bins}{time_sequence_data}(data, predictor_column, test,
-  threshold = NULL, alpha = 0.05, formula = NULL, return_model = FALSE,
+  threshold = NULL, alpha = NULL, formula = NULL, return_model = FALSE,
   quiet = FALSE, ...)
 }
 \arguments{
