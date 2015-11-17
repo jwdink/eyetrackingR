@@ -1,3 +1,27 @@
+#' .get_crit_val()
+#'
+#' Get the threshold, given critical value and test. For `analyze_time_bins`
+#'
+#' @param vec Logical
+#' @return A numeric vector
+.get_threshold <- function(threshold, alpha, test, dfs) {
+  if (is.null(threshold)) {
+    if (test == "lmer") {
+      if (!quiet) message("Using the normal approximation for critical value on parameter in lmer.")
+      crit_pos =  qnorm(p=1-alpha/2)
+    } else if (test=="t.test") {
+      crit_pos <- qt(1-alpha/2, df = dfs)
+    } else if (test=="wilcox.test") {
+      crit_pos <- qsignrank(p = 1-alpha/2, n = dfs+1 )
+    } else if (test=="lm" | test=="glm") {
+      crit_pos <- qt(1-alpha/2, df = dfs)
+    } 
+  } else {
+    crit_pos <- ifelse(sign(threshold)==1,  threshold, -threshold)
+  }
+  crit_pos
+}
+
 #' .label_consecutive()
 #'
 #' A helper function to label/enumerate runs of TRUEs in a logical vector, with NA for FALSEs
@@ -107,9 +131,12 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
                                        trial_length = 5000, 
                                        pref =.50, 
                                        pref_window = c(1,trial_length),
+                                       noisy_window = NULL,
                                        ...) {
   
-  .generate_random_trial <- function(potential_switches_per_trial, pref, pref_onset) {
+  if (is.null(noisy_window)) noisy_window <- c(trial_length, trial_length)
+  
+  .generate_random_trial <- function(potential_switches_per_trial, pref, this_pref_wind, baseline_pref =.50) {
     
     # Randomly generate potential switch times via poisson process:
     switch_diffs_unnormed <- rexp(potential_switches_per_trial+1)
@@ -118,10 +145,9 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
     switch_times_normed <- cumsum(c(0,switch_diffs_normed))
     
     # Determine preference/which-aoi based on time in trial:
-   # cat(pref_onset,", ")
-    inside_pref_wind  <- (switch_times_normed>pref_onset & switch_times_normed<pref_wind[2])
+    inside_pref_wind  <- (switch_times_normed>this_pref_wind[1] & switch_times_normed<this_pref_wind[2])
     which_aoi <- rbinom(length(switch_times_normed), size = 1, 
-                        prob = ifelse(inside_pref_wind, yes = pref, no = .5))
+                        prob = ifelse(inside_pref_wind, yes = pref, no = baseline_pref))
     
     # Generate list of looks:
     out <- unlist(lapply(X = seq_along(switch_diffs_normed), FUN = function(i) rep(which_aoi[i], times = switch_diffs_normed[i])))
@@ -135,6 +161,7 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
     rnorm(1, mean = avg_odds, sd = .50)
   }
   
+  noisy_wind <- noisy_window/10
   pref_wind <- pref_window/10 - 1
   pref_wind_len <- pref_wind[2] - pref_wind[1]
   trial_len = (trial_length/10) - 1
@@ -158,11 +185,15 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
            AOI1 = .generate_random_trial(unique(.NumSwitches), 
                                          pref = plogis( (unique(ItemLogOdds)+unique(ParticipantLogOdds))/2 ),
                                          # each trial pref is avg of that item "pref" w/ that participant pref
-                                         pref_onset = unique(.PrefOnset)),
+                                         this_pref_wind = c(unique(.PrefOnset), pref_wind[2])),
                                          # each subject is delayed by a certain amount in when their preference emerges
                                         
            AOI2 = !AOI1,
-           Trackloss = as.logical(rbinom(n=n(), size=1, prob = .10)) ) %>%
+           Trackloss = .generate_random_trial(trial_len / 10, 
+                                             pref = .66,
+                                             this_pref_wind = noisy_wind,
+                                             baseline_pref = .10
+                                             ) ) %>%
     ungroup() %>% select(-.PrefOnset, -.NumSwitches, -.SpeedOffset) %>%
     mutate(Participant = factor(Participant),
            Condition = factor(Condition),
