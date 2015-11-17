@@ -428,7 +428,7 @@ summary <- all_tests %>%
 summary_long <- summary %>%
            tidyr::gather('Measure', 'Value', DiscoveryRate, FamilyWiseDiscoveryRate, ErrorRate, FamilyWiseErrorRate,NumClusters)
 
-# visualize measures in a high power (N=90) design
+# visualize measures
 ggplot(subset(summary_long, Measure != 'NumClusters'), aes(x=as.factor(N_subjects), y=Value, fill=test)) +
                   scale_fill_manual(values=c('#000000','#525252','#969696',
                                              '#3f007d','#6a51a3','#9e9ac8',
