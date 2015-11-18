@@ -52,7 +52,7 @@ t_test_df$Test <- "t_test_uncorrected"
 
 ```{r, eval=TRUE}
 # set eval to FALSE after this has been run once.
-t_test_results <- pblapply(X = 1:return2(t_test_df), FUN = function(i) {
+t_test_results <- pblapply(X = 1:nrow(t_test_df), FUN = function(i) {
   df_time <- make_time_data(i, t_test_df)
   tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_df[i,"Alpha"], 
                        quiet=TRUE)
@@ -84,7 +84,7 @@ t_test_bonf_df$Test <- "t_test_bonferroni"
 
 ```{r, eval=TRUE}
 # set eval to FALSE after this has been run once.
-t_test_bonf_results <- pblapply(X = 1:return2(t_test_bonf_df), FUN = function(i) {
+t_test_bonf_results <- pblapply(X = 1:nrow(t_test_bonf_df), FUN = function(i) {
   df_time <- make_time_data(i, t_test_bonf_df)
   tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_bonf_df[i,"Alpha"], 
                        quiet=TRUE)
@@ -118,7 +118,7 @@ boot_splines_df$Test <- "boot_splines_uncorrected"
 
 ```{r, eval=TRUE}
 # set eval to FALSE after this has been run once.
-boot_splines_results <- pblapply(X = 1:return2(boot_splines_df), FUN = function(i) {
+boot_splines_results <- pblapply(X = 1:nrow(boot_splines_df), FUN = function(i) {
   df_time <- make_time_data(i, boot_splines_df)
   tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "boot_splines", 
                                samples = bootstrap_samples,
@@ -153,7 +153,7 @@ boot_splines_bonf_df$Test <- "boot_splines_bonf"
 
 ```{r, eval=TRUE}
 # set eval to FALSE after this has been run once.
-boot_splines_bonf_results <- pblapply(X = 1:return2(boot_splines_bonf_df), FUN = function(i) {
+boot_splines_bonf_results <- pblapply(X = 1:nrow(boot_splines_bonf_df), FUN = function(i) {
   df_time <- make_time_data(i, boot_splines_bonf_df)
   tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "boot_splines", 
                                samples = bootstrap_samples,
@@ -191,7 +191,7 @@ time_cluster_low_thresh_df$Test <- "time_cluster_low_thresh_ttest"
 
 ```{r, eval=TRUE}
 # set eval to FALSE after this has been run once.
-time_cluster_low_thresh_results <- pblapply(X = 1:return2(time_cluster_low_thresh_df), FUN = function(i) {
+time_cluster_low_thresh_results <- pblapply(X = 1:nrow(time_cluster_low_thresh_df), FUN = function(i) {
   df_time <- make_time_data(i, time_cluster_low_thresh_df)
   cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "t.test", 
                                     threshold = qt(p = time_cluster_low_thresh_df[i,"ThresholdAlpha"]/2, 
@@ -233,7 +233,7 @@ time_cluster_high_thresh_df$Test <- "time_cluster_high_thresh_ttest"
 
 ```{r, eval=TRUE}
 # set eval to FALSE after this has been run once.
-time_cluster_high_thresh_results <- pblapply(X = 1:return2(time_cluster_high_thresh_df), FUN = function(i) {
+time_cluster_high_thresh_results <- pblapply(X = 1:nrow(time_cluster_high_thresh_df), FUN = function(i) {
   df_time <- make_time_data(i, time_cluster_high_thresh_df)
   cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "t.test", 
                                     threshold = qt(p = time_cluster_high_thresh_df[i,"ThresholdAlpha"]/2, 
@@ -275,7 +275,7 @@ time_cluster_low_thresh_boot_df$Test <- "time_cluster_low_thresh_boot"
 
 ```{r, eval=TRUE}
 # set eval to FALSE after this has been run once.
-time_cluster_low_thresh_boot_results <- pblapply(X = 1:return2(time_cluster_low_thresh_boot_df), FUN = function(i) {
+time_cluster_low_thresh_boot_results <- pblapply(X = 1:nrow(time_cluster_low_thresh_boot_df), FUN = function(i) {
   df_time <- make_time_data(i, time_cluster_low_thresh_boot_df)
   cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE,
                                     alpha = time_cluster_low_thresh_boot_df[i,"ThresholdAlpha"])
@@ -318,7 +318,7 @@ time_cluster_high_thresh_boot_df$Test <- "time_cluster_high_thresh_boot"
 
 ```{r, eval=TRUE}
 # set eval to FALSE after this has been run once.
-time_cluster_high_thresh_boot_results <- pblapply(X = 1:return2(time_cluster_high_thresh_boot_df), FUN = function(i) {
+time_cluster_high_thresh_boot_results <- pblapply(X = 1:nrow(time_cluster_high_thresh_boot_df), FUN = function(i) {
   df_time <- make_time_data(i, time_cluster_high_thresh_boot_df)
   cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE,
                                     alpha = time_cluster_high_thresh_boot_df[i,"ThresholdAlpha"])
@@ -355,9 +355,9 @@ for (i in seq_along(time_cluster_high_thresh_boot_results)) {
 #[WILL INSERT SUMMARY/GRAPH CODE HERE, do not edit]
 
 master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df, 
-          t_test_bonf_df, t_test_df, 
-          time_cluster_low_thresh_df, time_cluster_high_thresh_df,
-          time_cluster_low_thresh_boot_df, time_cluster_low_thresh_df)
+                       t_test_bonf_df, t_test_df, 
+                       time_cluster_low_thresh_df, time_cluster_high_thresh_df,
+                       time_cluster_low_thresh_boot_df, time_cluster_low_thresh_df)
 
 
 ```
