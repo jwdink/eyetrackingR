@@ -1,464 +1,367 @@
 ---
-title: "Testing Properties of Divergence Analyses with Simulations"
+title: "Testing Types of Divergence Analyses with Simulations"
 author: "Jacob Dink"
-date: "November 15, 2015"
+date: "November 17, 2015"
 output: html_document
 ---
 
-### Notes/Brainstorming:
+## Prelims:
+```{r}
+stopifnot(grepl(pattern = "Misc", x = getwd()))
+library(eyetrackingR)
+library(pbapply)
+library(dplyr)
 
-Tests for Initial Analysies:
-
- * Divergence halfway through Trial
-    * FA %
-    * FWER
-    * Correct Discovery %
-    * Estimated Time-of-Divergence (bias?)
-    * Magnitude of divergence?
-    
-Test for Follow-up Analyses:
-
- * Conditioning high-FWER analyses on preliminary overall analyses
-    (Brock: I'm not sure this makes sense. What's a false discovery when validated by lmer? I think we can recommend this without a simulation.)
-    * Only run boot-splines when there's an overall effect across entire window
-    * Only run boot-splines when there's an interaction term in the growth-curve
- * By-Items Analysis vs. Collapsing Across Items
-    (Brock: interesting, but maybe not paper worthy. not sure if it's a big enough issue)
-    * Cluster-Analysis does well
-    * Splines does poorly, but easy to fix
- * Effects of time-bin with high amount of noise 
-    * Splines do well
-    * Cluster-analysis does poorly
- * Adjusting Threshold of Cluster-Analysis
-    (Brock: our primary analysis tweaks the alpha in 2 different ways already so I think this is redundant.)
-    * A prior
-    * Post-hoc
- * Abrupt End-of-Divergence for Brief Period
-    * Does splines falsely smooth this away?
-
-Before we run the final analyses:
-  * increase sim_factor to 50
-
-```{r, echo=FALSE}
-#devtools::install_github('jwdink/eyetrackingR')
-library("eyetrackingR")
-library("ggplot2")
-suppressPackageStartupMessages(library("dplyr"))
-library("pbapply")
-suppressPackageStartupMessages(library("foreach"))
-doMC::registerDoMC()
-
-#set.seed(40)
-
-tb_size <- 100
-sim_factor <- 50 # of simulations for each Nsubjects/Nitems/pref cell
-
-  # create vectors for permutations
-  N_subjects = rep(c(10,30,50,70), each=sim_factor)
-  N_items = c(10)
-  pref = c(.60,.75,.90)
-
-n_bootstrap_samples <- 250 # (for clusters and bootstraps)
+params_to_test_template <- expand.grid(NumSubjects = c(60,30,10),
+                                      NumItems    = c(10),
+                                      Pref        = c(.85, .75, .65),
+                                      SimNum      = 1:50)
 effect_start <- 2500
 trial_length <- 5000
+tb_size <- 100
 num_time_bins <- trial_length / tb_size
-fdr_correction <- trial_length / 250 # set based on independent saccade bins.... experimental
-
-f <- function(d, i) mean(d[i], na.rm=TRUE)
+num_no_effect_time_bins <- (effect_start/trial_length)*num_time_bins
+num_effect_time_bins    <- (1-effect_start/trial_length)*num_time_bins
+bootstrap_samples <- 250
+cluster_samples <- 250
 ```
 
-## T.Tests
+```{r}
+return2 <- function(x) return(2)
+make_time_data <- function(i, param_df) {
+  df <- simulate_eyetrackingr_data(num_participants = param_df[i,"NumSubjects"], 
+                                   num_items_per_condition = param_df[i,"NumItems"], 
+                                   trial_length = trial_length, 
+                                   pref = param_df[i,"Pref"],
+                                   pref_window = c(effect_start, trial_length)
+                                   )
+  df_time <- make_time_sequence_data(data = df, time_bin_size = tb_size, aois = "AOI1", predictor_columns = "Condition",
+                                     summarize_by = "Participant")
+}
+```
 
-### No Correction:
+## T.Tests:
+
+### Uncorrected:
 
 ```{r}
-t_tests <- data.frame(
-                  test = 't_tests',
-                  correction_factor = 0,
-                  effective_alpha = .05
-              ) 
+t_test_df <- params_to_test_template
+t_test_df$Alpha <- .05
+t_test_df$Test <- "t_test_uncorrected"
+```
 
-t_tests_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
-                   foreach(N_items=N_items, .combine=rbind) %:%
-                   foreach(pref=pref, .combine=rbind) %dopar% {
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
-  tb_anal <- analyze_time_bins(df_time_sub, predictor_column = "Condition", test = "t.test", alpha = .05, quiet=TRUE, formula = Elog ~ Condition)
+```{r, eval=TRUE}
+# set eval to FALSE after this has been run once.
+t_test_results <- pblapply(X = 1:return2(t_test_df), FUN = function(i) {
+  df_time <- make_time_data(i, t_test_df)
+  tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_df[i,"Alpha"], 
+                       quiet=TRUE)
   tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
-  # end analysis
-  
-  # begin return data
-  with(tb_anal,
-       data.frame(
-          N_subjects = N_subjects,
-          N_items = N_items,
-          pref = pref,
-          avg_rt = mean(df$RT, na.rm=TRUE),
-          rt_lower_quart = quantile(df$RT, probs = .25),
-          rt_upper_quart = quantile(df$RT, probs = .75),
-          false_alarm_bins = sum(Sig[Time <  effect_start-tb_size]),
-          correct_discovery_bins = sum(Sig[Time >= effect_start]),
-          first_discovery_time = Time[Time >= effect_start-tb_size & Sig][1],
-          n_clusters = NA
-        )
-       )
-  # end return data
-}
-
-# merge results into dataframe
-t_tests <- cbind(t_tests, t_tests_results)
+  return(tb_anal)
+})
+saveRDS(t_test_results, file = "sim_results/t_test_results.RDS")
 ```
 
-### Bonferoni correction:
+```{r}
+t_test_results <- readRDS("sim_results/t_test_results.RDS")
+
+for (i in seq_along(t_test_results)) {
+  model <- t_test_results[[i]]
+  # add to df:
+  t_test_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start-tb_size]) )
+  t_test_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
+  t_test_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start-tb_size & Sig][1] )
+}
+```
+
+### Bonf. Corrected
 
 ```{r}
-t_tests_bonf <- data.frame(
-                  test = 't_tests_bonf',
-                  correction_factor = num_time_bins,
-                  effective_alpha = .05/num_time_bins
-              )
+t_test_bonf_df <- params_to_test_template
+t_test_bonf_df$Alpha <- .05 / num_time_bins
+t_test_bonf_df$Test <- "t_test_bonferroni"
+```
 
-t_tests_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
-                   foreach(N_items=N_items, .combine=rbind) %:%
-                   foreach(pref=pref, .combine=rbind) %dopar% {
-
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
-  tb_anal <- analyze_time_bins(df_time_sub, predictor_column = "Condition", test = "t.test", alpha = .05/num_time_bins, quiet=TRUE, formula = Elog ~ Condition)
+```{r, eval=TRUE}
+# set eval to FALSE after this has been run once.
+t_test_bonf_results <- pblapply(X = 1:return2(t_test_bonf_df), FUN = function(i) {
+  df_time <- make_time_data(i, t_test_bonf_df)
+  tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_bonf_df[i,"Alpha"], 
+                       quiet=TRUE)
   tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
-  # end analysis
-  
-  # begin return data
-  with(tb_anal,
-       data.frame(
-          N_subjects = N_subjects,
-          N_items = N_items,
-          pref = pref,
-          avg_rt = mean(df$RT, na.rm=TRUE),
-          rt_lower_quart = quantile(df$RT, probs = .25),
-          rt_upper_quart = quantile(df$RT, probs = .75),
-          false_alarm_bins = sum(Sig[Time <  effect_start-tb_size]),
-          correct_discovery_bins = sum(Sig[Time >= effect_start]),
-          first_discovery_time = Time[Time >= effect_start-tb_size & Sig][1],
-          n_clusters = NA
-        )
-       )
-  # end return data
-  
-}
-
-# merge results into dataframe
-t_tests_bonf <- cbind(t_tests_bonf,t_tests_bonf_results)
+  return(tb_anal)
+})
+saveRDS(t_test_bonf_results, file = "sim_results/t_test_bonf_results.RDS")
 ```
 
-### FDR correction:
+```{r}
+t_test_bonf_results <- readRDS("sim_results/t_test_bonf_results.RDS")
+
+for (i in seq_along(t_test_bonf_results)) {
+  model <- t_test_bonf_results[[i]]
+  # add to df:
+  t_test_bonf_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start-tb_size]) )
+  t_test_bonf_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
+  t_test_bonf_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start-tb_size & Sig][1] )
+}
+```
+
+## Boot-Splines:
+
+### Uncorrected:
 
 ```{r}
-t_tests_fdr <- data.frame(
-                  test = 't_tests_fdr',
-                  correction_factor = fdr_correction,
-                  effective_alpha = .05/fdr_correction
-              )
+boot_splines_df <- params_to_test_template
+boot_splines_df$Alpha <- .05
+boot_splines_df$Test <- "boot_splines_uncorrected"
+```
 
-t_tests_fdr_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
-                   foreach(N_items=N_items, .combine=rbind) %:%
-                   foreach(pref=pref, .combine=rbind) %dopar% {
-  
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1",  summarize_by = "Participant")
-  tb_anal <- analyze_time_bins(df_time_sub, predictor_column = "Condition", test = "t.test", alpha = .05/fdr_correction, quiet=TRUE, formula = Elog ~ Condition)
+```{r, eval=TRUE}
+# set eval to FALSE after this has been run once.
+boot_splines_results <- pblapply(X = 1:return2(boot_splines_df), FUN = function(i) {
+  df_time <- make_time_data(i, boot_splines_df)
+  tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "boot_splines", 
+                               samples = bootstrap_samples,
+                               within_subj = FALSE,
+                               alpha = boot_splines_df[i,"Alpha"], 
+                               quiet=TRUE)
   tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
-  # end analysis
-  
-  # begin return data
-  with(tb_anal,
-       data.frame(
-          N_subjects = N_subjects,
-          N_items = N_items,
-          pref = pref,
-          avg_rt = mean(df$RT, na.rm=TRUE),
-          rt_lower_quart = quantile(df$RT, probs = .25),
-          rt_upper_quart = quantile(df$RT, probs = .75),
-          false_alarm_bins = sum(Sig[Time <  effect_start-tb_size]),
-          correct_discovery_bins = sum(Sig[Time >= effect_start]),
-          first_discovery_time = Time[Time >= effect_start-tb_size & Sig][1],
-          n_clusters = NA
-        )
-       )
-  # end return data
-  
-}
-
-# merge results into dataframe
-t_tests_fdr <- cbind(t_tests_fdr, t_tests_fdr_results)
+  return(tb_anal)
+})
+saveRDS(boot_splines_results, file = "sim_results/boot_splines_results.RDS")
 ```
-
-## Bootstrapped Smoothing Splines
-
-### No Correction:
 
 ```{r}
-boot_splines <- data.frame(
-                  test = 'boot_splines',
-                  correction_factor = 0,
-                  effective_alpha = .05
-              )
+boot_splines_results <- readRDS("sim_results/boot_splines_results.RDS")
 
-boot_splines_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
-                   foreach(N_items=N_items, .combine=rbind) %:%
-                   foreach(pref=pref, .combine=rbind) %dopar% {
-  
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
-  bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, alpha = .05, samples = n_bootstrap_samples)
-  bs_anal <- analyze_boot_splines(bs_dat)
-  # end analysis
-  
-  # begin return data
-  with(bs_anal,
-       data.frame(
-          N_subjects = N_subjects,
-          N_items = N_items,
-          pref = pref, 
-          avg_rt = mean(df$RT, na.rm=TRUE),
-          rt_lower_quart = quantile(df$RT, probs = .25),
-          rt_upper_quart = quantile(df$RT, probs = .75),
-          false_alarm_bins = sum(Significant[Time <  effect_start-tb_size]),
-          correct_discovery_bins = sum(Significant[Time >= effect_start]),
-          first_discovery_time = Time[Time >= effect_start-tb_size & Significant][1],
-          n_clusters = length(rle(Significant)$values[which(rle(Significant)$values == TRUE)])
-        )
-       )
-  # end return data
-  
+for (i in seq_along(boot_splines_results)) {
+  model <- boot_splines_results[[i]]
+  # add to df:
+  boot_splines_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start-tb_size]) )
+  boot_splines_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
+  boot_splines_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start-tb_size & Sig][1] )
 }
-
-# merge results into dataframe
-boot_splines <- cbind(boot_splines, boot_splines_results)
 ```
 
-### Bonferoni correction:
+### Bonf. Corrected:
 
 ```{r}
-boot_splines_bonf <- data.frame(
-                  test = 'boot_splines_bonf',
-                  correction_factor = num_time_bins,
-                  effective_alpha = .05/num_time_bins
-              )
-
-boot_splines_bonf_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
-                   foreach(N_items=N_items, .combine=rbind) %:%
-                   foreach(pref=pref, .combine=rbind) %dopar% {
-  
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
-  bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, alpha = .05/num_time_bins, samples = n_bootstrap_samples)
-  bs_anal <- analyze_boot_splines(bs_dat)
-  # end analysis
-  
-  # begin return data
-  with(bs_anal,
-       data.frame(
-          N_subjects = N_subjects,
-          N_items = N_items,
-          pref = pref, 
-          avg_rt = mean(df$RT, na.rm=TRUE),
-          rt_lower_quart = quantile(df$RT, probs = .25),
-          rt_upper_quart = quantile(df$RT, probs = .75),
-          false_alarm_bins = sum(Significant[Time <  effect_start-tb_size]),
-          correct_discovery_bins = sum(Significant[Time >= effect_start]),
-          first_discovery_time = Time[Time >= effect_start-tb_size & Significant][1],
-          n_clusters = length(rle(Significant)$values[which(rle(Significant)$values == TRUE)])
-        )
-       )
-  # end return data
-  
-}
-
-# merge results into dataframe
-boot_splines_bonf <- cbind(boot_splines_bonf, boot_splines_bonf_results)
+boot_splines_bonf_df <- params_to_test_template
+boot_splines_bonf_df$Alpha <- .05  / num_time_bins
+boot_splines_bonf_df$Test <- "boot_splines_bonf"
 ```
 
-### FDR correction:
+```{r, eval=TRUE}
+# set eval to FALSE after this has been run once.
+boot_splines_bonf_results <- pblapply(X = 1:return2(boot_splines_bonf_df), FUN = function(i) {
+  df_time <- make_time_data(i, boot_splines_bonf_df)
+  tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "boot_splines", 
+                               samples = bootstrap_samples,
+                               within_subj = FALSE,
+                               alpha = boot_splines_bonf_df[i,"Alpha"], 
+                               quiet=TRUE)
+  tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
+  return(tb_anal)
+})
+saveRDS(boot_splines_bonf_results, file = "sim_results/boot_splines_bonf_results.RDS")
+```
 
 ```{r}
-boot_splines_fdr <- data.frame(
-                  test = 'boot_splines_fdr',
-                  correction_factor = fdr_correction,
-                  effective_alpha = .05/fdr_correction
-              )
+boot_splines_bonf_results <- readRDS("sim_results/boot_splines_bonf_results.RDS")
 
-boot_splines_fdr_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
-                   foreach(N_items=N_items, .combine=rbind) %:%
-                   foreach(pref=pref, .combine=rbind) %dopar% {
-  
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
-  bs_dat <- make_boot_splines_data(df_time_sub, predictor_column = "Condition", within_subj = FALSE, alpha = .05/fdr_correction, samples = n_bootstrap_samples)
-  bs_anal <- analyze_boot_splines(bs_dat)
-  # end analysis
-  
-  # begin return data
-  with(bs_anal,
-       data.frame(
-          N_subjects = N_subjects,
-          N_items = N_items,
-          pref = pref, 
-          avg_rt = mean(df$RT, na.rm=TRUE),
-          rt_lower_quart = quantile(df$RT, probs = .25),
-          rt_upper_quart = quantile(df$RT, probs = .75),
-          false_alarm_bins = sum(Significant[Time <  effect_start-tb_size]),
-          correct_discovery_bins = sum(Significant[Time >= effect_start]),
-          first_discovery_time = Time[Time >= effect_start-tb_size & Significant][1],
-          n_clusters = length(rle(Significant)$values[which(rle(Significant)$values == TRUE)])
-        )
-       )
-  # end return data
-  
+for (i in seq_along(boot_splines_bonf_results)) {
+  model <- boot_splines_bonf_results[[i]]
+  # add to df:
+  boot_splines_bonf_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start-tb_size]) )
+  boot_splines_bonf_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
+  boot_splines_bonf_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start-tb_size & Sig][1] )
 }
-
-# merge results into dataframe
-boot_splines_fdr <- cbind(boot_splines_fdr, boot_splines_fdr_results)
 ```
 
-## Clusters
+## Cluster Analysis:
 
-### No Correction:
+### Using t-tests, with Low. Threshold:
 
 ```{r}
-clusters <- data.frame(
-                  test = 'clusters',
-                  correction_factor = 0,
-                  effective_alpha = .05
-              )
-
-clusters_results <- foreach(N_subjects=N_subjects, .combine=rbind) %:%
-                   foreach(N_items=N_items, .combine=rbind) %:%
-                   foreach(pref=pref, .combine=rbind) %dopar% {
-  
-  # begin analysis
-  df <- simulate_eyetrackingr_data(num_participants = N_subjects, num_items_per_condition = N_items, pref = pref, pref_window = c(effect_start,trial_length))
-  df_time_sub <- make_time_sequence_data(df, time_bin_size = tb_size, predictor_columns = "Condition", aois = "AOI1", summarize_by = "Participant")
-  
-  alpha = .05
-  num_sub = length(unique((df_time_sub$Participant)))
-  threshold_t = qt(p = 1 - alpha/2, 
-                   df = num_sub-1) # pick threshold t based on alpha = .05 two tailed
-  
-  cl_dat <- make_time_cluster_data(data = df_time_sub, predictor_column = "Condition", test = "t.test", threshold = threshold_t, quiet = TRUE, formula = Elog ~ Condition)
-  if ( nrow(get_time_clusters(cl_dat))>0 ) {
-    cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = n_bootstrap_samples, parallel = TRUE)
-    cl_clusts <- get_time_clusters(cl_anal)
-    cl_clusts$NumBins <- with(cl_clusts, (EndTime - StartTime)/tb_size)
-    cl_sig_clusts <- filter(cl_clusts, cl_clusts$Probability<alpha)
-    out <- with(cl_sig_clusts, 
-              data.frame(
-                N_subjects = N_subjects,
-                N_items = N_items,
-                pref = pref, 
-                avg_rt = mean(df$RT, na.rm=TRUE),
-                rt_lower_quart = quantile(df$RT, probs = .25),
-                rt_upper_quart = quantile(df$RT, probs = .75),
-                false_alarm_bins = sum((EndTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)] - StartTime[EndTime < (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size, ((effect_start-tb_size)-StartTime[EndTime >= (effect_start-tb_size) & StartTime < (effect_start-tb_size)])/tb_size),
-                correct_discovery_bins = sum((EndTime[StartTime >= (effect_start-tb_size)] - StartTime[StartTime >= (effect_start-tb_size)])/tb_size, (EndTime[StartTime < (effect_start-tb_size) & EndTime > (effect_start-tb_size)]-(effect_start-tb_size))/tb_size),
-                first_discovery_time = StartTime[EndTime >= (effect_start-tb_size)][1],
-                n_clusters = nrow(get_time_clusters(cl_dat))
-              )  
-        )
-  } else {
-    out <- data.frame(
-                N_subjects = N_subjects,
-                N_items = N_items,
-                pref = pref, 
-                avg_rt = mean(df$RT, na.rm=TRUE),
-                rt_lower_quart = quantile(df$RT, probs = .25),
-                rt_upper_quart = quantile(df$RT, probs = .75),
-                false_alarm_bins = 0,
-                correct_discovery_bins = 0,
-                first_discovery_time = NA,
-                n_clusters = 0
-            )
-  }
-  # end analysis
-  
-  # begin return data
-  return(out)
-  # end return data
-  
-}
-
-# merge results into dataframe
-clusters <- cbind(clusters, clusters_results)
+time_cluster_low_thresh_df <- params_to_test_template
+time_cluster_low_thresh_df$ThresholdAlpha <- .10
+time_cluster_low_thresh_df$Alpha <- .05
+time_cluster_low_thresh_df$Test <- "time_cluster_low_thresh_ttest"
 ```
 
-# Summarise Simulation results
+```{r, eval=TRUE}
+# set eval to FALSE after this has been run once.
+time_cluster_low_thresh_results <- pblapply(X = 1:return2(time_cluster_low_thresh_df), FUN = function(i) {
+  df_time <- make_time_data(i, time_cluster_low_thresh_df)
+  cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "t.test", 
+                                    threshold = qt(p = time_cluster_low_thresh_df[i,"ThresholdAlpha"]/2, 
+                                                   df = time_cluster_low_thresh_df[i,"NumItems"]) # <-- set thresh w/alpha
+  )
+  cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples, parallel = TRUE)
+  return(cl_anal)
+})
+saveRDS(time_cluster_low_thresh_results, file = "sim_results/time_cluster_low_thresh_results.RDS")
+```
 
 ```{r}
-all_tests <- rbind(
-              t_tests,
-              t_tests_bonf,
-              t_tests_fdr,
-              boot_splines,
-              boot_splines_bonf,
-              boot_splines_fdr,
-              clusters
-            )
+time_cluster_low_thresh_results <- readRDS("sim_results/time_cluster_low_thresh_results.RDS")
 
-summary <- all_tests %>%
-           group_by(test, correction_factor, effective_alpha, N_subjects, N_items, pref) %>%
-           summarise(
-             DiscoveryRate = mean(correct_discovery_bins) / (num_time_bins/2),
-             FamilyWiseDiscoveryRate = (1-mean(correct_discovery_bins == 0)),
-             MeanFirstDivergence = mean(first_discovery_time, na.rm=TRUE),
-             ErrorRate = mean(false_alarm_bins) / (num_time_bins/2),
-             FamilyWiseErrorRate = mean(false_alarm_bins != 0),
-             NumClusters = mean(n_clusters)
-           ) %>%
-           ungroup() %>%
-           mutate(
-             pref = factor(pref)
-           )
-
-summary_long <- summary %>%
-           tidyr::gather('Measure', 'Value', DiscoveryRate, FamilyWiseDiscoveryRate, ErrorRate, FamilyWiseErrorRate,NumClusters)
-
-# visualize measures
-ggplot(subset(summary_long, Measure != 'NumClusters'), aes(x=as.factor(N_subjects), y=Value, fill=test)) +
-                  scale_fill_manual(values=c('#000000','#525252','#969696',
-                                             '#3f007d','#6a51a3','#9e9ac8',
-                                             '#d94801','#fd8d3c','#fdd0a2')) +
-                  scale_x_discrete(name='Number of Subjects') +
-                  scale_y_continuous(name='Proportion') +
-                  stat_summary(fun.y='mean', geom='bar', position=position_dodge()) +
-                  # geom_line(size=2) + # uncomment when we have enough tests for it to be clean
-                  facet_grid(Measure~pref) +
-                  theme_bw()
-
-# visualize # of clusters
-ggplot(subset(summary_long, Measure == 'NumClusters'), aes(x=as.factor(test), y=Value)) +
-                  stat_summary(fun.y='mean', geom='bar')
-
-# visualize number of diverged bins
-
-# overall summary
-summary_overall <- all_tests %>%
-                   group_by(test, correction_factor, effective_alpha) %>%
-                   summarise(
-                     DiscoveryRate = mean(correct_discovery_bins) / (num_time_bins/2),
-                     FamilyWiseDiscoveryRate = (1-mean(correct_discovery_bins == 0)),
-                     MeanFirstDivergence = mean(first_discovery_time, na.rm=TRUE),
-                     ErrorRate = mean(false_alarm_bins) / (num_time_bins/2),
-                     FamilyWiseErrorRate = mean(false_alarm_bins != 0),
-                     NumClusters = mean(n_clusters)
-                   ) %>% 
-                   ungroup() %>%
-                   as.data.frame()
-
-summary_overall
+for (i in seq_along(time_cluster_low_thresh_results)) {
+  model <- get_time_clusters(time_cluster_low_thresh_results[[i]]) %>%
+    mutate(Sig = Probability < .05,
+           PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+           ClusterStartTimeWithinEffect = ifelse(effect_start < StartTime, StartTime, effect_start),
+           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0)) %>%
+    filter(Sig)
+  
+  # add to df:
+  time_cluster_low_thresh_df[i,"FABins"] <- with(model, sum(c(PreEffectTime,DuringEffectTime[Direction=="Negative"])) / tb_size)
+  time_cluster_low_thresh_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+  time_cluster_low_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(nrow(model)>0, 
+                                                                      yes = min(ClusterStartTimeWithinEffect), no = NA))
+}
 ```
+
+### Using t-tests, with High. Threshold:
+
+```{r}
+time_cluster_high_thresh_df <- params_to_test_template
+time_cluster_high_thresh_df$ThresholdAlpha <- .05
+time_cluster_high_thresh_df$Alpha <- .05
+time_cluster_high_thresh_df$Test <- "time_cluster_high_thresh_ttest"
+```
+
+```{r, eval=TRUE}
+# set eval to FALSE after this has been run once.
+time_cluster_high_thresh_results <- pblapply(X = 1:return2(time_cluster_high_thresh_df), FUN = function(i) {
+  df_time <- make_time_data(i, time_cluster_high_thresh_df)
+  cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "t.test", 
+                                    threshold = qt(p = time_cluster_high_thresh_df[i,"ThresholdAlpha"]/2, 
+                                                   df = time_cluster_high_thresh_df[i,"NumItems"]) # <-- set thresh w/alpha
+  )
+  cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples, parallel = TRUE)
+  return(cl_anal)
+})
+saveRDS(time_cluster_high_thresh_results, file = "sim_results/time_cluster_high_thresh_results.RDS")
+```
+
+```{r}
+time_cluster_high_thresh_results <- readRDS("sim_results/time_cluster_high_thresh_results.RDS")
+
+for (i in seq_along(time_cluster_high_thresh_results)) {
+  model <- get_time_clusters(time_cluster_high_thresh_results[[i]]) %>%
+    mutate(Sig = Probability < .05,
+           PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+           ClusterStartTimeWithinEffect = ifelse(effect_start < StartTime, StartTime, effect_start),
+           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0)) %>%
+    filter(Sig)
+  
+  # add to df:
+  time_cluster_high_thresh_df[i,"FABins"] <- with(model, sum(c(PreEffectTime,DuringEffectTime[Direction=="Negative"])) / tb_size)
+  time_cluster_high_thresh_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+  time_cluster_high_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(nrow(model)>0, 
+                                                                      yes = min(ClusterStartTimeWithinEffect), no = NA))
+}
+```
+
+### Using boot-splines, with Low. Threshold:
+
+```{r}
+time_cluster_low_thresh_boot_df <- params_to_test_template
+time_cluster_low_thresh_boot_df$ThresholdAlpha <- .10
+time_cluster_low_thresh_boot_df$Alpha <- .05
+time_cluster_low_thresh_boot_df$Test <- "time_cluster_low_thresh_boot"
+```
+
+```{r, eval=TRUE}
+# set eval to FALSE after this has been run once.
+time_cluster_low_thresh_boot_results <- pblapply(X = 1:return2(time_cluster_low_thresh_boot_df), FUN = function(i) {
+  df_time <- make_time_data(i, time_cluster_low_thresh_boot_df)
+  cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE,
+                                    alpha = time_cluster_low_thresh_boot_df[i,"ThresholdAlpha"])
+  cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples,
+                                   boot_samples = bootstrap_samples,
+                                   parallel = TRUE)
+  return(cl_anal)
+})
+saveRDS(time_cluster_low_thresh_boot_results, file = "sim_results/time_cluster_low_thresh_boot_results.RDS")
+```
+
+```{r}
+time_cluster_low_thresh_boot_results <- readRDS("sim_results/time_cluster_low_thresh_boot_results.RDS")
+
+for (i in seq_along(time_cluster_low_thresh_boot_results)) {
+  model <- get_time_clusters(time_cluster_low_thresh_boot_results[[i]]) %>%
+    mutate(Sig = Probability < .05,
+           PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+           ClusterStartTimeWithinEffect = ifelse(effect_start < StartTime, StartTime, effect_start),
+           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0)) %>%
+    filter(Sig)
+  
+  # add to df:
+  time_cluster_low_thresh_boot_df[i,"FABins"] <- with(model, 
+                                                      sum(c(PreEffectTime,DuringEffectTime[Direction=="Negative"])) / tb_size)
+  time_cluster_low_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+  time_cluster_low_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(nrow(model)>0, 
+                                                                      yes = min(ClusterStartTimeWithinEffect), no = NA))
+}
+```
+
+### Using boot-splines, with High. Threshold:
+
+```{r}
+time_cluster_high_thresh_boot_df <- params_to_test_template
+time_cluster_high_thresh_boot_df$ThresholdAlpha <- .05
+time_cluster_high_thresh_boot_df$Alpha <- .05
+time_cluster_high_thresh_boot_df$Test <- "time_cluster_high_thresh_boot"
+```
+
+```{r, eval=TRUE}
+# set eval to FALSE after this has been run once.
+time_cluster_high_thresh_boot_results <- pblapply(X = 1:return2(time_cluster_high_thresh_boot_df), FUN = function(i) {
+  df_time <- make_time_data(i, time_cluster_high_thresh_boot_df)
+  cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE,
+                                    alpha = time_cluster_high_thresh_boot_df[i,"ThresholdAlpha"])
+  cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples,
+                                   boot_samples = bootstrap_samples,
+                                   parallel = TRUE)
+  return(cl_anal)
+})
+saveRDS(time_cluster_high_thresh_boot_results, file = "sim_results/time_cluster_high_thresh_boot_results.RDS")
+```
+
+```{r}
+time_cluster_high_thresh_boot_results <- readRDS("sim_results/time_cluster_high_thresh_boot_results.RDS")
+
+for (i in seq_along(time_cluster_high_thresh_boot_results)) {
+  model <- get_time_clusters(time_cluster_high_thresh_boot_results[[i]]) %>%
+    mutate(Sig = Probability < .05,
+           PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+           ClusterStartTimeWithinEffect = ifelse(effect_start < StartTime, StartTime, effect_start),
+           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0)) %>%
+    filter(Sig)
+  
+  # add to df:
+  time_cluster_high_thresh_boot_df[i,"FABins"] <- with(model, 
+                                                       sum(c(PreEffectTime,DuringEffectTime[Direction=="Negative"])) / tb_size)
+  time_cluster_high_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+  time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(nrow(model)>0, 
+                                                                      yes = min(ClusterStartTimeWithinEffect), no = NA))
+}
+```
+
+
+```{r}
+#[WILL INSERT SUMMARY/GRAPH CODE HERE, do not edit]
+
+master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df, 
+          t_test_bonf_df, t_test_df, 
+          time_cluster_low_thresh_df, time_cluster_high_thresh_df,
+          time_cluster_low_thresh_boot_df, time_cluster_low_thresh_df)
+
+
+```
+
+
+
+
