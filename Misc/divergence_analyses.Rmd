@@ -26,7 +26,7 @@ library(foreach)
 params_to_test_template <- expand.grid(NumSubjects = c(10,30,60),
                                        NumItems    = c(10),
                                        Pref        = c(.65, .75, .85),
-                                       SimNum      = 1:50)
+                                       SimNum      = 1:20)
 cluster_samples <- 250
 
 
@@ -83,8 +83,8 @@ for (i in seq_along(t_test_results)) {
   model <- t_test_results[[i]]
   # add to df:
   t_test_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start]) )
-  t_test_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
-  t_test_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start & Sig][1] )
+  t_test_df[i,"CDBins"] <- with(model, sum(!is.na(PositiveRuns[Time >= effect_start])) )
+  t_test_df[i,"FirstDiscTime"] <- with(model, Time[(Time >= effect_start) & !is.na(PositiveRuns)][1] )
 }
 ```
 
@@ -116,8 +116,8 @@ for (i in seq_along(t_test_bonf_results)) {
   model <- t_test_bonf_results[[i]]
   # add to df:
   t_test_bonf_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start]) )
-  t_test_bonf_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
-  t_test_bonf_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start & Sig][1] )
+  t_test_bonf_df[i,"CDBins"] <- with(model, sum(!is.na(PositiveRuns[Time >= effect_start])) )
+  t_test_bonf_df[i,"FirstDiscTime"] <- with(model, Time[(Time >= effect_start) & !is.na(PositiveRuns)][1] )
 }
 ```
 
@@ -155,8 +155,8 @@ for (i in seq_along(boot_splines_results)) {
   model <- boot_splines_results[[i]]
   # add to df:
   boot_splines_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start]) )
-  boot_splines_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
-  boot_splines_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start & Sig][1] )
+  boot_splines_df[i,"CDBins"] <- with(model, sum(!is.na(PositiveRuns[Time >= effect_start])) )
+  boot_splines_df[i,"FirstDiscTime"] <- with(model, Time[(Time >= effect_start) & !is.na(PositiveRuns)][1] )
 }
 ```
 
@@ -192,8 +192,8 @@ for (i in seq_along(boot_splines_bonf_results)) {
   model <- boot_splines_bonf_results[[i]]
   # add to df:
   boot_splines_bonf_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start]) )
-  boot_splines_bonf_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
-  boot_splines_bonf_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start & Sig][1] )
+  boot_splines_bonf_df[i,"CDBins"] <- with(model, sum(!is.na(PositiveRuns[Time >= effect_start])) )
+  boot_splines_bonf_df[i,"FirstDiscTime"] <- with(model, Time[(Time >= effect_start) & !is.na(PositiveRuns)][1] )
 }
 ```
 
@@ -482,71 +482,93 @@ for (i in seq_along(gca_results)) {
 ```{r}
 # print the date so I can see how long this took
 date()
-
 library("ggplot2")
-
 get_mean_ci <- function(vec) {
   if (length(vec)<1) return("NA, NA, NA")
   if (all(is.na(vec))) return("NA, NA, NA")
+  if (all(diff(vec)==0, na.rm=TRUE)) return(paste(rep(mean(vec, na.rm=TRUE),3), collapse = ", "))
   bootstrapped <- boot::boot(vec, function(x,i) mean(x[i],na.rm=TRUE), 500)
   paste(c(mean(vec,na.rm=TRUE), boot::boot.ci( bootstrapped, type="perc")$percent[4:5]), collapse = ", " )
 }
+
+
 master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df, 
                        t_test_bonf_df, t_test_df, 
                        time_cluster_low_thresh_df, time_cluster_high_thresh_df,
                        time_cluster_low_thresh_boot_df, time_cluster_high_thresh_boot_df,
                        gca_df) %>%
-  filter(!is.na(FABins)) # <------------- 
+  filter(!is.na(FABins)) # <-------------
+master_df$Test <- factor(master_df$Test, 
+                         levels = c("t_test", "boot_splines", "gca", "time_cluster_ttest","time_cluster_boot"))
+master_df$TestType <- with(master_df, 
+                           factor(x = paste(Test, Adjustment), 
+                                  levels = c('t_test ', 't_test bonferroni', 
+                                             'boot_splines ', 'boot_splines bonferroni', 
+                                             'gca ', 'gca FWER_Correction', 
+                                             'time_cluster_ttest low_threshold', 'time_cluster_ttest high_threshold',
+                                             'time_cluster_boot low_threshold', 'time_cluster_boot high_threshold')
+                           ))
+## TO DO ## make these not ugly as sin
+pallette <- c("#E69F00", "#9e6c00", 
+              "#56B4E9", "#1778b0", 
+              "#009E73", "#005c43", 
+              "#F0E442", "#b8ad0f", 
+              "#CC79A7", "#9b3b70") 
+names(pallette) <- levels(master_df$TestType) # I don't know if this does anything
+
+make_graph <- function(g) {
+  g + 
+    scale_fill_manual(values = pallette) +
+    geom_bar(position = position_dodge(), stat="identity") +
+    geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
+    theme_bw() + coord_cartesian(ylim=c(0,1))
+}
 ```
 
 ```{r}
 summary_per_cell_fa <- master_df %>%
-  group_by(NumSubjects, NumItems, Alpha, Test, Adjustment) %>%
+  group_by(NumSubjects, NumItems, Alpha, Test, Adjustment, TestType) %>%  # <--- does not include pref
   summarise(ErrorRate    = get_mean_ci(FABins/num_no_effect_time_bins),
             FWER         = get_mean_ci(FABins != 0)) %>%
   tidyr::gather(key = "Measure", value = "Value", ErrorRate,FWER) %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
   readr::type_convert()
 
-ggplot(filter(summary_per_cell_fa, Measure=="FWER"), aes(x=Test, y=Mean, fill=Adjustment)) +
-    scale_y_continuous(name='Proportion') +
-    geom_bar(position = position_dodge(), stat="identity") +
-    geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
-    facet_grid(. ~ NumSubjects) +
-    theme_bw() + coord_cartesian(ylim=c(0,1))
+ggplot(filter(summary_per_cell_fa, Measure=="FWER"), aes(x=Test, y=Mean, fill=TestType)) %>%
+  make_graph() + scale_y_continuous(name='FWER') +facet_grid(. ~ NumSubjects)
 
-ggplot(filter(summary_per_cell_fa, Measure=="ErrorRate"), aes(x=Test, y=Mean, fill=Adjustment)) +
-    scale_y_continuous(name='Proportion') +
-    geom_bar(position = position_dodge(), stat="identity") +
-    geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
-    facet_grid(. ~ NumSubjects) +
-    theme_bw()+ coord_cartesian(ylim=c(0,1))
+ggplot(filter(summary_per_cell_fa, Measure=="ErrorRate"), aes(x=Test, y=Mean, fill=TestType)) %>%
+  make_graph() + scale_y_continuous(name='ErrorRate') + facet_grid(. ~ NumSubjects)
 ```
 
 ```{r}
 summary_per_cell_dr <- master_df %>%
-  group_by(NumSubjects, NumItems, Pref, Alpha, Test, Adjustment) %>%
+  group_by(NumSubjects, NumItems, Pref, Alpha, Test, Adjustment, TestType) %>% # <----- includes pref
   summarise(DiscoverRate = get_mean_ci(CDBins/num_effect_time_bins),
             FWDR         = get_mean_ci(CDBins != 0)) %>%
   tidyr::gather(key = "Measure", value = "Value", DiscoverRate:FWDR) %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
   readr::type_convert()
 
-ggplot(filter(summary_per_cell_dr, Measure=="FWDR"), aes(x=Test, y=Mean, fill=Adjustment)) +
-    scale_y_continuous(name='Proportion') +
-    geom_bar(position = position_dodge(), stat="identity") +
-    geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
-    facet_grid(Pref ~ NumSubjects) +
-    theme_bw() + coord_cartesian(ylim=c(0,1))
+ggplot(filter(summary_per_cell_dr, Measure=="FWDR"), aes(x=Test, y=Mean, fill=TestType)) %>%
+  make_graph() + scale_y_continuous(name='FWDR') +facet_grid(Pref ~ NumSubjects)
 
-ggplot(filter(summary_per_cell_dr, Measure=="DiscoverRate"), aes(x=Test, y=Mean, fill=Adjustment)) +
-    scale_y_continuous(name='Proportion') +
-    geom_bar(position = position_dodge(), stat="identity") +
-    geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
-    facet_grid(Pref ~ NumSubjects) +
-    theme_bw()+ coord_cartesian(ylim=c(0,1))
+ggplot(filter(summary_per_cell_dr, Measure=="DiscoverRate"), aes(x=Test, y=Mean, fill=TestType)) %>%
+  make_graph() + scale_y_continuous(name='DiscoverRate') + facet_grid(Pref ~ NumSubjects)
 ```
 
+```{r}
+summary_overall <- master_df %>%
+  group_by(NumItems, Alpha, Test, Adjustment, TestType) %>%
+  summarise(ErrorRate    = get_mean_ci(FABins/num_no_effect_time_bins),
+            FWER         = get_mean_ci(FABins != 0),
+            DiscoverRate = get_mean_ci(CDBins/num_effect_time_bins),
+            FWDR         = get_mean_ci(CDBins != 0)) %>%
+  tidyr::gather(key = "Measure", value = "Value", ErrorRate:FWDR) %>%
+  tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
+  readr::type_convert()
 
+ggplot(summary_overall, aes(x = Test, y = Mean, fill = TestType)) %>%
+  make_graph() + scale_y_continuous(name = "Proportion") + facet_grid(Measure ~ .)
 
-
+```
