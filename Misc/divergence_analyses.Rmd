@@ -8,14 +8,15 @@ output: html_document
 ## Prelims:
 ```{r}
 stopifnot(grepl(pattern = "Misc", x = getwd()))
+#devtools::install_github('jwdink/eyetrackingR')
 library(eyetrackingR)
 library(pbapply)
 library(dplyr)
 
-params_to_test_template <- expand.grid(NumSubjects = c(60,30,10),
-                                      NumItems    = c(10),
-                                      Pref        = c(.85, .75, .65),
-                                      SimNum      = 1:50)
+params_to_test_template <- expand.grid(NumSubjects = c(10,30,60),
+                                       NumItems    = c(10),
+                                       Pref        = c(.65, .75, .85),
+                                       SimNum      = 1:20)
 effect_start <- 2500
 trial_length <- 5000
 tb_size <- 100
@@ -27,7 +28,6 @@ cluster_samples <- 250
 ```
 
 ```{r}
-return2 <- function(x) return(2)
 make_time_data <- function(i, param_df) {
   df <- simulate_eyetrackingr_data(num_participants = param_df[i,"NumSubjects"], 
                                    num_items_per_condition = param_df[i,"NumItems"], 
@@ -54,8 +54,7 @@ t_test_df$Test <- "t_test_uncorrected"
 # set eval to FALSE after this has been run once.
 t_test_results <- pblapply(X = 1:nrow(t_test_df), FUN = function(i) {
   df_time <- make_time_data(i, t_test_df)
-  tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_df[i,"Alpha"], 
-                       quiet=TRUE)
+  tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_df[i,"Alpha"], quiet=TRUE)
   tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
   return(tb_anal)
 })
@@ -68,9 +67,9 @@ t_test_results <- readRDS("sim_results/t_test_results.RDS")
 for (i in seq_along(t_test_results)) {
   model <- t_test_results[[i]]
   # add to df:
-  t_test_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start-tb_size]) )
+  t_test_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start]) )
   t_test_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
-  t_test_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start-tb_size & Sig][1] )
+  t_test_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start & Sig][1] )
 }
 ```
 
@@ -86,8 +85,7 @@ t_test_bonf_df$Test <- "t_test_bonferroni"
 # set eval to FALSE after this has been run once.
 t_test_bonf_results <- pblapply(X = 1:nrow(t_test_bonf_df), FUN = function(i) {
   df_time <- make_time_data(i, t_test_bonf_df)
-  tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_bonf_df[i,"Alpha"], 
-                       quiet=TRUE)
+  tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_bonf_df[i,"Alpha"], quiet=TRUE)
   tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
   return(tb_anal)
 })
@@ -100,9 +98,9 @@ t_test_bonf_results <- readRDS("sim_results/t_test_bonf_results.RDS")
 for (i in seq_along(t_test_bonf_results)) {
   model <- t_test_bonf_results[[i]]
   # add to df:
-  t_test_bonf_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start-tb_size]) )
+  t_test_bonf_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start]) )
   t_test_bonf_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
-  t_test_bonf_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start-tb_size & Sig][1] )
+  t_test_bonf_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start & Sig][1] )
 }
 ```
 
@@ -137,9 +135,9 @@ boot_splines_results <- readRDS("sim_results/boot_splines_results.RDS")
 for (i in seq_along(boot_splines_results)) {
   model <- boot_splines_results[[i]]
   # add to df:
-  boot_splines_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start-tb_size]) )
+  boot_splines_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start]) )
   boot_splines_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
-  boot_splines_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start-tb_size & Sig][1] )
+  boot_splines_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start & Sig][1] )
 }
 ```
 
@@ -172,9 +170,9 @@ boot_splines_bonf_results <- readRDS("sim_results/boot_splines_bonf_results.RDS"
 for (i in seq_along(boot_splines_bonf_results)) {
   model <- boot_splines_bonf_results[[i]]
   # add to df:
-  boot_splines_bonf_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start-tb_size]) )
+  boot_splines_bonf_df[i,"FABins"] <- with(model, sum(Sig[Time <  effect_start]) )
   boot_splines_bonf_df[i,"CDBins"] <- with(model, sum(Sig[Time >= effect_start]) )
-  boot_splines_bonf_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start-tb_size & Sig][1] )
+  boot_splines_bonf_df[i,"FirstDiscTime"] <- with(model, Time[Time >= effect_start & Sig][1] )
 }
 ```
 
@@ -195,7 +193,7 @@ time_cluster_low_thresh_results <- pblapply(X = 1:nrow(time_cluster_low_thresh_d
   df_time <- make_time_data(i, time_cluster_low_thresh_df)
   cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "t.test", 
                                     threshold = qt(p = time_cluster_low_thresh_df[i,"ThresholdAlpha"]/2, 
-                                                   df = time_cluster_low_thresh_df[i,"NumItems"]) # <-- set thresh w/alpha
+                                                   df = time_cluster_low_thresh_df[i,"NumSubjects"]) # <-- set thresh w/alpha
   )
   cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples, parallel = TRUE)
   return(cl_anal)
@@ -207,18 +205,27 @@ saveRDS(time_cluster_low_thresh_results, file = "sim_results/time_cluster_low_th
 time_cluster_low_thresh_results <- readRDS("sim_results/time_cluster_low_thresh_results.RDS")
 
 for (i in seq_along(time_cluster_low_thresh_results)) {
-  model <- get_time_clusters(time_cluster_low_thresh_results[[i]]) %>%
+  model <- get_time_clusters(time_cluster_low_thresh_results[[i]])
+  
+  if (nrow(model) > 0) {
+    model <- model %>%
     mutate(Sig = Probability < .05,
            PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
-           ClusterStartTimeWithinEffect = ifelse(effect_start < StartTime, StartTime, effect_start),
-           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0)) %>%
+           ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
+           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
+           ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
     filter(Sig)
-  
-  # add to df:
-  time_cluster_low_thresh_df[i,"FABins"] <- with(model, sum(c(PreEffectTime,DuringEffectTime[Direction=="Negative"])) / tb_size)
+    
+    # add to df:
+  time_cluster_low_thresh_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
   time_cluster_low_thresh_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
-  time_cluster_low_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(nrow(model)>0, 
-                                                                      yes = min(ClusterStartTimeWithinEffect), no = NA))
+  time_cluster_low_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect), no = NA))
+  }
+  else {
+    time_cluster_low_thresh_df[i,"FABins"] <- 0
+    time_cluster_low_thresh_df[i,"CDBins"] <- 0
+    time_cluster_low_thresh_df[i,"FirstDiscTime"] <- NA
+  }
 }
 ```
 
@@ -237,7 +244,7 @@ time_cluster_high_thresh_results <- pblapply(X = 1:nrow(time_cluster_high_thresh
   df_time <- make_time_data(i, time_cluster_high_thresh_df)
   cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "t.test", 
                                     threshold = qt(p = time_cluster_high_thresh_df[i,"ThresholdAlpha"]/2, 
-                                                   df = time_cluster_high_thresh_df[i,"NumItems"]) # <-- set thresh w/alpha
+                                                   df = time_cluster_high_thresh_df[i,"NumSubjects"]) # <-- set thresh w/alpha
   )
   cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples, parallel = TRUE)
   return(cl_anal)
@@ -249,18 +256,26 @@ saveRDS(time_cluster_high_thresh_results, file = "sim_results/time_cluster_high_
 time_cluster_high_thresh_results <- readRDS("sim_results/time_cluster_high_thresh_results.RDS")
 
 for (i in seq_along(time_cluster_high_thresh_results)) {
-  model <- get_time_clusters(time_cluster_high_thresh_results[[i]]) %>%
-    mutate(Sig = Probability < .05,
-           PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
-           ClusterStartTimeWithinEffect = ifelse(effect_start < StartTime, StartTime, effect_start),
-           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0)) %>%
-    filter(Sig)
-  
-  # add to df:
-  time_cluster_high_thresh_df[i,"FABins"] <- with(model, sum(c(PreEffectTime,DuringEffectTime[Direction=="Negative"])) / tb_size)
-  time_cluster_high_thresh_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
-  time_cluster_high_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(nrow(model)>0, 
-                                                                      yes = min(ClusterStartTimeWithinEffect), no = NA))
+  model <- get_time_clusters(time_cluster_high_thresh_results[[i]])
+  if (nrow(model) > 0) {
+    model <- model %>%
+      mutate(Sig = Probability < .05,
+             PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+             ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
+             DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
+             ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
+      filter(Sig)
+    
+    # add to df:
+    time_cluster_high_thresh_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
+    time_cluster_high_thresh_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+    time_cluster_high_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect), no = NA))
+  }
+  else {
+    time_cluster_high_thresh_df[i,"FABins"] <- 0
+    time_cluster_high_thresh_df[i,"CDBins"] <- 0
+    time_cluster_high_thresh_df[i,"FirstDiscTime"] <- NA
+  }
 }
 ```
 
@@ -291,19 +306,26 @@ saveRDS(time_cluster_low_thresh_boot_results, file = "sim_results/time_cluster_l
 time_cluster_low_thresh_boot_results <- readRDS("sim_results/time_cluster_low_thresh_boot_results.RDS")
 
 for (i in seq_along(time_cluster_low_thresh_boot_results)) {
-  model <- get_time_clusters(time_cluster_low_thresh_boot_results[[i]]) %>%
-    mutate(Sig = Probability < .05,
-           PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
-           ClusterStartTimeWithinEffect = ifelse(effect_start < StartTime, StartTime, effect_start),
-           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0)) %>%
-    filter(Sig)
-  
-  # add to df:
-  time_cluster_low_thresh_boot_df[i,"FABins"] <- with(model, 
-                                                      sum(c(PreEffectTime,DuringEffectTime[Direction=="Negative"])) / tb_size)
-  time_cluster_low_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
-  time_cluster_low_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(nrow(model)>0, 
-                                                                      yes = min(ClusterStartTimeWithinEffect), no = NA))
+  model <- get_time_clusters(time_cluster_low_thresh_boot_results[[i]])
+  if (nrow(model) > 0) {
+    model <- model %>%
+      mutate(Sig = Probability < .05,
+             PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+             ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
+             DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
+             ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
+      filter(Sig)
+    
+    # add to df:
+    time_cluster_low_thresh_boot_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
+    time_cluster_low_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+    time_cluster_low_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect), no = NA))
+  }
+  else {
+    time_cluster_low_thresh_boot_df[i,"FABins"] <- 0
+    time_cluster_low_thresh_boot_df[i,"CDBins"] <- 0
+    time_cluster_low_thresh_boot_df[i,"FirstDiscTime"] <- NA
+  }
 }
 ```
 
@@ -334,19 +356,26 @@ saveRDS(time_cluster_high_thresh_boot_results, file = "sim_results/time_cluster_
 time_cluster_high_thresh_boot_results <- readRDS("sim_results/time_cluster_high_thresh_boot_results.RDS")
 
 for (i in seq_along(time_cluster_high_thresh_boot_results)) {
-  model <- get_time_clusters(time_cluster_high_thresh_boot_results[[i]]) %>%
-    mutate(Sig = Probability < .05,
-           PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
-           ClusterStartTimeWithinEffect = ifelse(effect_start < StartTime, StartTime, effect_start),
-           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0)) %>%
-    filter(Sig)
-  
-  # add to df:
-  time_cluster_high_thresh_boot_df[i,"FABins"] <- with(model, 
-                                                       sum(c(PreEffectTime,DuringEffectTime[Direction=="Negative"])) / tb_size)
-  time_cluster_high_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
-  time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(nrow(model)>0, 
-                                                                      yes = min(ClusterStartTimeWithinEffect), no = NA))
+  model <- get_time_clusters(time_cluster_high_thresh_boot_results[[i]])
+  if (nrow(model) > 0) {
+    model <- model %>%
+      mutate(Sig = Probability < .05,
+             PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+             ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
+             DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
+             ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
+      filter(Sig)
+    
+    # add to df:
+    time_cluster_high_thresh_boot_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
+    time_cluster_high_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+    time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect), no = NA))
+  }
+  else {
+    time_cluster_high_thresh_boot_df[i,"FABins"] <- 0
+    time_cluster_high_thresh_boot_df[i,"CDBins"] <- 0
+    time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- NA
+  }
 }
 ```
 
@@ -359,6 +388,8 @@ master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df,
                        time_cluster_low_thresh_df, time_cluster_high_thresh_df,
                        time_cluster_low_thresh_boot_df, time_cluster_low_thresh_df)
 
+# print the date so I can see how long this took
+date()
 
 ```
 
