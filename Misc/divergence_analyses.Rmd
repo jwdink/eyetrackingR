@@ -46,7 +46,8 @@ make_time_data <- function(i, param_df) {
 ```{r}
 t_test_df <- params_to_test_template
 t_test_df$Alpha <- .05
-t_test_df$Test <- "t_test_uncorrected"
+t_test_df$Test <- "t_test"
+t_test_df$Adjustment <- ""
 ```
 
 ```{r, eval=TRUE}
@@ -78,7 +79,8 @@ for (i in seq_along(t_test_results)) {
 ```{r}
 t_test_bonf_df <- params_to_test_template
 t_test_bonf_df$Alpha <- .05 / num_time_bins
-t_test_bonf_df$Test <- "t_test_bonferroni"
+t_test_bonf_df$Test <- "t_test"
+t_test_bonf_df$Adjustment <- "bonferroni"
 ```
 
 ```{r, eval=TRUE}
@@ -112,7 +114,8 @@ for (i in seq_along(t_test_bonf_results)) {
 ```{r}
 boot_splines_df <- params_to_test_template
 boot_splines_df$Alpha <- .05
-boot_splines_df$Test <- "boot_splines_uncorrected"
+boot_splines_df$Test <- "boot_splines"
+boot_splines_df$Adjustment <- ""
 ```
 
 ```{r, eval=TRUE}
@@ -147,7 +150,8 @@ for (i in seq_along(boot_splines_results)) {
 ```{r}
 boot_splines_bonf_df <- params_to_test_template
 boot_splines_bonf_df$Alpha <- .05  / num_time_bins
-boot_splines_bonf_df$Test <- "boot_splines_bonf"
+boot_splines_bonf_df$Test <- "boot_splines"
+boot_splines_bonf_df$Adjustment <- "bonferroni"
 ```
 
 ```{r, eval=TRUE}
@@ -185,7 +189,8 @@ for (i in seq_along(boot_splines_bonf_results)) {
 time_cluster_low_thresh_df <- params_to_test_template
 time_cluster_low_thresh_df$ThresholdAlpha <- .10
 time_cluster_low_thresh_df$Alpha <- .05
-time_cluster_low_thresh_df$Test <- "time_cluster_low_thresh_ttest"
+time_cluster_low_thresh_df$Test <- "time_cluster_ttest"
+time_cluster_low_thresh_df$Adjustment <- "low_threshold"
 ```
 
 ```{r, eval=TRUE}
@@ -228,7 +233,8 @@ for (i in seq_along(time_cluster_low_thresh_results)) {
 time_cluster_high_thresh_df <- params_to_test_template
 time_cluster_high_thresh_df$ThresholdAlpha <- .05
 time_cluster_high_thresh_df$Alpha <- .05
-time_cluster_high_thresh_df$Test <- "time_cluster_high_thresh_ttest"
+time_cluster_high_thresh_df$Test <- "time_cluster_ttest"
+time_cluster_high_thresh_df$Adjustment <- "high_threshold"
 ```
 
 ```{r, eval=TRUE}
@@ -270,7 +276,8 @@ for (i in seq_along(time_cluster_high_thresh_results)) {
 time_cluster_low_thresh_boot_df <- params_to_test_template
 time_cluster_low_thresh_boot_df$ThresholdAlpha <- .10
 time_cluster_low_thresh_boot_df$Alpha <- .05
-time_cluster_low_thresh_boot_df$Test <- "time_cluster_low_thresh_boot"
+time_cluster_low_thresh_boot_df$Test <- "time_cluster_boot"
+time_cluster_low_thresh_boot_df$Adjustment <- "low_threshold"
 ```
 
 ```{r, eval=TRUE}
@@ -313,7 +320,9 @@ for (i in seq_along(time_cluster_low_thresh_boot_results)) {
 time_cluster_high_thresh_boot_df <- params_to_test_template
 time_cluster_high_thresh_boot_df$ThresholdAlpha <- .05
 time_cluster_high_thresh_boot_df$Alpha <- .05
-time_cluster_high_thresh_boot_df$Test <- "time_cluster_high_thresh_boot"
+time_cluster_high_thresh_boot_df$Test <- "time_cluster_boot"
+time_cluster_high_thresh_boot_df$Adjustment <- "high_threshold"
+
 ```
 
 ```{r, eval=TRUE}
