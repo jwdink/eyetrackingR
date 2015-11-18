@@ -563,10 +563,15 @@ summary_overall <- master_df %>%
   summarise(ErrorRate    = get_mean_ci(FABins/num_no_effect_time_bins),
             FWER         = get_mean_ci(FABins != 0),
             DiscoverRate = get_mean_ci(CDBins/num_effect_time_bins),
-            FWDR         = get_mean_ci(CDBins != 0)) %>%
-  tidyr::gather(key = "Measure", value = "Value", ErrorRate:FWDR) %>%
+            FWDR         = get_mean_ci(CDBins != 0),
+            FalseDiscoverRate = get_mean_ci( (FABins/num_no_effect_time_bins) / 
+                                               ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))
+  ) %>%
+  tidyr::gather(key = "Measure", value = "Value", ErrorRate:FalseDiscoverRate) %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
-  readr::type_convert()
+  mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
+
+summary_overall <- filter(summary_overall, !Test %in% c("time_cluster_boot", "gca") ) # remove when we have data here
 
 ggplot(summary_overall, aes(x = Test, y = Mean, fill = TestType)) %>%
   make_graph() + scale_y_continuous(name = "Proportion") + facet_grid(Measure ~ .)
