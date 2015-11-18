@@ -423,7 +423,7 @@ gca_df$Test <- "gca"
 library("Matrix")
 library("lme4")
 if (!file.exists('sim_results/gca_results.RDS')) {
-  gca_results <- foreach(i=1:nrow(gca_df)) %dopar% {
+  gca_results <- pblapply(1:nrow(gca_df), function(i) {
     df <- simulate_eyetrackingr_data(num_participants = gca_df[i,"NumSubjects"], 
                                      num_items_per_condition = gca_df[i,"NumItems"], 
                                      trial_length = trial_length, 
@@ -446,7 +446,7 @@ if (!file.exists('sim_results/gca_results.RDS')) {
                                       data= df_time_no_effect_window)
     
     return(list(whole_window = gca_anal_whole_window, no_effect_window = gca_anal_no_effect_window))
-  }
+  })
   saveRDS(gca_results, file = "sim_results/gca_results.RDS")
 }
 ```
@@ -571,7 +571,7 @@ summary_overall <- master_df %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
   mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
 
-summary_overall <- filter(summary_overall, !Test %in% c("time_cluster_boot", "gca") ) # remove when we have data here
+summary_overall <- filter(summary_overall, !Test %in% c("time_cluster_boot") ) # remove when we have data here
 
 ggplot(summary_overall, aes(x = Test, y = Mean, fill = TestType)) %>%
   make_graph() + scale_y_continuous(name = "Proportion") + facet_grid(Measure ~ .)
