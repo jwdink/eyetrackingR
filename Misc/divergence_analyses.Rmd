@@ -532,7 +532,7 @@ summary_per_cell_fa <- master_df %>%
             FWER         = get_mean_ci(FABins != 0)) %>%
   tidyr::gather(key = "Measure", value = "Value", ErrorRate,FWER) %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
-  readr::type_convert()
+  mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
 
 ggplot(filter(summary_per_cell_fa, Measure=="FWER"), aes(x=Test, y=Mean, fill=TestType)) %>%
   make_graph() + scale_y_continuous(name='FWER') +facet_grid(. ~ NumSubjects)
@@ -548,7 +548,7 @@ summary_per_cell_dr <- master_df %>%
             FWDR         = get_mean_ci(CDBins != 0)) %>%
   tidyr::gather(key = "Measure", value = "Value", DiscoverRate:FWDR) %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
-  readr::type_convert()
+  mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
 
 ggplot(filter(summary_per_cell_dr, Measure=="FWDR"), aes(x=Test, y=Mean, fill=TestType)) %>%
   make_graph() + scale_y_continuous(name='FWDR') +facet_grid(Pref ~ NumSubjects)
