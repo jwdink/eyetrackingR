@@ -13,9 +13,9 @@ library(pbapply)
 library(dplyr)
 
 params_to_test_template <- expand.grid(NumSubjects = c(60,30,10),
-                                      NumItems    = c(10),
-                                      Pref        = c(.85, .75, .65),
-                                      SimNum      = 1:50)
+                                       NumItems    = c(10),
+                                       Pref        = c(.85, .75, .65),
+                                       SimNum      = 1:50)
 effect_start <- 2500
 trial_length <- 5000
 tb_size <- 100
@@ -27,7 +27,6 @@ cluster_samples <- 250
 ```
 
 ```{r}
-return2 <- function(x) return(2)
 make_time_data <- function(i, param_df) {
   df <- simulate_eyetrackingr_data(num_participants = param_df[i,"NumSubjects"], 
                                    num_items_per_condition = param_df[i,"NumItems"], 
@@ -211,7 +210,8 @@ for (i in seq_along(time_cluster_low_thresh_results)) {
     mutate(Sig = Probability < .05,
            PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
            ClusterStartTimeWithinEffect = ifelse(effect_start < StartTime, StartTime, effect_start),
-           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0)) %>%
+           DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
+           ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
     filter(Sig)
   
   # add to df:
@@ -353,13 +353,46 @@ for (i in seq_along(time_cluster_high_thresh_boot_results)) {
 
 ```{r}
 #[WILL INSERT SUMMARY/GRAPH CODE HERE, do not edit]
+get_mean_ci <- function(vec) {
+  bootstrapped <- boot::boot(vec, function(x,i) mean(x[i],na.rm=TRUE), 500)
+  paste(c(mean(vec,na.rm=TRUE), boot::boot.ci( bootstrapped, type="perc")$percent[4:5]), collapse = ", " )
+}
+
+
+get_mean_ci(c(0,0,0))
+
 
 master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df, 
                        t_test_bonf_df, t_test_df, 
                        time_cluster_low_thresh_df, time_cluster_high_thresh_df,
-                       time_cluster_low_thresh_boot_df, time_cluster_low_thresh_df)
+                       time_cluster_low_thresh_boot_df, time_cluster_high_thresh_boot_df)
 
 
+foo <- master_df %>%
+  group_by(NumSubjects, NumItems, Pref, Alpha, Test) %>%
+  summarise(ErrorRate    = get_mean_ci(FABins/num_no_effect_time_bins),
+            FWER         = get_mean_ci(FABins != 0),
+            DiscoverRate = get_mean_ci(CDBins/num_effect_time_bins),
+            FWDR         = get_mean_ci(CDBins != 0)) %>%
+  tidyr::gather(key = "Measure", value = "Value", ErrorRate:FWDR) %>%
+  tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
+  readr::type_convert()
+
+test_types <- paste(c("t_test", "boot_splines", "time_cluster"), collapse="|")
+
+gsub(pattern = test_types, replacement = ,foo$Test )
+
+#  scale_fill_manual(values=c('#000000','#525252',      #'#969696',
+#                             '#3f007d','#6a51a3',      #'#9e9ac8',
+#                             '#d94801','#fd8d3c'))+   #'#fdd0a2')) +
+
+library(ggplot2)
+ggplot(foo, aes(x=as.factor(NumSubjects), y=Mean, fill=Test)) +
+  scale_x_discrete(name='Number of Subjects') +
+  scale_y_continuous(name='Proportion') +
+  geom_bar(position = position_dodge(), stat="identity") +
+  facet_grid(Measure ~ Pref) +
+  theme_bw()
 ```
 
 
