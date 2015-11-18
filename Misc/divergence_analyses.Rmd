@@ -17,6 +17,7 @@ params_to_test_template <- expand.grid(NumSubjects = c(10,30,60),
                                        NumItems    = c(10),
                                        Pref        = c(.65, .75, .85),
                                        SimNum      = 1:20)
+
 effect_start <- 2500
 trial_length <- 5000
 tb_size <- 100
@@ -47,7 +48,8 @@ make_time_data <- function(i, param_df) {
 ```{r}
 t_test_df <- params_to_test_template
 t_test_df$Alpha <- .05
-t_test_df$Test <- "t_test_uncorrected"
+t_test_df$Test <- "t_test"
+t_test_df$Adjustment <- ""
 ```
 
 ```{r, eval=TRUE}
@@ -78,7 +80,8 @@ for (i in seq_along(t_test_results)) {
 ```{r}
 t_test_bonf_df <- params_to_test_template
 t_test_bonf_df$Alpha <- .05 / num_time_bins
-t_test_bonf_df$Test <- "t_test_bonferroni"
+t_test_bonf_df$Test <- "t_test"
+t_test_bonf_df$Adjustment <- "bonferroni"
 ```
 
 ```{r, eval=TRUE}
@@ -111,7 +114,8 @@ for (i in seq_along(t_test_bonf_results)) {
 ```{r}
 boot_splines_df <- params_to_test_template
 boot_splines_df$Alpha <- .05
-boot_splines_df$Test <- "boot_splines_uncorrected"
+boot_splines_df$Test <- "boot_splines"
+boot_splines_df$Adjustment <- ""
 ```
 
 ```{r, eval=TRUE}
@@ -146,7 +150,8 @@ for (i in seq_along(boot_splines_results)) {
 ```{r}
 boot_splines_bonf_df <- params_to_test_template
 boot_splines_bonf_df$Alpha <- .05  / num_time_bins
-boot_splines_bonf_df$Test <- "boot_splines_bonf"
+boot_splines_bonf_df$Test <- "boot_splines"
+boot_splines_bonf_df$Adjustment <- "bonferroni"
 ```
 
 ```{r, eval=TRUE}
@@ -184,7 +189,8 @@ for (i in seq_along(boot_splines_bonf_results)) {
 time_cluster_low_thresh_df <- params_to_test_template
 time_cluster_low_thresh_df$ThresholdAlpha <- .10
 time_cluster_low_thresh_df$Alpha <- .05
-time_cluster_low_thresh_df$Test <- "time_cluster_low_thresh_ttest"
+time_cluster_low_thresh_df$Test <- "time_cluster_ttest"
+time_cluster_low_thresh_df$Adjustment <- "low_threshold"
 ```
 
 ```{r, eval=TRUE}
@@ -235,7 +241,8 @@ for (i in seq_along(time_cluster_low_thresh_results)) {
 time_cluster_high_thresh_df <- params_to_test_template
 time_cluster_high_thresh_df$ThresholdAlpha <- .05
 time_cluster_high_thresh_df$Alpha <- .05
-time_cluster_high_thresh_df$Test <- "time_cluster_high_thresh_ttest"
+time_cluster_high_thresh_df$Test <- "time_cluster_ttest"
+time_cluster_high_thresh_df$Adjustment <- "high_threshold"
 ```
 
 ```{r, eval=TRUE}
@@ -285,7 +292,8 @@ for (i in seq_along(time_cluster_high_thresh_results)) {
 time_cluster_low_thresh_boot_df <- params_to_test_template
 time_cluster_low_thresh_boot_df$ThresholdAlpha <- .10
 time_cluster_low_thresh_boot_df$Alpha <- .05
-time_cluster_low_thresh_boot_df$Test <- "time_cluster_low_thresh_boot"
+time_cluster_low_thresh_boot_df$Test <- "time_cluster_boot"
+time_cluster_low_thresh_boot_df$Adjustment <- "low_threshold"
 ```
 
 ```{r, eval=TRUE}
@@ -335,7 +343,9 @@ for (i in seq_along(time_cluster_low_thresh_boot_results)) {
 time_cluster_high_thresh_boot_df <- params_to_test_template
 time_cluster_high_thresh_boot_df$ThresholdAlpha <- .05
 time_cluster_high_thresh_boot_df$Alpha <- .05
-time_cluster_high_thresh_boot_df$Test <- "time_cluster_high_thresh_boot"
+time_cluster_high_thresh_boot_df$Test <- "time_cluster_boot"
+time_cluster_high_thresh_boot_df$Adjustment <- "high_threshold"
+
 ```
 
 ```{r, eval=TRUE}
@@ -379,18 +389,68 @@ for (i in seq_along(time_cluster_high_thresh_boot_results)) {
 }
 ```
 
+# Visualizations
 
 ```{r}
-#[WILL INSERT SUMMARY/GRAPH CODE HERE, do not edit]
-
-master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df, 
-                       t_test_bonf_df, t_test_df, 
-                       time_cluster_low_thresh_df, time_cluster_high_thresh_df,
-                       time_cluster_low_thresh_boot_df, time_cluster_low_thresh_df)
-
 # print the date so I can see how long this took
 date()
 
+get_mean_ci <- function(vec) {
+  if (length(vec)<1) return("NA, NA, NA")
+  if (all(is.na(vec))) return("NA, NA, NA")
+  bootstrapped <- boot::boot(vec, function(x,i) mean(x[i],na.rm=TRUE), 500)
+  paste(c(mean(vec,na.rm=TRUE), boot::boot.ci( bootstrapped, type="perc")$percent[4:5]), collapse = ", " )
+}
+master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df, 
+                       t_test_bonf_df, t_test_df, 
+                       time_cluster_low_thresh_df, time_cluster_high_thresh_df,
+                       time_cluster_low_thresh_boot_df, time_cluster_high_thresh_boot_df)
+
+summary_per_cell_fa <- master_df %>%
+  group_by(NumSubjects, NumItems, Alpha, Test, Adjustment) %>%
+  summarise(ErrorRate    = get_mean_ci(FABins/num_no_effect_time_bins),
+            FWER         = get_mean_ci(FABins != 0)) %>%
+  tidyr::gather(key = "Measure", value = "Value", ErrorRate,FWER) %>%
+  tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
+  readr::type_convert()
+
+ggplot(filter(summary_per_cell_fa, Measure=="FWER"), aes(x=Test, y=Mean, fill=Adjustment)) +
+    scale_y_continuous(name='Proportion') +
+    geom_bar(position = position_dodge(), stat="identity") +
+    geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
+    facet_grid(. ~ NumSubjects) +
+    theme_bw() + coord_cartesian(ylim=c(0,.50))
+
+ggplot(filter(summary_per_cell_fa, Measure=="ErrorRate"), aes(x=Test, y=Mean, fill=Adjustment)) +
+    scale_y_continuous(name='Proportion') +
+    geom_bar(position = position_dodge(), stat="identity") +
+    geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
+    facet_grid(. ~ NumSubjects) +
+    theme_bw()+ coord_cartesian(ylim=c(0,.50))
+```
+
+```{r}
+summary_per_cell_dr <- master_df %>%
+  group_by(NumSubjects, NumItems, Pref, Alpha, Test, Adjustment) %>%
+  summarise(DiscoverRate = get_mean_ci(CDBins/num_effect_time_bins),
+            FWDR         = get_mean_ci(CDBins != 0)) %>%
+  tidyr::gather(key = "Measure", value = "Value", DiscoverRate:FWDR) %>%
+  tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
+  readr::type_convert()
+
+ggplot(filter(summary_per_cell_dr, Measure=="FWDR"), aes(x=Test, y=Mean, fill=Adjustment)) +
+    scale_y_continuous(name='Proportion') +
+    geom_bar(position = position_dodge(), stat="identity") +
+    geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
+    facet_grid(Pref ~ NumSubjects) +
+    theme_bw() + coord_cartesian(ylim=c(0,1))
+
+ggplot(filter(summary_per_cell_dr, Measure=="DiscoverRate"), aes(x=Test, y=Mean, fill=Adjustment)) +
+    scale_y_continuous(name='Proportion') +
+    geom_bar(position = position_dodge(), stat="identity") +
+    geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
+    facet_grid(Pref ~ NumSubjects) +
+    theme_bw()+ coord_cartesian(ylim=c(0,1))
 ```
 
 
