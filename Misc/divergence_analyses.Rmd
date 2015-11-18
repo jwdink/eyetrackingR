@@ -15,10 +15,20 @@ library(dplyr)
 doMC::registerDoMC()
 library(foreach)
 
+# For 'quick' debugging:
+# params_to_test_template <- expand.grid(NumSubjects = c(10),
+#                                        NumItems    = c(10),
+#                                        Pref        = c(.85),
+#                                        SimNum      = 1:3)
+# cluster_samples <- 25
+
+# For real:
 params_to_test_template <- expand.grid(NumSubjects = c(10,30,60),
                                        NumItems    = c(10),
                                        Pref        = c(.65, .75, .85),
-                                       SimNum      = 1:20)
+                                       SimNum      = 1:50)
+cluster_samples <- 250
+
 
 effect_start <- 2500
 trial_length <- 5000
@@ -27,7 +37,6 @@ num_time_bins <- trial_length / tb_size
 num_no_effect_time_bins <- (effect_start/trial_length)*num_time_bins
 num_effect_time_bins    <- (1-effect_start/trial_length)*num_time_bins
 bootstrap_samples <- 250
-cluster_samples <- 250
 ```
 
 ```{r}
@@ -40,6 +49,7 @@ make_time_data <- function(i, param_df) {
                                    )
   df_time <- make_time_sequence_data(data = df, time_bin_size = tb_size, aois = "AOI1", predictor_columns = "Condition",
                                      summarize_by = "Participant")
+  return(df_time)
 }
 ```
 
@@ -399,11 +409,81 @@ for (i in seq_along(time_cluster_high_thresh_boot_results)) {
 }
 ```
 
+## GCA:
+
+```{r}
+gca_df <- bind_rows(mutate(params_to_test_template, Adjustment = ""),
+                    mutate(params_to_test_template, Adjustment = "FWER_Correction") ) %>%
+  as.data.frame()
+gca_df$Alpha <- .05
+gca_df$Test <- "gca"
+```
+
+```{r}
+library("Matrix")
+library("lme4")
+if (!file.exists('sim_results/gca_results.RDS')) {
+  gca_results <- foreach(i=1:nrow(gca_df)) %dopar% {
+    df <- simulate_eyetrackingr_data(num_participants = gca_df[i,"NumSubjects"], 
+                                     num_items_per_condition = gca_df[i,"NumItems"], 
+                                     trial_length = trial_length, 
+                                     pref = gca_df[i,"Pref"],
+                                     pref_window = c(effect_start, trial_length)
+    )
+    df$ConditionC <- ifelse(df$Condition=="High", .5, -.5)
+    df_time <- make_time_sequence_data(data = df, time_bin_size = tb_size, aois = "AOI1", predictor_columns = "ConditionC",
+                                       summarize_by = "Participant")
+    
+    # whole window:
+    gca_anal_whole_window <- lmer(Prop ~ (ot1+ot2+ot3)*ConditionC + (1+ot1+ot2+ot3|Participant), data = df_time)
+    
+    # no effect window (look for FAs):
+    df_time_no_effect_window <- df %>%
+      filter(TimeInTrial < effect_start) %>% 
+      make_time_sequence_data(time_bin_size = tb_size, aois = "AOI1", predictor_columns = "ConditionC",
+                                       summarize_by = "Participant")
+    gca_anal_no_effect_window <- lmer(Prop ~ (ot1+ot2+ot3)*ConditionC + (1+ot1+ot2+ot3|Participant), 
+                                      data= df_time_no_effect_window)
+    
+    return(list(whole_window = gca_anal_whole_window, no_effect_window = gca_anal_no_effect_window))
+  }
+  saveRDS(gca_results, file = "sim_results/gca_results.RDS")
+}
+```
+
+```{r}
+gca_results <- readRDS("sim_results/gca_results.RDS")
+
+for (i in seq_along(gca_results)) {
+  threshold = ifelse(gca_df[i, "Adjustment"] == "FWER_Correction", 
+                     yes = qnorm(p = 1-gca_df[i, "Alpha"]/8 ), # <---- four params are being considered
+                     no  = qnorm(p = 1-gca_df[i, "Alpha"]/2 )) 
+  
+  # Whole Window (CD):
+  model_whole_window <- gca_results[[i]][["whole_window"]]
+  model_whole_window_df <- broom::tidy(model_whole_window, effects="fixed")
+  found_effect <- with(model_whole_window_df, any( 
+    statistic[term %in% c("ConditionC", "ot1:ConditionC", "ot1:ConditionC", "ot1:ConditionC")] >= threshold ) )
+  gca_df[i, "CDBins"] <- ifelse(found_effect, num_effect_time_bins, 0)
+  
+  # No-effect Window (FA):
+  model_no_effect_window <- gca_results[[i]][["no_effect_window"]]
+  model_no_effect_window_df <- broom::tidy(model_no_effect_window, effects="fixed")
+  false_alarmed <- with(model_no_effect_window_df, any( 
+    statistic[term %in% c("ConditionC", "ot1:ConditionC", "ot1:ConditionC", "ot1:ConditionC")] >= threshold ) )
+  gca_df[i, "FABins"] <- ifelse(false_alarmed, num_no_effect_time_bins, 0)
+}
+
+
+```
+
 # Visualizations
 
 ```{r}
 # print the date so I can see how long this took
 date()
+
+library("ggplot2")
 
 get_mean_ci <- function(vec) {
   if (length(vec)<1) return("NA, NA, NA")
@@ -414,8 +494,12 @@ get_mean_ci <- function(vec) {
 master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df, 
                        t_test_bonf_df, t_test_df, 
                        time_cluster_low_thresh_df, time_cluster_high_thresh_df,
-                       time_cluster_low_thresh_boot_df, time_cluster_high_thresh_boot_df)
+                       time_cluster_low_thresh_boot_df, time_cluster_high_thresh_boot_df,
+                       gca_df) %>%
+  filter(!is.na(FABins)) # <------------- 
+```
 
+```{r}
 summary_per_cell_fa <- master_df %>%
   group_by(NumSubjects, NumItems, Alpha, Test, Adjustment) %>%
   summarise(ErrorRate    = get_mean_ci(FABins/num_no_effect_time_bins),
@@ -429,14 +513,14 @@ ggplot(filter(summary_per_cell_fa, Measure=="FWER"), aes(x=Test, y=Mean, fill=Ad
     geom_bar(position = position_dodge(), stat="identity") +
     geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
     facet_grid(. ~ NumSubjects) +
-    theme_bw() + coord_cartesian(ylim=c(0,.50))
+    theme_bw() + coord_cartesian(ylim=c(0,1))
 
 ggplot(filter(summary_per_cell_fa, Measure=="ErrorRate"), aes(x=Test, y=Mean, fill=Adjustment)) +
     scale_y_continuous(name='Proportion') +
     geom_bar(position = position_dodge(), stat="identity") +
     geom_linerange(position = position_dodge(width=.9), aes(ymin = CI_Low, ymax = CI_High)) +
     facet_grid(. ~ NumSubjects) +
-    theme_bw()+ coord_cartesian(ylim=c(0,.50))
+    theme_bw()+ coord_cartesian(ylim=c(0,1))
 ```
 
 ```{r}
