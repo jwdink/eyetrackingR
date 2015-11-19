@@ -14,4 +14,7 @@ TODO-PRIVATE.md
 # ignore paper until ready
 *.docx
 inst/doc
+
+# misc
 packrat/lib*/
+*.RDS

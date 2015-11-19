@@ -731,7 +731,8 @@ plot.bin_analysis <- function(x, type = "statistic", ...) {
       g <- g + 
         geom_line(mapping = aes(x = Time, y= CritStatisticPos), linetype="dashed") +
         geom_line(mapping = aes(x = Time, y= CritStatisticNeg), linetype="dashed")
-    }
+    } 
+    #g <- g + geom_line(size=2, alpha =.25, color = "blue", mapping = aes(x = Time, y = ifelse((Prob < .05), Statistic, NA)))
     if (length(unique(x$AOI))>1) g <- g + facet_wrap( ~ AOI)
   } else {
     g <- ggplot(data = x, mapping = aes(x = Time, y= Estimate)) +
