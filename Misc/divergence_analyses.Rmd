@@ -538,7 +538,7 @@ p <- ggplot(summary_per_cell_dr_brock, aes(x=Measure, y=Mean, fill=TestType)) %>
   facet_wrap( ~ NumSubjectsText+PrefText)
 
 png(filename = "plot-discoveries.png",
-    width = 4000, height = 2900, units = "px", pointsize = 16,
+    width = 4000, height = 2700, units = "px", pointsize = 16,
     bg = "white", res = 400)
 p
 dev.off()
