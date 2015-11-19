@@ -578,7 +578,7 @@ summary_overall_wide <- master_df %>%
                               DiscoveryRate = mean(CDBins/num_effect_time_bins),
                               FWDR         = mean(CDBins != 0),
                               FalseDiscoveryRate = mean( (FABins/num_no_effect_time_bins) / 
-                                                                   ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))
+                                                                   ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)),na.rm=T)
                     )
 
 summary_overall_wide
