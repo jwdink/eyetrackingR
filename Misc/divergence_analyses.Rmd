@@ -527,13 +527,13 @@ summary_per_cell_dr$PrefText <- paste0('diff = ', summary_per_cell_dr$Pref - .5)
 # get rid of GCA
 summary_per_cell_dr_brock <- filter(summary_per_cell_dr, Test != 'gca')
 
-ggplot(summary_per_cell_dr_brock, aes(x=Measure, y=Mean, fill=TestType)) %>%
+p <- ggplot(summary_per_cell_dr_brock, aes(x=Measure, y=Mean, fill=TestType)) %>%
   make_graph() + scale_y_continuous(name='Proportion') +
   geom_hline(yintercept=.80,linetype="dashed") +
   facet_wrap( ~ NumSubjectsText+PrefText)
 
 png(filename = "plot-discoveries.png",
-    width = 4000, height = 1100, units = "px", pointsize = 16,
+    width = 4000, height = 2900, units = "px", pointsize = 16,
     bg = "white", res = 400)
 p
 dev.off()
