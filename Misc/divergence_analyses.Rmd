@@ -22,6 +22,8 @@ library(foreach)
 #                                        SimNum      = 1:3)
 # cluster_samples <- 25
 
+boot_clusters <- FALSE # set to TRUE to run bootspline clusters
+
 # For real:
 params_to_test_template <- expand.grid(NumSubjects = c(10,30,60),
                                        NumItems    = c(10),
@@ -36,7 +38,7 @@ tb_size <- 100
 num_time_bins <- trial_length / tb_size
 num_no_effect_time_bins <- (effect_start/trial_length)*num_time_bins
 num_effect_time_bins    <- (1-effect_start/trial_length)*num_time_bins
-bootstrap_samples <- 250
+bootstrap_samples <- 1000
 ```
 
 ```{r}
@@ -303,108 +305,61 @@ for (i in seq_along(time_cluster_high_thresh_results)) {
     time_cluster_high_thresh_df[i,"FirstDiscTime"] <- NA
   }
 }
-
-```
-
-### Using boot-splines, with Low. Threshold:
-
-```{r}
-time_cluster_low_thresh_boot_df <- params_to_test_template
-time_cluster_low_thresh_boot_df$ThresholdAlpha <- .10
-time_cluster_low_thresh_boot_df$Alpha <- .05
-time_cluster_low_thresh_boot_df$Test <- "time_cluster_boot"
-time_cluster_low_thresh_boot_df$Adjustment <- "low_threshold"
-```
-
-```{r}
-if (!file.exists('sim_results/time_cluster_low_thresh_boot_results.RDS')) {
-  time_cluster_low_thresh_boot_results <- foreach(i=1:nrow(time_cluster_low_thresh_boot_df)) %dopar% {
-    df_time <- make_time_data(i, time_cluster_low_thresh_boot_df)
-    cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE, alpha = time_cluster_low_thresh_boot_df[i,"ThresholdAlpha"])
-    cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples,
-                                     boot_samples = bootstrap_samples,
-                                     parallel = TRUE)
-    return(cl_anal)
-  }
-  saveRDS(time_cluster_low_thresh_boot_results, file = "sim_results/time_cluster_low_thresh_boot_results.RDS")
-}
-```
-
-```{r}
-time_cluster_low_thresh_boot_results <- readRDS("sim_results/time_cluster_low_thresh_boot_results.RDS")
-
-for (i in seq_along(time_cluster_low_thresh_boot_results)) {
-  model <- get_time_clusters(time_cluster_low_thresh_boot_results[[i]])
-  if (nrow(model) > 0) {
-    model <- model %>%
-      mutate(Sig = Probability < .05,
-             PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
-             ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
-             DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
-             ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
-      filter(Sig)
-    
-    # add to df:
-    time_cluster_low_thresh_boot_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
-    time_cluster_low_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
-    time_cluster_low_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect,na.rm=T), no = NA))
-  }
-  else {
-    time_cluster_low_thresh_boot_df[i,"FABins"] <- 0
-    time_cluster_low_thresh_boot_df[i,"CDBins"] <- 0
-    time_cluster_low_thresh_boot_df[i,"FirstDiscTime"] <- NA
-  }
-}
 ```
 
 ### Using boot-splines, with High. Threshold:
 
 ```{r}
-time_cluster_high_thresh_boot_df <- params_to_test_template
-time_cluster_high_thresh_boot_df$ThresholdAlpha <- .05
-time_cluster_high_thresh_boot_df$Alpha <- .05
-time_cluster_high_thresh_boot_df$Test <- "time_cluster_boot"
-time_cluster_high_thresh_boot_df$Adjustment <- "high_threshold"
-
-```
-
-```{r}
-if (!file.exists('sim_results/time_cluster_high_thresh_boot_results.RDS')) {
-  time_cluster_high_thresh_boot_results <- foreach(i=1:nrow(time_cluster_high_thresh_boot_df)) %dopar% {
-    df_time <- make_time_data(i, time_cluster_high_thresh_boot_df)
-    cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE, alpha = time_cluster_high_thresh_boot_df[i,"ThresholdAlpha"])
-    cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples,
-                                     boot_samples = bootstrap_samples,
-                                     parallel = TRUE)
-    return(cl_anal)
-  }
-  saveRDS(time_cluster_high_thresh_boot_results, file = "sim_results/time_cluster_high_thresh_boot_results.RDS")
+if (boot_clusters == TRUE) {
+  time_cluster_high_thresh_boot_df <- params_to_test_template_limited
+  time_cluster_high_thresh_boot_df$ThresholdAlpha <- .05
+  time_cluster_high_thresh_boot_df$Alpha <- .05
+  time_cluster_high_thresh_boot_df$Test <- "time_cluster_boot"
+  time_cluster_high_thresh_boot_df$Adjustment <- "high_threshold"
 }
 ```
 
 ```{r}
-time_cluster_high_thresh_boot_results <- readRDS("sim_results/time_cluster_high_thresh_boot_results.RDS")
-
-for (i in seq_along(time_cluster_high_thresh_boot_results)) {
-  model <- get_time_clusters(time_cluster_high_thresh_boot_results[[i]])
-  if (nrow(model) > 0) {
-    model <- model %>%
-      mutate(Sig = Probability < .05,
-             PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
-             ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
-             DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
-             ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
-      filter(Sig)
-    
-    # add to df:
-    time_cluster_high_thresh_boot_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
-    time_cluster_high_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
-    time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect,na.rm=T), no = NA))
+if (boot_clusters == TRUE) {
+  if (!file.exists('sim_results/time_cluster_high_thresh_boot_results.RDS')) {
+    time_cluster_high_thresh_boot_results <- foreach(i=1:nrow(time_cluster_high_thresh_boot_df)) %dopar% {
+      df_time <- make_time_data(i, time_cluster_high_thresh_boot_df)
+      cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE, alpha = time_cluster_high_thresh_boot_df[i,"ThresholdAlpha"])
+      cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples,
+                                       boot_samples = bootstrap_samples,
+                                       parallel = TRUE)
+      return(cl_anal)
+    }
+    saveRDS(time_cluster_high_thresh_boot_results, file = "sim_results/time_cluster_high_thresh_boot_results.RDS")
   }
-  else {
-    time_cluster_high_thresh_boot_df[i,"FABins"] <- 0
-    time_cluster_high_thresh_boot_df[i,"CDBins"] <- 0
-    time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- NA
+}
+```
+
+```{r}
+if (boot_clusters == TRUE) {
+  time_cluster_high_thresh_boot_results <- readRDS("sim_results/time_cluster_high_thresh_boot_results.RDS")
+  
+  for (i in seq_along(time_cluster_high_thresh_boot_results)) {
+    model <- get_time_clusters(time_cluster_high_thresh_boot_results[[i]])
+    if (nrow(model) > 0) {
+      model <- model %>%
+        mutate(Sig = Probability < .05,
+               PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+               ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
+               DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
+               ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
+        filter(Sig)
+      
+      # add to df:
+      time_cluster_high_thresh_boot_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
+      time_cluster_high_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+      time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect,na.rm=T), no = NA))
+    }
+    else {
+      time_cluster_high_thresh_boot_df[i,"FABins"] <- 0
+      time_cluster_high_thresh_boot_df[i,"CDBins"] <- 0
+      time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- NA
+    }
   }
 }
 ```
@@ -477,8 +432,6 @@ for (i in seq_along(gca_results)) {
 # Visualizations
 
 ```{r}
-# print the date so I can see how long this took
-date()
 library("ggplot2")
 get_mean_ci <- function(vec) {
   if (length(vec)<1) return("NA, NA, NA")
@@ -488,11 +441,9 @@ get_mean_ci <- function(vec) {
   paste(c(mean(vec,na.rm=TRUE), boot::boot.ci( bootstrapped, type="perc")$percent[4:5]), collapse = ", " )
 }
 
-
 master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df, 
                        t_test_bonf_df, t_test_df, 
                        time_cluster_low_thresh_df, time_cluster_high_thresh_df,
-                       time_cluster_low_thresh_boot_df, time_cluster_high_thresh_boot_df,
                        gca_df) %>%
   filter(!is.na(FABins)) # <-------------
 master_df$Test <- factor(master_df$Test, 
@@ -502,15 +453,13 @@ master_df$TestType <- with(master_df,
                                   levels = c('t_test ', 't_test bonferroni', 
                                              'boot_splines ', 'boot_splines bonferroni', 
                                              'gca ', 'gca FWER_Correction', 
-                                             'time_cluster_ttest low_threshold', 'time_cluster_ttest high_threshold',
-                                             'time_cluster_boot low_threshold', 'time_cluster_boot high_threshold')
+                                             'time_cluster_ttest low_threshold', 'time_cluster_ttest high_threshold')
                            ))
 ## TO DO ## make these not ugly as sin
 pallette <- c("#E69F00", "#9e6c00", 
               "#56B4E9", "#1778b0", 
               "#009E73", "#005c43", 
-              "#F0E442", "#b8ad0f", 
-              "#CC79A7", "#9b3b70") 
+              "#F0E442", "#b8ad0f") 
 names(pallette) <- levels(master_df$TestType) # I don't know if this does anything
 
 make_graph <- function(g) {
@@ -573,4 +522,16 @@ summary_overall <- filter(summary_overall, !Test %in% c("time_cluster_boot") ) #
 ggplot(summary_overall, aes(x = Test, y = Mean, fill = TestType)) %>%
   make_graph() + scale_y_continuous(name = "Proportion") + facet_grid(Measure ~ .)
 
+# make easier to read summary
+summary_overall_wide <- master_df %>%
+                    group_by(NumItems, Alpha, Test, Adjustment, TestType) %>%
+                    summarise(ErrorRate    = mean(FABins/num_no_effect_time_bins),
+                              FWER         = mean(FABins != 0),
+                              DiscoverRate = mean(CDBins/num_effect_time_bins),
+                              FWDR         = mean(CDBins != 0),
+                              FalseDiscoverRate = mean( (FABins/num_no_effect_time_bins) / 
+                                                                   ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))
+                    )
+
+summary_overall_wide
 ```
