@@ -494,6 +494,7 @@ summary_per_cell_fa_brock <- filter(summary_per_cell_fa, Test != 'gca')
 
 p <- ggplot(summary_per_cell_fa_brock, aes(x=Measure, y=Mean, fill=TestType)) %>%
   make_graph() + scale_y_continuous(name='Proportion') +
+  scale_x_discrete(labels=c('ER','FWER')) +
   geom_hline(yintercept=.05,linetype="dashed") +
   facet_wrap( ~ NumSubjectsText)
 
@@ -508,17 +509,19 @@ p
 ```{r}
 summary_per_cell_dr <- master_df %>%
   group_by(NumSubjects, NumItems, Pref, Alpha, Test, Adjustment, TestType) %>% # <----- includes pref
-  summarise(DiscoverRate = get_mean_ci(CDBins/num_effect_time_bins),
-            FWDR         = get_mean_ci(CDBins != 0)) %>%
-  tidyr::gather(key = "Measure", value = "Value", DiscoverRate:FWDR) %>%
+  summarise(DiscoveryRate = get_mean_ci(CDBins/num_effect_time_bins),
+            FWDR         = get_mean_ci(CDBins != 0),
+            FalseDiscoveryRate = get_mean_ci( (FABins/num_no_effect_time_bins) / 
+                                               ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))) %>%
+  tidyr::gather(key = "Measure", value = "Value", DiscoveryRate:FalseDiscoveryRate) %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
   mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
 
 ggplot(filter(summary_per_cell_dr, Measure=="FWDR"), aes(x=Test, y=Mean, fill=TestType)) %>%
   make_graph() + scale_y_continuous(name='FWDR') +facet_grid(Pref ~ NumSubjects)
 
-ggplot(filter(summary_per_cell_dr, Measure=="DiscoverRate"), aes(x=Test, y=Mean, fill=TestType)) %>%
-  make_graph() + scale_y_continuous(name='DiscoverRate') + facet_grid(Pref ~ NumSubjects)
+ggplot(filter(summary_per_cell_dr, Measure=="DiscoveryRate"), aes(x=Test, y=Mean, fill=TestType)) %>%
+  make_graph() + scale_y_continuous(name='DiscoveryRate') + facet_grid(Pref ~ NumSubjects)
 
 # Brock's megaplot
 summary_per_cell_dr$NumSubjectsText <- paste0('N = ',summary_per_cell_dr$NumSubjects)
@@ -529,7 +532,9 @@ summary_per_cell_dr_brock <- filter(summary_per_cell_dr, Test != 'gca')
 
 p <- ggplot(summary_per_cell_dr_brock, aes(x=Measure, y=Mean, fill=TestType)) %>%
   make_graph() + scale_y_continuous(name='Proportion') +
+  scale_x_discrete(labels=c('DR','FWDR','FDR')) +
   geom_hline(yintercept=.80,linetype="dashed") +
+  geom_hline(yintercept=.05,linetype="dashed") +
   facet_wrap( ~ NumSubjectsText+PrefText)
 
 png(filename = "plot-discoveries.png",
@@ -545,7 +550,7 @@ summary_overall <- master_df %>%
   group_by(NumItems, Alpha, Test, Adjustment, TestType) %>%
   summarise(ErrorRate    = get_mean_ci(FABins/num_no_effect_time_bins),
             FWER         = get_mean_ci(FABins != 0),
-            DiscoverRate = get_mean_ci(CDBins/num_effect_time_bins),
+            DiscoveryRate = get_mean_ci(CDBins/num_effect_time_bins),
             FWDR         = get_mean_ci(CDBins != 0),
             FalseDiscoveryRate = get_mean_ci( (FABins/num_no_effect_time_bins) / 
                                                ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))
@@ -570,7 +575,7 @@ summary_overall_wide <- master_df %>%
                     group_by(NumItems, Alpha, Test, Adjustment, TestType) %>%
                     summarise(ErrorRate    = mean(FABins/num_no_effect_time_bins),
                               FWER         = mean(FABins != 0),
-                              DiscoverRate = mean(CDBins/num_effect_time_bins),
+                              DiscoveryRate = mean(CDBins/num_effect_time_bins),
                               FWDR         = mean(CDBins != 0),
                               FalseDiscoveryRate = mean( (FABins/num_no_effect_time_bins) / 
                                                                    ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))
