@@ -302,6 +302,7 @@ for (i in seq_along(time_cluster_high_thresh_results)) {
     time_cluster_high_thresh_df[i,"FirstDiscTime"] <- NA
   }
 }
+
 ```
 
 ### Using boot-splines, with Low. Threshold:
@@ -414,7 +415,7 @@ for (i in seq_along(time_cluster_high_thresh_boot_results)) {
 ```{r}
 gca_df <- bind_rows(mutate(params_to_test_template, Adjustment = ""),
                     mutate(params_to_test_template, Adjustment = "FWER_Correction") ) %>%
-  as.data.frame()
+  arrange(SimNum) %>% as.data.frame()
 gca_df$Alpha <- .05
 gca_df$Test <- "gca"
 ```
