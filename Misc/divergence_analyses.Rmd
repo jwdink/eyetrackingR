@@ -26,7 +26,7 @@ library(foreach)
 params_to_test_template <- expand.grid(NumSubjects = c(10,30,60),
                                        NumItems    = c(10),
                                        Pref        = c(.65, .75, .85),
-                                       SimNum      = 1:20)
+                                       SimNum      = 1:50)
 cluster_samples <- 250
 
 
@@ -47,8 +47,7 @@ make_time_data <- function(i, param_df) {
                                    pref = param_df[i,"Pref"],
                                    pref_window = c(effect_start, trial_length)
                                    )
-  df_time <- make_time_sequence_data(data = df, time_bin_size = tb_size, aois = "AOI1", predictor_columns = "Condition",
-                                     summarize_by = "Participant")
+  df_time <- make_time_sequence_data(data = df, time_bin_size = tb_size, aois = "AOI1", predictor_columns = "Condition", summarize_by = "Participant")
   return(df_time)
 }
 ```
@@ -68,7 +67,7 @@ t_test_df$Adjustment <- ""
 if (!file.exists('sim_results/t_test_results.RDS')) {
   t_test_results <- pblapply(X = 1:nrow(t_test_df), FUN = function(i) {
     df_time <- make_time_data(i, t_test_df)
-    tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_df[i,"Alpha"], quiet=TRUE)
+    tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_df[i,"Alpha"], quiet=TRUE, formula=Elog ~ Condition)
     tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
     return(tb_anal)
   })
@@ -101,7 +100,7 @@ t_test_bonf_df$Adjustment <- "bonferroni"
 if (!file.exists('sim_results/t_test_bonf_results.RDS')) {
   t_test_bonf_results <- pblapply(X = 1:nrow(t_test_bonf_df), FUN = function(i) {
     df_time <- make_time_data(i, t_test_bonf_df)
-    tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_bonf_df[i,"Alpha"], quiet=TRUE)
+    tb_anal <- analyze_time_bins(df_time, predictor_column = "Condition", test = "t.test", alpha = t_test_bonf_df[i,"Alpha"], quiet=TRUE, formula=Elog ~ Condition)
     tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
     return(tb_anal)
   })
@@ -213,7 +212,8 @@ time_cluster_low_thresh_df$Adjustment <- "low_threshold"
 if (!file.exists('sim_results/time_cluster_low_thresh_results.RDS')) {
   time_cluster_low_thresh_results <- foreach(i=1:nrow(time_cluster_low_thresh_df)) %dopar% {
     df_time <- make_time_data(i, time_cluster_low_thresh_df)
-    cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "t.test", 
+    cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "t.test",
+                                      formula = Elog ~ Condition,
                                       threshold = qt(p = time_cluster_low_thresh_df[i,"ThresholdAlpha"]/2, 
                                                      df = time_cluster_low_thresh_df[i,"NumSubjects"]) # <-- set thresh w/alpha
     )
@@ -267,6 +267,7 @@ if (!file.exists('sim_results/time_cluster_high_thresh_results.RDS')) {
   time_cluster_high_thresh_results <- foreach(i=1:nrow(time_cluster_high_thresh_df)) %dopar% {
     df_time <- make_time_data(i, time_cluster_high_thresh_df)
     cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "t.test", 
+                                      formula = Elog ~ Condition,
                                       threshold = qt(p = time_cluster_high_thresh_df[i,"ThresholdAlpha"]/2, 
                                                      df = time_cluster_high_thresh_df[i,"NumSubjects"]) # <-- set thresh w/alpha
     )
@@ -319,8 +320,7 @@ time_cluster_low_thresh_boot_df$Adjustment <- "low_threshold"
 if (!file.exists('sim_results/time_cluster_low_thresh_boot_results.RDS')) {
   time_cluster_low_thresh_boot_results <- foreach(i=1:nrow(time_cluster_low_thresh_boot_df)) %dopar% {
     df_time <- make_time_data(i, time_cluster_low_thresh_boot_df)
-    cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE,
-                                      alpha = time_cluster_low_thresh_boot_df[i,"ThresholdAlpha"])
+    cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE, alpha = time_cluster_low_thresh_boot_df[i,"ThresholdAlpha"])
     cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples,
                                      boot_samples = bootstrap_samples,
                                      parallel = TRUE)
@@ -372,8 +372,7 @@ time_cluster_high_thresh_boot_df$Adjustment <- "high_threshold"
 if (!file.exists('sim_results/time_cluster_high_thresh_boot_results.RDS')) {
   time_cluster_high_thresh_boot_results <- foreach(i=1:nrow(time_cluster_high_thresh_boot_df)) %dopar% {
     df_time <- make_time_data(i, time_cluster_high_thresh_boot_df)
-    cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE,
-                                      alpha = time_cluster_high_thresh_boot_df[i,"ThresholdAlpha"])
+    cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE, alpha = time_cluster_high_thresh_boot_df[i,"ThresholdAlpha"])
     cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples,
                                      boot_samples = bootstrap_samples,
                                      parallel = TRUE)
@@ -432,18 +431,17 @@ if (!file.exists('sim_results/gca_results.RDS')) {
                                      pref_window = c(effect_start, trial_length)
     )
     df$ConditionC <- ifelse(df$Condition=="High", .5, -.5)
-    df_time <- make_time_sequence_data(data = df, time_bin_size = tb_size, aois = "AOI1", predictor_columns = "ConditionC",
-                                       summarize_by = "Participant")
+    df_time <- make_time_sequence_data(data = df, time_bin_size = tb_size, aois = "AOI1", predictor_columns = "ConditionC", summarize_by = "Participant")
     
     # whole window:
-    gca_anal_whole_window <- lmer(Prop ~ (ot1+ot2+ot3)*ConditionC + (1+ot1+ot2+ot3|Participant), data = df_time)
+    gca_anal_whole_window <- lmer(Elog ~ (ot1+ot2+ot3)*ConditionC + (1+ot1+ot2+ot3|Participant), data = df_time)
     
     # no effect window (look for FAs):
     df_time_no_effect_window <- df %>%
       filter(TimeInTrial < effect_start) %>% 
       make_time_sequence_data(time_bin_size = tb_size, aois = "AOI1", predictor_columns = "ConditionC",
                                        summarize_by = "Participant")
-    gca_anal_no_effect_window <- lmer(Prop ~ (ot1+ot2+ot3)*ConditionC + (1+ot1+ot2+ot3|Participant), 
+      gca_anal_no_effect_window <- lmer(Elog ~ (ot1+ot2+ot3)*ConditionC + (1+ot1+ot2+ot3|Participant), 
                                       data= df_time_no_effect_window)
     
     return(list(whole_window = gca_anal_whole_window, no_effect_window = gca_anal_no_effect_window))
@@ -474,8 +472,6 @@ for (i in seq_along(gca_results)) {
     statistic[term %in% c("ConditionC", "ot1:ConditionC", "ot1:ConditionC", "ot1:ConditionC")] >= threshold ) )
   gca_df[i, "FABins"] <- ifelse(false_alarmed, num_no_effect_time_bins, 0)
 }
-
-
 ```
 
 # Visualizations
