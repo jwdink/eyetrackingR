@@ -449,11 +449,11 @@ master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df,
 master_df$Test <- factor(master_df$Test, 
                          levels = c("t_test", "boot_splines", "gca", "time_cluster_ttest","time_cluster_boot"))
 master_df$TestType <- with(master_df, 
-                           factor(x = paste(Test, Adjustment), 
-                                  levels = c('t_test ', 't_test bonferroni', 
-                                             'boot_splines ', 'boot_splines bonferroni', 
-                                             'gca ', 'gca FWER_Correction', 
-                                             'time_cluster_ttest low_threshold', 'time_cluster_ttest high_threshold')
+                           factor(x = ifelse(Adjustment != '',paste0(Test, ' (', Adjustment, ')'),stringr::str_trim(Test)), 
+                                  levels = c('t_test', 't_test (bonferroni)', 
+                                             'boot_splines', 'boot_splines (bonferroni)', 
+                                             'gca', 'gca (FWER_Correction)', 
+                                             'time_cluster_ttest (low_threshold)', 'time_cluster_ttest (high_threshold)')
                            ))
 ## TO DO ## make these not ugly as sin
 pallette <- c("#E69F00", "#9e6c00", 
@@ -485,6 +485,24 @@ ggplot(filter(summary_per_cell_fa, Measure=="FWER"), aes(x=Test, y=Mean, fill=Te
 
 ggplot(filter(summary_per_cell_fa, Measure=="ErrorRate"), aes(x=Test, y=Mean, fill=TestType)) %>%
   make_graph() + scale_y_continuous(name='ErrorRate') + facet_grid(. ~ NumSubjects)
+
+# Brock's megaplot
+summary_per_cell_fa$NumSubjectsText <- paste0('N = ',summary_per_cell_fa$NumSubjects)
+
+# get rid of GCA
+summary_per_cell_fa_brock <- filter(summary_per_cell_fa, Test != 'gca')
+
+p <- ggplot(summary_per_cell_fa_brock, aes(x=Measure, y=Mean, fill=TestType)) %>%
+  make_graph() + scale_y_continuous(name='Proportion') +
+  geom_hline(yintercept=.05,linetype="dashed") +
+  facet_wrap( ~ NumSubjectsText)
+
+png(filename = "plot-false-alarms.png",
+    width = 4000, height = 1100, units = "px", pointsize = 16,
+    bg = "white", res = 400)
+p
+dev.off()
+p
 ```
 
 ```{r}
@@ -501,6 +519,25 @@ ggplot(filter(summary_per_cell_dr, Measure=="FWDR"), aes(x=Test, y=Mean, fill=Te
 
 ggplot(filter(summary_per_cell_dr, Measure=="DiscoverRate"), aes(x=Test, y=Mean, fill=TestType)) %>%
   make_graph() + scale_y_continuous(name='DiscoverRate') + facet_grid(Pref ~ NumSubjects)
+
+# Brock's megaplot
+summary_per_cell_dr$NumSubjectsText <- paste0('N = ',summary_per_cell_dr$NumSubjects)
+summary_per_cell_dr$PrefText <- paste0('diff = ', summary_per_cell_dr$Pref - .5)
+
+# get rid of GCA
+summary_per_cell_dr_brock <- filter(summary_per_cell_dr, Test != 'gca')
+
+ggplot(summary_per_cell_dr_brock, aes(x=Measure, y=Mean, fill=TestType)) %>%
+  make_graph() + scale_y_continuous(name='Proportion') +
+  geom_hline(yintercept=.80,linetype="dashed") +
+  facet_wrap( ~ NumSubjectsText+PrefText)
+
+png(filename = "plot-discoveries.png",
+    width = 4000, height = 1100, units = "px", pointsize = 16,
+    bg = "white", res = 400)
+p
+dev.off()
+p
 ```
 
 ```{r}
@@ -510,17 +547,23 @@ summary_overall <- master_df %>%
             FWER         = get_mean_ci(FABins != 0),
             DiscoverRate = get_mean_ci(CDBins/num_effect_time_bins),
             FWDR         = get_mean_ci(CDBins != 0),
-            FalseDiscoverRate = get_mean_ci( (FABins/num_no_effect_time_bins) / 
+            FalseDiscoveryRate = get_mean_ci( (FABins/num_no_effect_time_bins) / 
                                                ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))
   ) %>%
-  tidyr::gather(key = "Measure", value = "Value", ErrorRate:FalseDiscoverRate) %>%
+  tidyr::gather(key = "Measure", value = "Value", ErrorRate:FalseDiscoveryRate) %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
   mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
 
 summary_overall <- filter(summary_overall, !Test %in% c("time_cluster_boot") ) # remove when we have data here
 
+# add dashed lines
+summary_overall <- summary_overall %>%
+                   mutate(DashedLine = ifelse(Measure %in% c('ErrorRate','FWER','FalseDiscoveryRate'), .05, .80))
+
 ggplot(summary_overall, aes(x = Test, y = Mean, fill = TestType)) %>%
-  make_graph() + scale_y_continuous(name = "Proportion") + facet_grid(Measure ~ .)
+  make_graph() + scale_y_continuous(name = "Proportion") +
+  geom_hline(aes(yintercept=DashedLine), linetype='dashed') +
+  facet_grid(Measure ~ .)
 
 # make easier to read summary
 summary_overall_wide <- master_df %>%
@@ -529,7 +572,7 @@ summary_overall_wide <- master_df %>%
                               FWER         = mean(FABins != 0),
                               DiscoverRate = mean(CDBins/num_effect_time_bins),
                               FWDR         = mean(CDBins != 0),
-                              FalseDiscoverRate = mean( (FABins/num_no_effect_time_bins) / 
+                              FalseDiscoveryRate = mean( (FABins/num_no_effect_time_bins) / 
                                                                    ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))
                     )
 
