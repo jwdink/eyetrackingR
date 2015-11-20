@@ -465,8 +465,8 @@ analyze_time_bins.time_sequence_data <- function(data,
     
     .get_nonparametric_stat <- function(x,y) {
       .weighted_iqr <- function(x,y) {
-        iqr_x <- diff(quantile(x, probs = c(.25, .75)))
-        iqr_y <- diff(quantile(x, probs = c(.25, .75)))
+        iqr_x <- diff(quantile(x, probs = c(.05, .95)))
+        iqr_y <- diff(quantile(x, probs = c(.05, .95)))
         (iqr_x*length(x) + iqr_y*length(y))/length(c(x,y))
       }
       (median(x)-median(y)) / .weighted_iqr(x,y)
