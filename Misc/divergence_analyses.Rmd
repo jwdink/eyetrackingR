@@ -145,7 +145,7 @@ if (!file.exists('sim_results/boot_splines_results.RDS')) {
     tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
     return(tb_anal)
   })
-  saveRDS(boot_splines_results, file = "sim_results/boot_splines_results.RDS")
+  saveRDS(boot_splines_results, file = "sim_results/boot_splines_results.RDS", compress="xz")
 }
 ```
 
@@ -182,7 +182,7 @@ if (!file.exists('sim_results/boot_splines_bonf_results.RDS')) {
     tb_anal$Sig <- with(tb_anal, !is.na(PositiveRuns|NegativeRuns))
     return(tb_anal)
   })
-  saveRDS(boot_splines_bonf_results, file = "sim_results/boot_splines_bonf_results.RDS")
+  saveRDS(boot_splines_bonf_results, file = "sim_results/boot_splines_bonf_results.RDS", compress="xz")
 }
 ```
 
@@ -307,30 +307,30 @@ for (i in seq_along(time_cluster_high_thresh_results)) {
 }
 ```
 
-### Using boot-splines, with High. Threshold:
+### Using boot-splines, with low. Threshold:
 
 ```{r}
 if (boot_clusters == TRUE) {
-  time_cluster_high_thresh_boot_df <- params_to_test_template_limited
-  time_cluster_high_thresh_boot_df$ThresholdAlpha <- .05
-  time_cluster_high_thresh_boot_df$Alpha <- .05
-  time_cluster_high_thresh_boot_df$Test <- "time_cluster_boot"
-  time_cluster_high_thresh_boot_df$Adjustment <- "high_threshold"
+  time_cluster_low_thresh_boot_df <- params_to_test_template_limited
+  time_cluster_low_thresh_boot_df$ThresholdAlpha <- .05
+  time_cluster_low_thresh_boot_df$Alpha <- .05
+  time_cluster_low_thresh_boot_df$Test <- "time_cluster_boot"
+  time_cluster_low_thresh_boot_df$Adjustment <- "low_threshold"
 }
 ```
 
 ```{r}
 if (boot_clusters == TRUE) {
-  if (!file.exists('sim_results/time_cluster_high_thresh_boot_results.RDS')) {
-    time_cluster_high_thresh_boot_results <- foreach(i=1:nrow(time_cluster_high_thresh_boot_df)) %dopar% {
-      df_time <- make_time_data(i, time_cluster_high_thresh_boot_df)
-      cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE, alpha = time_cluster_high_thresh_boot_df[i,"ThresholdAlpha"])
+  if (!file.exists('sim_results/time_cluster_low_thresh_boot_results.RDS')) {
+    time_cluster_low_thresh_boot_results <- foreach(i=1:nrow(time_cluster_low_thresh_boot_df)) %dopar% {
+      df_time <- make_time_data(i, time_cluster_low_thresh_boot_df)
+      cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE, alpha = time_cluster_low_thresh_boot_df[i,"ThresholdAlpha"])
       cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples,
                                        boot_samples = bootstrap_samples,
                                        parallel = TRUE)
       return(cl_anal)
     }
-    saveRDS(time_cluster_high_thresh_boot_results, file = "sim_results/time_cluster_high_thresh_boot_results.RDS")
+    saveRDS(time_cluster_low_thresh_boot_results, file = "sim_results/time_cluster_low_thresh_boot_results.RDS")
   }
 }
 ```
@@ -471,6 +471,9 @@ make_graph <- function(g) {
 }
 ```
 
+
+## Quick & Dirty:
+
 ```{r}
 summary_per_cell_fa <- master_df %>%
   group_by(NumSubjects, NumItems, Alpha, Test, Adjustment, TestType) %>%  # <--- does not include pref
@@ -479,13 +482,23 @@ summary_per_cell_fa <- master_df %>%
   tidyr::gather(key = "Measure", value = "Value", ErrorRate,FWER) %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
   mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
+```
 
-ggplot(filter(summary_per_cell_fa, Measure=="FWER"), aes(x=Test, y=Mean, fill=TestType)) %>%
-  make_graph() + scale_y_continuous(name='FWER') +facet_grid(. ~ NumSubjects)
+```{r}
+summary_per_cell_dr <- master_df %>%
+  group_by(NumSubjects, NumItems, Pref, Alpha, Test, Adjustment, TestType) %>% # <----- includes pref
+  summarise(DiscoveryRate = get_mean_ci(CDBins/num_effect_time_bins),
+            FWDR         = get_mean_ci(CDBins != 0),
+            FalseDiscoveryRate = get_mean_ci( (FABins/num_no_effect_time_bins) / 
+                                               ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))) %>%
+  tidyr::gather(key = "Measure", value = "Value", DiscoveryRate:FalseDiscoveryRate) %>%
+  tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
+  mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
+```
 
-ggplot(filter(summary_per_cell_fa, Measure=="ErrorRate"), aes(x=Test, y=Mean, fill=TestType)) %>%
-  make_graph() + scale_y_continuous(name='ErrorRate') + facet_grid(. ~ NumSubjects)
+## Pub-Quality Option 1:
 
+```{r}
 # Brock's megaplot
 summary_per_cell_fa$NumSubjectsText <- paste0('N = ',summary_per_cell_fa$NumSubjects)
 
@@ -504,31 +517,14 @@ png(filename = "plot-false-alarms.png",
 p
 dev.off()
 p
-```
-
-```{r}
-summary_per_cell_dr <- master_df %>%
-  group_by(NumSubjects, NumItems, Pref, Alpha, Test, Adjustment, TestType) %>% # <----- includes pref
-  summarise(DiscoveryRate = get_mean_ci(CDBins/num_effect_time_bins),
-            FWDR         = get_mean_ci(CDBins != 0),
-            FalseDiscoveryRate = get_mean_ci( (FABins/num_no_effect_time_bins) / 
-                                               ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)))) %>%
-  tidyr::gather(key = "Measure", value = "Value", DiscoveryRate:FalseDiscoveryRate) %>%
-  tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
-  mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
-
-ggplot(filter(summary_per_cell_dr, Measure=="FWDR"), aes(x=Test, y=Mean, fill=TestType)) %>%
-  make_graph() + scale_y_continuous(name='FWDR') +facet_grid(Pref ~ NumSubjects)
-
-ggplot(filter(summary_per_cell_dr, Measure=="DiscoveryRate"), aes(x=Test, y=Mean, fill=TestType)) %>%
-  make_graph() + scale_y_continuous(name='DiscoveryRate') + facet_grid(Pref ~ NumSubjects)
 
 # Brock's megaplot
 summary_per_cell_dr$NumSubjectsText <- paste0('N = ',summary_per_cell_dr$NumSubjects)
 summary_per_cell_dr$PrefText <- paste0('diff = ', summary_per_cell_dr$Pref - .5)
 
 # get rid of GCA
-summary_per_cell_dr_brock <- filter(summary_per_cell_dr, Test != 'gca')
+summary_per_cell_dr_brock <- filter(summary_per_cell_dr, Test != 'gca') %>%
+  mutate(Diff = as.factor(Pref - .50))
 
 p <- ggplot(summary_per_cell_dr_brock, aes(x=Measure, y=Mean, fill=TestType)) %>%
   make_graph() + scale_y_continuous(name='Proportion') +
@@ -544,6 +540,27 @@ p
 dev.off()
 p
 ```
+
+## Pub-Quality Option 2:
+
+```{r}
+### Stil messing around with this...
+
+# ggplot(data = filter(summary_per_cell_dr_brock, Measure != "FalseDiscoveryRate"), 
+#        mapping = aes(x= Diff, y = Mean, fill = TestType)) %>%
+#   make_graph() + ylab("Proportion") + xlab("Difference in Preference Across Conditions") +
+#   facet_grid(Measure ~ NumSubjectsText+Test+Adjustment, scales = "free_x")
+# 
+# graph_FA <- filter(summary_per_cell_fa, 
+#               Measure != "FalseDiscoveryRate",
+#               Test != "gca") 
+# ggplot(data = graph_FA, mapping = aes(x= NumSubjectsText, y = Mean, fill = TestType)) %>%
+#   make_graph() + ylab("Proportion") +
+#   facet_grid(Measure ~ .) + geom_hline(yintercept = .05, linetype="dashed")
+```
+
+
+# Summary Overall:
 
 ```{r}
 summary_overall <- master_df %>%
