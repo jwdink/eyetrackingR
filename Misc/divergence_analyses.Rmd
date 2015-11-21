@@ -22,7 +22,7 @@ library(foreach)
 #                                        SimNum      = 1:3)
 # cluster_samples <- 25
 
-boot_clusters <- FALSE # set to TRUE to run bootspline clusters
+boot_clusters <- TRUE # set to TRUE to run bootspline clusters
 
 # For real:
 params_to_test_template <- expand.grid(NumSubjects = c(10,30,60),
@@ -244,7 +244,7 @@ for (i in seq_along(time_cluster_low_thresh_results)) {
     # add to df:
   time_cluster_low_thresh_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
   time_cluster_low_thresh_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
-  time_cluster_low_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect,na.rm=T), no = NA))
+  time_cluster_low_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect,na.rm=TRUE), no = NA))
   }
   else {
     time_cluster_low_thresh_df[i,"FABins"] <- 0
@@ -297,7 +297,7 @@ for (i in seq_along(time_cluster_high_thresh_results)) {
     # add to df:
     time_cluster_high_thresh_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
     time_cluster_high_thresh_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
-    time_cluster_high_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect,na.rm=T), no = NA))
+    time_cluster_high_thresh_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect,na.rm=TRUE), no = NA))
   }
   else {
     time_cluster_high_thresh_df[i,"FABins"] <- 0
@@ -311,8 +311,8 @@ for (i in seq_along(time_cluster_high_thresh_results)) {
 
 ```{r}
 if (boot_clusters == TRUE) {
-  time_cluster_low_thresh_boot_df <- params_to_test_template_limited
-  time_cluster_low_thresh_boot_df$ThresholdAlpha <- .05
+  time_cluster_low_thresh_boot_df <- params_to_test_template
+  time_cluster_low_thresh_boot_df$ThresholdAlpha <- .10
   time_cluster_low_thresh_boot_df$Alpha <- .05
   time_cluster_low_thresh_boot_df$Test <- "time_cluster_boot"
   time_cluster_low_thresh_boot_df$Adjustment <- "low_threshold"
@@ -322,6 +322,9 @@ if (boot_clusters == TRUE) {
 ```{r}
 if (boot_clusters == TRUE) {
   if (!file.exists('sim_results/time_cluster_low_thresh_boot_results.RDS')) {
+    message("===============================================================================")
+    message("Warning: Didn't find boot-cluster RDS. Running full simulation. Will take days.")
+    message("===============================================================================")
     time_cluster_low_thresh_boot_results <- foreach(i=1:nrow(time_cluster_low_thresh_boot_df)) %dopar% {
       df_time <- make_time_data(i, time_cluster_low_thresh_boot_df)
       cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE, alpha = time_cluster_low_thresh_boot_df[i,"ThresholdAlpha"])
@@ -332,6 +335,73 @@ if (boot_clusters == TRUE) {
     }
     saveRDS(time_cluster_low_thresh_boot_results, file = "sim_results/time_cluster_low_thresh_boot_results.RDS")
   }
+} 
+```
+
+```{r}
+if (boot_clusters == TRUE) {
+  time_cluster_low_thresh_boot_results <- readRDS("sim_results/time_cluster_low_thresh_boot_results.RDS")
+  
+  for (i in seq_along(time_cluster_low_thresh_boot_results)) {
+    element <- time_cluster_low_thresh_boot_results[[i]]
+    if (is.list(element)) { # <--- missing one sim
+      if (!all(names(element)=="ROW")) {
+        model <- get_time_clusters(element)
+        model <- model %>%
+          mutate(Sig = Probability < .05,
+                 PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+                 ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
+                 DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
+                 ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
+          filter(Sig)
+        
+        # add to df:
+        time_cluster_low_thresh_boot_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
+        time_cluster_low_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+        time_cluster_low_thresh_boot_df[i,"FirstDiscTime"] <- with(model, 
+                                                                   ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, 
+                                                                          yes = min(ClusterStartTimeWithinEffect,na.rm=TRUE), 
+                                                                          no = NA))
+      } else {
+        time_cluster_low_thresh_boot_df[i,"FABins"] <- 0
+        time_cluster_low_thresh_boot_df[i,"CDBins"] <- 0
+        time_cluster_low_thresh_boot_df[i,"FirstDiscTime"] <- NA
+      }
+      #if(!all(time_cluster_low_thresh_boot_df[i,1:8] == element$ROW)) warning("Rows don't match!", i)
+    }
+  }
+  
+} 
+```
+
+### Using boot-splines, with high. Threshold:
+
+```{r}
+if (boot_clusters == TRUE) {
+  time_cluster_high_thresh_boot_df <- params_to_test_template
+  time_cluster_high_thresh_boot_df$ThresholdAlpha <- .05
+  time_cluster_high_thresh_boot_df$Alpha <- .05
+  time_cluster_high_thresh_boot_df$Test <- "time_cluster_boot"
+  time_cluster_high_thresh_boot_df$Adjustment <- "high_threshold"
+}
+```
+
+```{r}
+if (boot_clusters == TRUE) {
+  if (!file.exists('sim_results/time_cluster_high_thresh_boot_results.RDS')) {
+    message("===============================================================================")
+    message("Warning: Didn't find boot-cluster RDS. Running full simulation. Will take days.")
+    message("===============================================================================")
+    time_cluster_high_thresh_boot_results <- foreach(i=1:nrow(time_cluster_high_thresh_boot_df)) %dopar% {
+      df_time <- make_time_data(i, time_cluster_high_thresh_boot_df)
+      cl_dat  <- make_time_cluster_data(df_time, predictor_column = "Condition", test = "boot_splines", within_subj = FALSE, alpha = time_cluster_high_thresh_boot_df[i,"ThresholdAlpha"])
+      cl_anal <- analyze_time_clusters(cl_dat, within_subj = FALSE, samples = cluster_samples,
+                                       boot_samples = bootstrap_samples,
+                                       parallel = TRUE)
+      return(cl_anal)
+    }
+    saveRDS(time_cluster_high_thresh_boot_results, file = "sim_results/time_cluster_high_thresh_boot_results.RDS")
+  }
 }
 ```
 
@@ -340,29 +410,36 @@ if (boot_clusters == TRUE) {
   time_cluster_high_thresh_boot_results <- readRDS("sim_results/time_cluster_high_thresh_boot_results.RDS")
   
   for (i in seq_along(time_cluster_high_thresh_boot_results)) {
-    model <- get_time_clusters(time_cluster_high_thresh_boot_results[[i]])
-    if (nrow(model) > 0) {
-      model <- model %>%
-        mutate(Sig = Probability < .05,
-               PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
-               ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
-               DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
-               ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
-        filter(Sig)
-      
-      # add to df:
-      time_cluster_high_thresh_boot_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
-      time_cluster_high_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
-      time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, yes = min(ClusterStartTimeWithinEffect,na.rm=T), no = NA))
-    }
-    else {
-      time_cluster_high_thresh_boot_df[i,"FABins"] <- 0
-      time_cluster_high_thresh_boot_df[i,"CDBins"] <- 0
-      time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- NA
+    element <- time_cluster_high_thresh_boot_results[[i]]
+    if (is.list(element)) { # <--- missing one sim
+      if (!all(names(element)=="ROW")) {
+        model <- get_time_clusters(element)
+        model <- model %>%
+          mutate(Sig = Probability < .05,
+                 PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+                 ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
+                 DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
+                 ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
+          filter(Sig)
+        
+        # add to df:
+        time_cluster_high_thresh_boot_df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
+        time_cluster_high_thresh_boot_df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+        time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- with(model, 
+                                                                   ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, 
+                                                                          yes = min(ClusterStartTimeWithinEffect,na.rm=TRUE), 
+                                                                          no = NA))
+      } else {
+        time_cluster_high_thresh_boot_df[i,"FABins"] <- 0
+        time_cluster_high_thresh_boot_df[i,"CDBins"] <- 0
+        time_cluster_high_thresh_boot_df[i,"FirstDiscTime"] <- NA
+      }
     }
   }
+  
 }
 ```
+
 
 ## GCA:
 
@@ -429,7 +506,7 @@ for (i in seq_along(gca_results)) {
 }
 ```
 
-# Visualizations
+# Visualizations/Summary
 
 ```{r}
 library("ggplot2")
@@ -444,6 +521,7 @@ get_mean_ci <- function(vec) {
 master_df <- bind_rows(boot_splines_bonf_df, boot_splines_df, 
                        t_test_bonf_df, t_test_df, 
                        time_cluster_low_thresh_df, time_cluster_high_thresh_df,
+                       time_cluster_low_thresh_boot_df, time_cluster_high_thresh_boot_df,
                        gca_df) %>%
   filter(!is.na(FABins)) # <-------------
 master_df$Test <- factor(master_df$Test, 
@@ -453,13 +531,15 @@ master_df$TestType <- with(master_df,
                                   levels = c('t_test', 't_test (bonferroni)', 
                                              'boot_splines', 'boot_splines (bonferroni)', 
                                              'gca', 'gca (FWER_Correction)', 
-                                             'time_cluster_ttest (low_threshold)', 'time_cluster_ttest (high_threshold)')
+                                             'time_cluster_ttest (low_threshold)', 'time_cluster_ttest (high_threshold)',
+                                             "time_cluster_boot (low_threshold)", "time_cluster_boot (high_threshold)")
                            ))
 ## TO DO ## make these not ugly as sin
 pallette <- c("#E69F00", "#9e6c00", 
               "#56B4E9", "#1778b0", 
               "#009E73", "#005c43", 
-              "#F0E442", "#b8ad0f") 
+              "#F0E442", "#b8ad0f",
+              "#111111", "#555555") 
 names(pallette) <- levels(master_df$TestType) # I don't know if this does anything
 
 make_graph <- function(g) {
@@ -472,7 +552,7 @@ make_graph <- function(g) {
 ```
 
 
-## Quick & Dirty:
+## Summary DFs for graphs:
 
 ```{r}
 summary_per_cell_fa <- master_df %>%
@@ -544,19 +624,22 @@ p
 ## Pub-Quality Option 2:
 
 ```{r}
-### Stil messing around with this...
+### Still messing around with this...
 
-# ggplot(data = filter(summary_per_cell_dr_brock, Measure != "FalseDiscoveryRate"), 
-#        mapping = aes(x= Diff, y = Mean, fill = TestType)) %>%
-#   make_graph() + ylab("Proportion") + xlab("Difference in Preference Across Conditions") +
-#   facet_grid(Measure ~ NumSubjectsText+Test+Adjustment, scales = "free_x")
-# 
-# graph_FA <- filter(summary_per_cell_fa, 
-#               Measure != "FalseDiscoveryRate",
-#               Test != "gca") 
-# ggplot(data = graph_FA, mapping = aes(x= NumSubjectsText, y = Mean, fill = TestType)) %>%
-#   make_graph() + ylab("Proportion") +
-#   facet_grid(Measure ~ .) + geom_hline(yintercept = .05, linetype="dashed")
+summary_key <- master_df %>%
+  group_by(NumItems, Alpha, Test, Adjustment, TestType, NumSubjects) %>%
+  summarise(FWER         = get_mean_ci(FABins != 0),
+            DiscoveryRate = get_mean_ci(CDBins/num_effect_time_bins)
+  ) %>%
+  tidyr::gather(key = "Measure", value = "Value", FWER:DiscoveryRate) %>%
+  tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
+  mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High),
+         DashedLine = ifelse(Measure %in% c('ErrorRate','FWER','FalseDiscoveryRate'), .05, .80))
+
+ggplot(summary_key, aes(x = Test, y = Mean, fill = TestType)) %>%
+  make_graph() + scale_y_continuous(name = "Proportion") +
+  geom_hline(aes(yintercept = DashedLine), linetype="dashed") +
+  facet_grid(NumSubjects ~ Measure)
 ```
 
 
@@ -576,7 +659,7 @@ summary_overall <- master_df %>%
   tidyr::separate(col = Value, sep = ", ", into = c("Mean", "CI_Low", "CI_High"), remove = TRUE) %>%
   mutate(Mean = as.numeric(Mean), CI_Low = as.numeric(CI_Low), CI_High = as.numeric(CI_High))
 
-summary_overall <- filter(summary_overall, !Test %in% c("time_cluster_boot") ) # remove when we have data here
+#summary_overall <- filter(summary_overall, !Test %in% c("time_cluster_boot") ) # remove when we have data here
 
 # add dashed lines
 summary_overall <- summary_overall %>%
@@ -595,8 +678,7 @@ summary_overall_wide <- master_df %>%
                               DiscoveryRate = mean(CDBins/num_effect_time_bins),
                               FWDR         = mean(CDBins != 0),
                               FalseDiscoveryRate = mean( (FABins/num_no_effect_time_bins) / 
-                                                                   ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)),na.rm=T)
-                    )
+                                                                   ((CDBins/num_effect_time_bins) + (FABins/num_no_effect_time_bins)),na.rm=TRUE) )
 
 summary_overall_wide
 ```
