@@ -426,7 +426,6 @@ analyze_time_bins.time_sequence_data <- function(data,
     } else if (test == "wilcox.test") {
       stop("Wilcox test is temporarily unavailable in this function. ",
            "Email jacobwdink@gmail.com to encourage him to get this fixed.")
-    }
     } else if (test %in% c('lm', 'glm')) {
       models_dfs <- sapply(models, function(x) df.residual(x))
     } else {

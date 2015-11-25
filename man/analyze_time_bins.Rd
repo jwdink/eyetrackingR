@@ -22,14 +22,14 @@ interested in a predictor, but the intercept, you can enter "intercept" for this
 Interaction terms are not currently supported.}
 
 \item{test}{What type of test should be performed in each time bin? Supports 
-\code{t.test}, \code{wilcox.test}, \code{lm}, and \code{lmer}.}
+\code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Support for some of the}
 
 \item{threshold}{Value of statistic used in determining significance}
 
 \item{alpha}{Alpha value for determining significance, ignored if threshold is given}
 
 \item{formula}{What formula should be used for the test? Optional for all but
-\code{lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.}
+\code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.}
 
 \item{return_model}{In the returned dataframe, should a model be given for each time bin, or
 just the summary of those models?}
