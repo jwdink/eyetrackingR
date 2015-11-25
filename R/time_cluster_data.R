@@ -100,8 +100,6 @@ analyze_time_clusters.time_cluster_data <-function(data,
   if (quiet) pbsapply <- sapply
 
   # Arg check:
-  if (attrs$test == "wilcox.test") stop("Wilcox test is temporarily unavailable in this function. ",
-                                        "Email jacobwdink@gmail.com to encourage him to get this fixed.")
   if (is.null(formula)) {
     formula <-attrs$formula
   } else {

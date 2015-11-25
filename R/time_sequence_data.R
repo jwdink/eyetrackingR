@@ -237,6 +237,8 @@ analyze_time_bins.time_sequence_data <- function(data,
   }
 
   # Prelims:
+  if (attrs$test == "wilcox.test") stop("Wilcox test is temporarily unavailable in this function. ",
+                                        "Email jacobwdink@gmail.com to encourage him to get this fixed.")
   if (!is.null(threshold) & !is.null(alpha)) stop("Please only specify alpha or threshold, not both.")
   if (is.null(threshold) & is.null(alpha)) stop("Please specify either alpha or threshold.")
   if (test == "boot_splines" & is.null(alpha)) stop("This test requires `alpha` rather than `threshold`.")
@@ -421,8 +423,10 @@ analyze_time_bins.time_sequence_data <- function(data,
     # DFs:
     if (test=='t.test') {
       models_dfs <- sapply(tidied_models, function(x) ifelse('parameter' %in% names(x), x[,'parameter'], NA))
-    } else if (test=='wilcox.test' ) {
-      models_dfs <- sapply(models, function(x) x$sample_size==1)
+    } else if (test == "wilcox.test") {
+      stop("Wilcox test is temporarily unavailable in this function. ",
+           "Email jacobwdink@gmail.com to encourage him to get this fixed.")
+    }
     } else if (test %in% c('lm', 'glm')) {
       models_dfs <- sapply(models, function(x) df.residual(x))
     } else {
