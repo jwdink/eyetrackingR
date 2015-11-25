@@ -388,7 +388,7 @@ analyze_time_bins.time_sequence_data <- function(data,
     if (test %in% c('t.test','wilcox.test')) {
       models_statistics <- sapply(tidied_models, function(x) ifelse('statistic' %in% names(x), x[,'statistic'], NA) )
       models_estimates  <- sapply(tidied_models, function(x) ifelse('estimate' %in% names(x), x[,'estimate'], NA) )
-      models_p_vals     <- sapply(tidied_models, function(x) x[,"p.value"])
+      models_p_vals     <- sapply(tidied_models, function(x) ifelse('p.value' %in% names(x), x[,'p.value'], NA) )
       
       # no std. error provided, so grab it from CI
       models_std_err  <- sapply(tidied_models, function(x) ifelse(all(c('conf.low','conf.high') %in% names(x)), (x[,'conf.high']-x[,'conf.low'])/(1.96*2), NA) )
