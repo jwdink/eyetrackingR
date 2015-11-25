@@ -84,15 +84,15 @@ test_that(desc = "The function analyze_time_clusters gives necessary eyetracking
 
 
 # Cluster Analysis 4: wilcox.test (checking returned errors and warnings)
-temp_make_time_cluster_data <- .make_function_fail_informatively(make_time_cluster_data)
-
-result1 <- temp_make_time_cluster_data(data = response_time_by_ppt, formula = Prop ~ Target,
-                                            predictor_column = "Target", test = "wilcox.test", 
-                                            threshold = 150)
-the_errors <- result1$warn
-test_that(desc = "The function make_time_cluster_data gives errors in readable format", code = {
-  expect_true( grepl("object 'Target' not found", the_errors) )
-})
+# temp_make_time_cluster_data <- .make_function_fail_informatively(make_time_cluster_data)
+# 
+# result1 <- temp_make_time_cluster_data(data = response_time_by_ppt, formula = Prop ~ Target,
+#                                             predictor_column = "Target", test = "wilcox.test", 
+#                                             threshold = 150)
+# the_errors <- result1$warn
+# test_that(desc = "The function make_time_cluster_data gives errors in readable format", code = {
+#   expect_true( grepl("object 'Target' not found", the_errors) )
+# })
 
 # response_time_by_ppt2 <- make_time_sequence_data(response_window_clean, time_bin_size = 100, 
 #                                                 aois = "Animate",
