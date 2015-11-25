@@ -237,7 +237,7 @@ analyze_time_bins.time_sequence_data <- function(data,
   }
 
   # Prelims:
-  if (attrs$test == "wilcox.test") stop("Wilcox test is temporarily unavailable in this function. ",
+  if (test == "wilcox.test") stop("Wilcox test is temporarily unavailable in this function. ",
                                         "Email jacobwdink@gmail.com to encourage him to get this fixed.")
   if (!is.null(threshold) & !is.null(alpha)) stop("Please only specify alpha or threshold, not both.")
   if (is.null(threshold) & is.null(alpha)) stop("Please specify either alpha or threshold.")
