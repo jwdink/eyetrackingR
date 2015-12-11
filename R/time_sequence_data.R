@@ -220,43 +220,37 @@ analyze_time_bins.time_sequence_data <- function(data,
                               quiet = FALSE,
                               ...)
 {
-
+  
   ## Helper:
   .fix_unpaired = function(data, data_options, predictor_column, dv) {
     if (!is.factor(data[[predictor_column]])) stop("Your condition column should be a factor.")
     lvl1 <- levels(data[[predictor_column]])[1]
     df_no_na   <- filter_(data, interp(~!is.na(DV), DV = as.name(dv)))
-    summarized_by <- attr(data, "eyetrackingR")$summarized_by
+    summarized_by <- c("Time", attr(data, "eyetrackingR")$summarized_by)
     df_grouped <- group_by_(df_no_na, .dots = summarized_by)
     df_mutated <- mutate_(df_grouped,
-                          .dots = list(PairedObs = interp(~length(which(COND_COL == lvl1)) > 0 & length(which(COND_COL != lvl1)) > 0,
-                                                          COND_COL = as.name(predictor_column)))
+                          .dots = list(PairedObs = interp(
+                             ~length(which(COND_COL == lvl1)) > 0 & 
+                              length(which(COND_COL != lvl1)) > 0,
+                            COND_COL = as.name(predictor_column)))
     )
     df_filtered <- filter(df_mutated, PairedObs)
     ungroup(df_filtered)
   }
 
-  # Prelims:
-  if (test == "wilcox.test") stop("Wilcox test is temporarily unavailable in this function. ",
-                                        "Email jacobwdink@gmail.com to encourage him to get this fixed.")
+  # Data info:
+  data_options <- attr(data, "eyetrackingR")$data_options
+  if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
+  
+  # Need either alpha or threshold:
   if (!is.null(threshold) & !is.null(alpha)) stop("Please only specify alpha or threshold, not both.")
   if (is.null(threshold) & is.null(alpha)) stop("Please specify either alpha or threshold.")
   if (test == "boot_splines" & is.null(alpha)) stop("This test requires `alpha` rather than `threshold`.")
-  data_options <- attr(data, "eyetrackingR")$data_options
-  if (grepl("intercept", predictor_column, ignore.case = TRUE)) {
-    if (is.null(formula)) stop("If testing intercept, please manually specify formula")
-    predictor_column <- "(Intercept)"
-  }
-  if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
-  if (!requireNamespace("pbapply", quietly = TRUE)) {
-    pblapply <- lapply
-    if (!quiet) message("Install package 'pbapply' for a progress bar in this function.")
-  } else {
-    pblapply <- pbapply::pblapply
-  }
+  
+  # Which Test?:
   test <- match.arg(test, c("t.test","wilcox.test","lm","lmer","glm","glmer","boot_splines"))
   if (!requireNamespace("lme4", quietly = TRUE)) {
-    if (test %in% c("lmer","glmer")) stop("Please install and load the 'lme4' package to use this method.")
+    if (test %in% c("lmer","glmer")) stop("Please install the 'lme4' package to use this method.")
   }
 
   # For Multiple aois:
@@ -286,171 +280,124 @@ analyze_time_bins.time_sequence_data <- function(data,
                                      " (e.g., the participant column).")
   }
 
-  # auto-make a formula, unless they specified one
-  if (is.null(formula)) {
+  # Formula Checks:
+  if (grepl("intercept", predictor_column, ignore.case = TRUE)) {
+    if (is.null(formula)) stop("If testing intercept, please manually specify formula")
+    predictor_column <- "(Intercept)"
+  }
+  if (is.null(formula)) { # auto-make a formula, unless they specified one
     if (test%in% c("lmer","glmer")) stop("Must specify a formula if using (g)lmer.")
     formula <- as.formula(paste("Prop ~", predictor_column))
     dv <- "Prop"
   } else {
     dv <- gsub(formula[2], pattern = "()", replacement = "", fixed = TRUE)
   }
-
+  
   # Run a model for each time-bin
   dots <- lazyeval::lazy_dots(...)
   if (test!="boot_splines") {
-    paired <- eval(dots[["paired"]]$expr)
     if (!quiet) message("Computing ", test, " for each time bin...")
-    if (test=="lmer") {
-      the_test <- .make_function_fail_informatively(lme4::lmer)
-    } else if (test=="glmer") {
-      the_test <- .make_function_fail_informatively(lme4::glmer) 
-    } else {
-      the_test <- .make_function_fail_informatively(get(test))
-    }
-    if (quiet) pblapply <- lapply
-    the_errors <- list()
-    the_warnings <- list()
-    models= pblapply(unique(data$Time), function(tb) {
-      
-      # get data:
-      temp_dat <- filter(data, Time==tb)
-      # Make paired test more robust to unpaired observations within a bin:
-      if (identical(paired, TRUE)) temp_dat <- .fix_unpaired(temp_dat, data_options, predictor_column, dv)
-      
-      # make model:
-      output <- suppressWarnings( the_test(formula = formula, data = temp_dat, ... = ...) )
-      
-      # If error, log and return NA
-      if (!is.null(output$err)) {
-        the_errors[[as.character(tb)]] <<- output$err
-        return(NA)
-      } 
-      # If warning, just log 
-      if (!is.null(output$warn)) {
-        the_warnings[[as.character(tb)]] <<- output$warn
-      }
-      # Return model:
-      the_model <- output[[1]]
-      if (test == 'wilcox.test') {
-        the_model$sample_size <- length(unique(temp_dat[[attr(data, "eyetrackingR")$summarized_by]]))
-      }
-      return(the_model)
-      
-    })
     
-    # Give Errors:
-    if (length(the_errors) > 1) {
-      error_types <- unique(unlist(lapply(the_errors, unique)))
-      error_lists <- list()
-      for (error_type in error_types) {
-        error_lists[[error_type]] <- unlist(lapply(names(the_errors), function(tb) {
-          if (error_type %in% the_errors[[tb]]) {
-            return(tb)
-          } else {
-            return(NULL)
-          }
-        }))
-      }
-      for (i in seq_along(error_lists)) {
-        error_list <- error_lists[[i]]
-        warning("\nFor the following timebins...\n\t", paste(sort(error_list), collapse = ", "),
-                "\n...received the following error message(s): \n\t`", error_types[i], "`",
-                "\nThis means something went wrong when running ", test, " on these timebins. ",
-                "Model results for these timebins have been replaced by `NA` in the output.\n")
-        if (grepl(pattern = "not found", x = error_types[i])) stop(error_types[i])
-      }
+    # Fix unpaired (only t.test/wilcox):
+    paired <- eval(dots[["paired"]]$expr)
+    if (identical(paired, TRUE) & test %in% c("t.test", "wilcox.test")) {
+      # for paired t-tests, need to remove unpaired observations for each TB
+      data <- .fix_unpaired(data, data_options, predictor_column, dv)
     }
     
-    # Give Warnings:
-    if (length(the_warnings) > 1) {
-      warning_types <- unique(unlist(lapply(the_warnings, unique)))
-      warning_lists <- list()
-      for (warning_type in warning_types) {
-        warning_lists[[warning_type]] <- unlist(lapply(names(the_warnings), function(tb) {
-          if (warning_type %in% the_warnings[[tb]]) {
-            return(tb)
-          } else {
-            return(NULL)
-          }
-        }))
-      }
-      for (i in seq_along(warning_lists)) {
-        warning_list <- warning_lists[[i]]
-        warning("\nFor the following timebins...\n\t", paste(sort(warning_list), collapse = ", "),
-                "\n...received the following warning message: \n\t`", warning_types[i], "`\n")
-      }
+    # Get Testing Function
+    if (test %in% c("lmer","glmer")) {
+      the_func <- .make_function_fail_informatively(get(test, envir = getNamespace("lme4")))
+    } else {
+      the_func <- .make_function_fail_informatively(get(test))
     }
     
-    # Get Statistic:
-    if (test%in% c("lmer","glmer")) {
-      tidied_models <- suppressWarnings(lapply(models, broom::tidy, effects="fixed"))
-    } else {
-      tidied_models <- suppressWarnings(lapply(models, broom::tidy))
-    }
-    if (test %in% c('t.test','wilcox.test')) {
-      models_statistics <- sapply(tidied_models, function(x) ifelse('statistic' %in% names(x), x[,'statistic'], NA) )
-      models_estimates  <- sapply(tidied_models, function(x) ifelse('estimate' %in% names(x), x[,'estimate'], NA) )
-      models_p_vals     <- sapply(tidied_models, function(x) ifelse('p.value' %in% names(x), x[,'p.value'], NA) )
-      
-      # no std. error provided, so grab it from CI
-      models_std_err  <- sapply(tidied_models, function(x) ifelse(all(c('conf.low','conf.high') %in% names(x)), (x[,'conf.high']-x[,'conf.low'])/(1.96*2), NA) )
-    } else {
-      model_row <- lapply(tidied_models, function(x) {
-        which_row <- grep(pattern = predictor_column, x = x[['term']], fixed = TRUE) # look for partially matching param (for treatment coding)
-        if (length(which_row)==1) {
-          return(x[which_row, ])
-        } else {
-          # too many matches? look for exact match (happens with continous predictor)
-          which_row <- which(x[['term']] == predictor_column)
-          if (length(which_row)==1) return(x[which_row, 'statistic'])
-          warning("Could not find the parameter '",predictor_column,"' in your model. Found instead: ", paste(x[['term']], collapse=", ") )
-          return(NA)
-        }
-      } )
-      
-      models_statistics <- sapply(model_row, function(x) x[,"statistic"])
-      models_estimates  <- sapply(model_row, function(x) x[,"estimate"])
-      models_std_err    <- sapply(model_row, function(x) x[,"std.error"])
-      if (test%in% c("lmer","glmer")) {
-        if (!quiet) message("Using the normal approximation for p-value on parameter in ", test,".") 
-        models_p_vals <- sapply(X = models_statistics, 
-                                FUN = function(q) pnorm(q = abs(q), lower.tail = FALSE)+pnorm(q = -abs(q), lower.tail = TRUE))
+    # Create Test/Summarize function, which also catches errors:
+    the_test <- function(...) {
+      res_err_warn <- the_func(...)
+      if (test %in% c("lmer","glmer")) {
+        out <- broom::tidy(res_err_warn$res, effects = 'fixed')
       } else {
-        models_p_vals <- sapply(model_row, function(x) x[,"p.value"])
+        out <- broom::tidy(res_err_warn$res)
+      }
+      
+      if (length(res_err_warn$err)>0) {
+        df_err <- as.data.frame( do.call(cbind, as.list(res_err_warn$err)) )
+        colnames(df_err) <- paste0("ErrorMsg", seq_along(res_err_warn$err))
+        out <- df_err
+      } else {
+        # need to manually extract degrees of freedom for (g)lm.
+        # (not needed if func resulted in error)
+        if (test %in% c("lm","glm")) out$parameter <- df.residual(res_err_warn$res)
+      }
+      
+      if (length(res_err_warn$warn)>0) {
+        df_warn <- as.data.frame( do.call(cbind, as.list(res_err_warn$warn)) )
+        colnames(df_warn) <- paste0("WarningMsg", seq_along(res_err_warn$warn))
+        df_warn <- bind_rows( lapply(X = 1:nrow(out), FUN = function(x) df_warn) )
+        out <- bind_cols(out, df_warn)
+      }
+      
+      out
+    }
+    
+    # Run models:
+    df_models <- data %>%
+      group_by(Time) %>%
+      do(the_test(formula = formula, data = ., ... = ...))
+    
+    # Warn about warnings
+    if (!quiet) {
+      if ( any(grepl("WarningMsg", colnames(df_models))) ) {
+        message("At least one time-bin produced warnings--be sure to check 'Warning' col in output.")
+      }
+      if ( any(grepl("ErrorMsg", colnames(df_models))) ) {
+        message("At least one time-bin produced errors--be sure to check 'Error' col in output.")
       }
     }
     
-    # DFs:
-    if (test=='t.test') {
-      models_dfs <- sapply(tidied_models, function(x) ifelse('parameter' %in% names(x), x[,'parameter'], NA))
-    } else if (test == "wilcox.test") {
-      stop("Wilcox test is temporarily unavailable in this function. ",
-           "Email jacobwdink@gmail.com to encourage him to get this fixed.")
-    } else if (test %in% c('lm', 'glm')) {
-      models_dfs <- sapply(models, function(x) df.residual(x))
-    } else {
-      models_dfs <- NA
+    # Make model specifications the same for all test-types:
+    if (test == "t.test") {
+      df_models$std.error <- with(df_models, (conf.high-conf.low)/(1.96*2))
+    } else if (test %in% c('glmer', 'lmer')) {
+      if (!quiet) message("Using the normal approximation for p-value on parameter in ", test,".") 
+      df_models$p.value <- with(df_models, 2*pnorm(q = abs(statistic), lower.tail = FALSE))
+      df_models$parameter <- NA
     }
     
-    # Get P-val.
+    # Adjust P-val.
     p_adjust_method <- ifelse(is.null(dots$p_adjust_method$expr), "none", dots$p_adjust_method$expr)
-    models_p_vals <- p.adjust(p = models_p_vals, method = p_adjust_method)
+    df_models$p.value <- p.adjust(p = df_models$p.value, method = p_adjust_method)
     
     # Find Critical Value:
-    crit_pos <- .get_threshold(threshold, alpha, test, models_dfs, quiet)
-    crit_neg <- -crit_pos
+    df_models$CritStatisticPos <- .get_threshold(threshold, alpha, test, df_models$parameter, quiet)
+    df_models$CritStatisticNeg <- -df_models$CritStatisticPos
     
-    # Return DataFrame:
-    out <- data.frame(stringsAsFactors = FALSE,
-                      Estimate = models_estimates,
-                      StdErr = models_std_err,
-                      Statistic = models_statistics,
-                      CritStatisticPos = crit_pos,
-                      CritStatisticNeg = crit_neg,
-                      Time = unique(data$Time),
-                      Prob = models_p_vals) # same order as for loop that built models
-    out$AOI <- data$AOI[1]
-    if (return_model) out$Model <- models
+    # Filter Param-of-Interest:
+    if (test %in% c('t.test', 'wilcox.test')) {
+      df_models_this_param <- df_models
+    } else {
+      df_models_this_param <- filter(df_models, term == predictor_column)
+      if (nrow(df_models_this_param)==0) {
+        terms <- paste0("'", unique(df_models$term), "'", collapse= ", ")
+        msg <- paste0("\nThe term '", predictor_column, "' was not found in your model. \nFound instead: ", terms)
+        stop(msg)
+      }
+    }
+
+    # Generate Output:
+    new_cols <- list(Estimate = quote(estimate), 
+                     StdErr = quote(std.error), 
+                     Statistic = quote(statistic), 
+                     Prob = quote(p.value), 
+                     DF = quote(parameter),
+                     quote(Time), quote(CritStatisticPos), quote(CritStatisticNeg) 
+    )
+    new_cols <- append(new_cols, grep("WarningMsg", colnames(df_models), value = TRUE))
+    new_cols <- append(new_cols, grep("ErrorMsg", colnames(df_models), value = TRUE))
+    out <- select_(.data = df_models_this_param, .dots = new_cols)
+    out$AOI <- unique(data$AOI) # guaranteed to be just one
+  
   } else if (test=="boot_splines") {
     .get_empirical_pdf_overlap <- function(x,y) {
       if (median(x,na.rm=TRUE) > median(y,na.rm=TRUE)) {
@@ -458,12 +405,6 @@ analyze_time_bins.time_sequence_data <- function(data,
       } else {
         return(mean( (x-y)>0, na.rm=TRUE ))
       }
-#       densx <- density(x);highfun<-approxfun(densx, rule = 2)
-#       densy <- density(y);lowfun<-approxfun(densy, rule = 2)
-#       tryCatch({
-#         out <- integrate(f = function(x) pmin(highfun(x),lowfun(x)), lower = 0, upper = 1)
-#         out$value
-#       },error = function(e) NA)
     }
     
     .get_nonparametric_stat <- function(x,y) {
@@ -522,8 +463,8 @@ analyze_time_bins.time_sequence_data <- function(data,
   
   # Compute Information about Runs:
   if (is.null(threshold) | test=="boot_splines") {
-    out$PositiveRuns <- .label_consecutive((alpha>out$Prob)&out$Estimate>0)
-    out$NegativeRuns <- .label_consecutive((alpha>out$Prob)&out$Estimate<0)
+    out$PositiveRuns <- .label_consecutive((alpha>out$Prob) & out$Estimate>0)
+    out$NegativeRuns <- .label_consecutive((alpha>out$Prob) & out$Estimate<0)
   } else {
     out$PositiveRuns <- .label_consecutive(out$Statistic>out$CritStatisticPos)
     out$NegativeRuns <- .label_consecutive(out$Statistic<out$CritStatisticNeg)

@@ -6,8 +6,8 @@
 #' @return A numeric vector
 .get_threshold <- function(threshold, alpha, test, dfs, quiet) {
   if (is.null(threshold)) {
-    if (test == "lmer") {
-      if (!quiet) message("Using the normal approximation for critical value on parameter in lmer.")
+    if (test %in% c("lmer","glmer")) {
+      if (!quiet) message("Using the normal approximation for critical value on parameter in ", test)
       crit_pos =  qnorm(p=1-alpha/2)
     } else if (test=="t.test") {
       crit_pos <- qt(1-alpha/2, df = dfs)
@@ -104,7 +104,7 @@
         warn <<- append(warn, conditionMessage(w))
         invokeRestart("muffleWarning")
       })
-    list(res, warn=warn, err=err)
+    list(res=res, warn=warn, err=err)
   }
 
 
