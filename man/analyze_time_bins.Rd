@@ -8,8 +8,8 @@
 analyze_time_bins(data, ...)
 
 \method{analyze_time_bins}{time_sequence_data}(data, predictor_column, test,
-  threshold = NULL, alpha = NULL, formula = NULL, return_model = FALSE,
-  quiet = FALSE, ...)
+  threshold = NULL, alpha = NULL, formula = NULL,
+  p_adjust_method = "none", quiet = FALSE, ...)
 }
 \arguments{
 \item{data}{The output of the 'make_time_sequence_data' function}
@@ -31,8 +31,8 @@ Interaction terms are not currently supported.}
 \item{formula}{What formula should be used for the test? Optional for all but
 \code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.}
 
-\item{return_model}{In the returned dataframe, should a model be given for each time bin, or
-just the summary of those models?}
+\item{p_adjust_method}{Method to adjust p.values for multiple corrections (default="none"). 
+See \code{p.adjust.methods}.}
 
 \item{quiet}{Should messages and progress bars be suppressed? Default is to show}
 }

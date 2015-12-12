@@ -185,8 +185,8 @@ analyze_time_bins = function(data, ...) {
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given
 #' @param formula           What formula should be used for the test? Optional for all but
 #'   \code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.
-#' @param return_model      In the returned dataframe, should a model be given for each time bin, or
-#'   just the summary of those models?
+#' @param p_adjust_method   Method to adjust p.values for multiple corrections (default="none"). 
+#'                          See \code{p.adjust.methods}.
 #' @param quiet             Should messages and progress bars be suppressed? Default is to show
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g.,
 #'   paired, var.equal, etc.)
@@ -216,7 +216,7 @@ analyze_time_bins.time_sequence_data <- function(data,
                               threshold = NULL,
                               alpha = NULL,
                               formula = NULL,
-                              return_model = FALSE,
+                              p_adjust_method = "none",
                               quiet = FALSE,
                               ...)
 {
@@ -359,7 +359,7 @@ analyze_time_bins.time_sequence_data <- function(data,
     # Make model specifications the same for all test-types:
     if (test == "t.test") {
       df_models$std.error <- with(df_models, (conf.high-conf.low)/(1.96*2))
-      df_models$estimate <- df_models$estimate1 - df_models$estimate2
+      if (!identical(paired, TRUE)) df_models$estimate <- df_models$estimate1 - df_models$estimate2
     } else if (test %in% c('glmer', 'lmer')) {
       if (!quiet) message("Using the normal approximation for p-value on parameter in ", test,".") 
       df_models$p.value <- with(df_models, 2*pnorm(q = abs(statistic), lower.tail = FALSE))
@@ -392,7 +392,6 @@ analyze_time_bins.time_sequence_data <- function(data,
     }
     
     # Adjust P-val.
-    p_adjust_method <- ifelse(is.null(dots$p_adjust_method$expr), "none", dots$p_adjust_method$expr)
     df_models_this_param$p.value <- p.adjust(p = df_models_this_param$p.value, method = p_adjust_method)
     # threshold no longer computable:
     if (p_adjust_method != "none" & is.null(alpha)) stop("If specifying p-value adjustment, must give alpha, not threshold.") 
@@ -500,6 +499,9 @@ analyze_time_bins.time_sequence_data <- function(data,
   attr(out,"eyetrackingR") <- c(
     attr(data, "eyetrackingR"),
     list(formula= formula,
+         p_adjust_method = p_adjust_method,
+         alpha = alpha,
+         threshold = threshold,
          test = test,
          predictor = predictor_column,
          positive_runs = positive_runs,
@@ -675,29 +677,94 @@ plot.time_sequence_data <- function(x, predictor_column = NULL, dv='Prop', model
 #' @param ... Ignored
 #' @export
 #' @return A ggplot object
-plot.bin_analysis <- function(x, type = "statistic", ...) {
+plot.bin_analysis <- function(x, type = NULL, ...) {
   
-  type = match.arg(type, c("statistic", "estimate"))
+  p_adjust_method <- attr(x, "eyetrackingR")$p_adjust_method
+  test <- attr(x, "eyetrackingR")$test
   
+  # if crit-statistic is valid, default plot statistic
+  # if not (boot-splines, wilcox, p-adjust), then default plot neg-log-p.value
+  
+  if (p_adjust_method != "none") {
+    if (is.null(type)) type <- "neg_log_pvalue"
+    if (type == "statistic") message("Cannot compute critical value when p-value adjustment is used.")
+  } else if (test == "boot_splines") {
+    if (is.null(type)) type <- "neg_log_pvalue"
+    if (type == "statistic") message("No critical value for boot-splines test.")
+  } else if (test == "wilcox.test") {
+    if (is.null(type)) type <- "neg_log_pvalue"
+    if (type %in% c("statistic", "estimate")) stop("Can only plot p-values for wilcox test.")
+  } else {
+    if (is.null(type)) type <- "statistic"
+  }
+  
+  type <- match.arg(type, c("statistic", "estimate", "pvalue", "neg_log_pvalue"))
+
   if (type == "statistic") {
     g <- ggplot(data = x) +
       geom_line(mapping = aes(x = Time, y= Statistic)) +
-      ylab("Statistic") +
-      xlab("Time") 
-    if (attr(x, "eyetrackingR")$test != "boot_splines") {
+      ylab("Statistic") 
+    if (p_adjust_method == "none" & test != "boot_splines") {
       g <- g + 
         geom_line(mapping = aes(x = Time, y= CritStatisticPos), linetype="dashed") +
         geom_line(mapping = aes(x = Time, y= CritStatisticNeg), linetype="dashed")
     } 
-    if (length(unique(x$AOI))>1) g <- g + facet_wrap( ~ AOI)
-  } else {
-    g <- ggplot(data = x, mapping = aes(x = Time, y= Estimate)) +
-      geom_line() +
-      geom_ribbon(mapping = aes(ymin = Estimate - StdErr, ymax = Estimate + StdErr), alpha=.33) + 
+  } else if (type == "estimate") {
+    g <- ggplot(data = x) +
+      geom_line(mapping = aes(x = Time, y= Estimate)) +
+      geom_ribbon(mapping = aes(x = Time, ymin = Estimate - StdErr, ymax = Estimate + StdErr), alpha=.33) + 
       geom_hline(yintercept = 0, linetype="dashed") +
-      ylab("Parameter Estimate") +
-      xlab("Time") 
-    if (length(unique(x$AOI))>1) g <- g + facet_wrap( ~ AOI)
+      ylab("Parameter Estimate (+/-Std.Err)") 
+  } else if (type == "pvalue") {
+    alpha <- attr(x, "eyetrackingR")$alpha
+    g <- ggplot(data = x) + 
+      geom_line(mapping = aes(x = Time, y = Prob)) +
+      ylab("P Value") 
+    if (!is.null(alpha)) {
+      g <- g + geom_hline(yintercept = alpha, linetype="dashed")
+    }
+  } else if (type == "neg_log_pvalue") {
+    alpha <- attr(x, "eyetrackingR")$alpha
+    g <- ggplot(data = x) + 
+      geom_line(mapping = aes(x = Time, y = -log(Prob)) ) +
+      ylab("-Log(P Value)") 
+    if (!is.null(alpha)) {
+      g <- g + geom_hline(yintercept = -log(alpha), linetype="dashed")
+    }
   }
-  return(g)
+  if (length(unique(x$AOI))>1) g <- g + facet_grid(. ~ AOI, labeller = "label_both")
+  
+  # Shade significant runs:
+  negative_runs <- data.frame(
+    Start = sapply(attr(x, "eyetrackingR")$negative_runs, function(run) run$start_time),
+    Stop  = sapply(attr(x, "eyetrackingR")$negative_runs, function(run) run$stop_time)
+  )
+  if (nrow(negative_runs)>0) {
+    g <- g + geom_rect(data = negative_runs, fill= "blue", alpha = .20, 
+                       mapping = aes(xmin = Start, xmax = Stop, 
+                                     ymin = -Inf, ymax= Inf))
+  }
+  positive_runs <- data.frame(
+    Start = sapply(attr(x, "eyetrackingR")$positive_runs, function(run) run$start_time),
+    Stop  = sapply(attr(x, "eyetrackingR")$positive_runs, function(run) run$stop_time)
+  )
+  if (nrow(positive_runs)>0) {
+    g <- g +
+      geom_rect(data = positive_runs, fill= "blue", alpha = .20, 
+                mapping = aes(xmin = Start, xmax = Stop, 
+                              ymin = -Inf, ymax= Inf))
+  }
+
+  return(g+xlab("Time"))
 }
+
+#' Plot test-statistic for each time-bin in a time-series, highlight clusters.
+#
+#' Plot time_cluster_data, highlights clusters of above-threshold time-bins.
+#'
+#' @param x The output of \code{make_time_cluster_data}
+#' @param ... Ignored
+#'
+#' @export
+#' @return A ggplot object
+plot.time_cluster_data <- plot.bin_analysis

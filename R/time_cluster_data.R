@@ -538,22 +538,3 @@ plot.cluster_analysis <- function(x, ...) {
     xlab(paste("Distribution of summed statistics from", x$test )) + ylab("Density")
 
 }
-
-#' Plot test-statistic for each time-bin in a time-series, highlight clusters.
-#
-#' Plot time_cluster_data, highlights clusters of above-threshold time-bins.
-#'
-#' @param x The output of \code{make_time_cluster_data}
-#' @param clusters A vector of the clusters you'd like highlighted. If left blank, all are highlighted
-#' @param ... Ignored
-#'
-#' @export
-#' @return A ggplot object
-plot.time_cluster_data <- function(x, clusters = NULL, ...) {
-  attrs <- attr(x, "eyetrackingR")
-  g <- plot(attrs$time_bin_summary)
-
-  # TO DO
-  
-  g
-}
