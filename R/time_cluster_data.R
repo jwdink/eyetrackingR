@@ -345,7 +345,7 @@ make_time_cluster_data <-function(data, ...) {
 #'   intercept or interaction terms not currently supported
 #' @param aoi               If this dataframe has multiple AOIs, you must specify which to analyze
 #' @param test              What type of test should be performed in each time bin? Supports
-#'   \code{t.test}, \code{wilcox}, \code{lm}, or \code{lmer}.
+#'   \code{t.test}, \code{(g)lm}, or \code{(g)lmer}. Does not support \code{wilcox.test}.
 #' @param threshold         Value of statistic used in determining significance. Non-directional (two-tailed).
 #' @param formula           What formula should be used for test? Optional (for all but \code{lmer}), if unset
 #'   uses \code{Prop ~ [predictor_column]}
@@ -411,11 +411,13 @@ make_time_cluster_data.time_sequence_data <- function(data,
   data_options <- attrs$data_options
   dots <- lazyeval::lazy_dots(...)
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
+  if (test == "wilcox.test") stop("The wilcox.test is not supported for cluster-analysis.")
   if (test == "boot_splines") {
     if (is.null(dots$alpha$expr)) stop("Please specify alpha for this test.")
   } else {
     if (is.null(threshold)) stop("Please specify threshold for this test.")
   }
+  
 
   # Filter Data:
   if (is.null(aoi)) {
@@ -537,4 +539,21 @@ plot.cluster_analysis <- function(x, ...) {
     geom_vline(data = df_plot2, aes(xintercept = SumStat, color = Cluster), linetype="dashed", size=1, show_guide = TRUE) +
     xlab(paste("Distribution of summed statistics from", x$test )) + ylab("Density")
 
+}
+
+#' Plot test-statistic for each time-bin in a time-series, highlight clusters.
+#
+#' Plot time_cluster_data, highlights clusters of above-threshold time-bins.
+#'
+#' @param x The output of \code{make_time_cluster_data}
+#' @param type This function can plot the test-statistic ("statistic"), the parameter estimate +/-
+#'   std. error ("estimate"), the p-value ("pvalue") or the negative-log-pvalue ("neg_log_pvalue").
+#'   When test gives critical-statistic, default is to plot the test-statistic. Otherwise, default
+#'   is to plot the estimate. For wilcox, only p-values can be plotted.
+#' @param ... Ignored
+#'
+#' @export
+#' @return A ggplot object
+plot.time_cluster_data <- function(x, type = NULL, ...) {
+  plot(attr(x, "eyetrackingR")$time_bin_summary)
 }

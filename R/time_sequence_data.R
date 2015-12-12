@@ -246,8 +246,10 @@ analyze_time_bins.time_sequence_data <- function(data,
   # Need either alpha or threshold:
   if (!is.null(threshold) & !is.null(alpha)) stop("Please only specify alpha or threshold, not both.")
   if (is.null(threshold) & is.null(alpha)) stop("Please specify either alpha or threshold.")
-  if (test == "boot_splines" & is.null(alpha)) stop("This test requires `alpha` rather than `threshold`.")
-  
+  if (is.null(alpha)) {
+    if (test %in% c('boot_splines', 'wilcox.test')) stop("This test requires `alpha` rather than `threshold`.")
+  }
+
   # Which Test?:
   test <- match.arg(test, c("t.test","wilcox.test","lm","lmer","glm","glmer","boot_splines"))
   if (!requireNamespace("lme4", quietly = TRUE)) {
@@ -391,12 +393,6 @@ analyze_time_bins.time_sequence_data <- function(data,
       }
     }
     
-    # Adjust P-val.
-    df_models_this_param$p.value <- p.adjust(p = df_models_this_param$p.value, method = p_adjust_method)
-    # threshold no longer computable:
-    if (p_adjust_method != "none" & is.null(alpha)) stop("If specifying p-value adjustment, must give alpha, not threshold.") 
-    if (p_adjust_method != 'none') df_models_this_param$CritStatisticNeg <- df_models_this_param$CritStatisticPos <- NA
-
     # Generate Output:
     new_cols <- list(Estimate = quote(estimate), 
                      StdErr = quote(std.error), 
@@ -411,23 +407,8 @@ analyze_time_bins.time_sequence_data <- function(data,
     out$AOI <- unique(data$AOI) # guaranteed to be just one
   
   } else if (test=="boot_splines") {
-    .get_empirical_pdf_overlap <- function(x,y) {
-      if (median(x,na.rm=TRUE) > median(y,na.rm=TRUE)) {
-        return(mean( (x-y)<0, na.rm=TRUE ))
-      } else {
-        return(mean( (x-y)>0, na.rm=TRUE ))
-      }
-    }
-    
-    .get_nonparametric_stat <- function(x,y) {
-      .weighted_iqr <- function(x,y) {
-        iqr_x <- diff(quantile(x, probs = c(.05, .95)))
-        iqr_y <- diff(quantile(x, probs = c(.05, .95)))
-        (iqr_x*length(x) + iqr_y*length(y))/length(c(x,y))
-      }
-      (median(x)-median(y)) / .weighted_iqr(x,y)
-    }
-    
+
+    # arg-check:
     if (is.null( dots$within_subj$expr )) stop("Method 'boot_splines' requires you specify `within_subj`.")
     
     # Make Boot Splines:
@@ -442,44 +423,39 @@ analyze_time_bins.time_sequence_data <- function(data,
     # Get Estimates:
     bs_anal <- analyze_boot_splines(bs_dat)
     
-    # Get Proportion Overlap, Generate Output table:
-    if (eval(dots$within_subj$expr) == FALSE) {
-      out <- bs_dat %>%
-        tidyr::gather_(key_col = "Sample", value_col = "Val", gather_cols = paste0("Sample", 1:samples)) %>%
-        tidyr::spread_(key_col = predictor_column, value_col = "Val")
-      colnames(out)[3:4] <- c('Lvl1','Lvl2')
-      out <- out %>%
-        group_by(Time) %>%
-        summarise(Prob = .get_empirical_pdf_overlap(Lvl1, Lvl2),
-                  Statistic = .get_nonparametric_stat(Lvl1, Lvl2)) %>%
-        ungroup() %>%
-        mutate(Estimate = bs_anal$MeanDiff,
-               StdErr = bs_anal$SE,
-               CritStatisticNeg =  NA, 
-               CritStatisticPos =  NA)
-      out$AOI <- data$AOI[1]
-    } else {
-      out <- bs_dat %>%
-        tidyr::gather_(key_col = "Sample", value_col = "Val", gather_cols = paste0("Sample", 1:samples)) %>%
-        group_by(Time) %>%
-        summarise(Prob = .get_empirical_pdf_overlap(Val, 0),
-                  Statistic = .get_nonparametric_stat(Val, 0)) %>%
-        ungroup() %>%
-        mutate(Estimate = bs_anal$MeanDiff,
-               StdErr = bs_anal$SE,
-               CritStatisticNeg =  NA, 
-               CritStatisticPos =  NA)
-      out$AOI <- data$AOI[1]
-    }
+    out <- select(bs_anal, 
+                  Time, Estimate = MeanDiff, StdErr = SE, Statistic, Significant)
+    out <- mutate(out,
+                  Prob = NA, 
+                  DF = NA,
+                  CritStatisticNeg =  NA, 
+                  CritStatisticPos =  NA,
+                  AOI = data$AOI[1]
+                  
+    )
+    
   }
   
+  # Adjust P-val.
+  if (p_adjust_method != "none") {
+    if (test == "boot_splines") stop("The p_adjust_method must be 'none' for boot-splines test.")
+    if (is.null(alpha)) stop("If specifying p-value adjustment, must give alpha, not threshold.")
+    out$Prob <- p.adjust(p = out$Prob, method = p_adjust_method)
+    out$CritStatisticNeg <- out$CritStatisticPos <- NA
+  }
+
   # Compute Information about Runs:
-  if (is.null(alpha)) {
-    out$PositiveRuns <- .label_consecutive(out$Statistic>out$CritStatisticPos)
-    out$NegativeRuns <- .label_consecutive(out$Statistic<out$CritStatisticNeg)
+  if (test == "boot_splines") {
+    out$PositiveRuns <- .label_consecutive( out$Significant & out$Statistic>0 )
+    out$NegativeRuns <- .label_consecutive( out$Significant & out$Statistic<0 )
   } else {
-    out$PositiveRuns <- .label_consecutive((alpha>out$Prob) & out$Statistic>0)
-    out$NegativeRuns <- .label_consecutive((alpha>out$Prob) & out$Statistic<0)
+    if (is.null(alpha)) {
+      out$PositiveRuns <- .label_consecutive(out$Statistic>out$CritStatisticPos)
+      out$NegativeRuns <- .label_consecutive(out$Statistic<out$CritStatisticNeg)
+    } else {
+      out$PositiveRuns <- .label_consecutive((alpha>out$Prob) & out$Statistic>0)
+      out$NegativeRuns <- .label_consecutive((alpha>out$Prob) & out$Statistic<0)
+    }
   }
   
   positive_runs = lapply(unique(na.omit(out$PositiveRuns)), function(run) {
@@ -672,8 +648,10 @@ plot.time_sequence_data <- function(x, predictor_column = NULL, dv='Prop', model
 #' Plot the result from the \code{analyze_time_bins} function, with the statistic and threshold for each bin
 #' 
 #' @param x The output of \code{analyze_time_bins}
-#' @param type Plot the test-statistic at each time bin ("statistic"), or the parameter estimate at each time
-#'   bin ("estimate")? Note that estimate plots standard error, regardless of the alpha/threshold used originally
+#' @param type This function can plot the test-statistic ("statistic"), the parameter estimate +/-
+#'   std. error ("estimate"), the p-value ("pvalue") or the negative-log-pvalue ("neg_log_pvalue").
+#'   When test gives critical-statistic, default is to plot the test-statistic. Otherwise, default
+#'   is to plot the estimate. For wilcox, only p-values can be plotted.
 #' @param ... Ignored
 #' @export
 #' @return A ggplot object
@@ -683,14 +661,14 @@ plot.bin_analysis <- function(x, type = NULL, ...) {
   test <- attr(x, "eyetrackingR")$test
   
   # if crit-statistic is valid, default plot statistic
-  # if not (boot-splines, wilcox, p-adjust), then default plot neg-log-p.value
+  # if not (boot-splines, wilcox, p-adjust), then default plot estimate
   
   if (p_adjust_method != "none") {
-    if (is.null(type)) type <- "neg_log_pvalue"
+    if (is.null(type)) type <- "estimate"
     if (type == "statistic") message("Cannot compute critical value when p-value adjustment is used.")
   } else if (test == "boot_splines") {
-    if (is.null(type)) type <- "neg_log_pvalue"
-    if (type == "statistic") message("No critical value for boot-splines test.")
+    if (is.null(type)) type <- "estimate"
+    if (type %in% c('pvaue','neg_log_pvalue')) stop("Boot-splines test does not produce p-values.")
   } else if (test == "wilcox.test") {
     if (is.null(type)) type <- "neg_log_pvalue"
     if (type %in% c("statistic", "estimate")) stop("Can only plot p-values for wilcox test.")
@@ -719,7 +697,7 @@ plot.bin_analysis <- function(x, type = NULL, ...) {
     alpha <- attr(x, "eyetrackingR")$alpha
     g <- ggplot(data = x) + 
       geom_line(mapping = aes(x = Time, y = Prob)) +
-      ylab("P Value") 
+      coord_cartesian(ylim=c(0,1)) + ylab("P Value") 
     if (!is.null(alpha)) {
       g <- g + geom_hline(yintercept = alpha, linetype="dashed")
     }
@@ -757,14 +735,3 @@ plot.bin_analysis <- function(x, type = NULL, ...) {
 
   return(g+xlab("Time"))
 }
-
-#' Plot test-statistic for each time-bin in a time-series, highlight clusters.
-#
-#' Plot time_cluster_data, highlights clusters of above-threshold time-bins.
-#'
-#' @param x The output of \code{make_time_cluster_data}
-#' @param ... Ignored
-#'
-#' @export
-#' @return A ggplot object
-plot.time_cluster_data <- plot.bin_analysis

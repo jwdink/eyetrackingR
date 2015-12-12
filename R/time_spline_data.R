@@ -259,6 +259,16 @@ analyze_boot_splines <- function(data) {
 #' @export
 #' @return A dataframe indicating means and CIs for each time-bin
 analyze_boot_splines.boot_splines_data <- function(data) {
+  
+  ## Helpers:
+  .get_nonparametric_stat <- function(x,y) {
+    .weighted_iqr <- function(x,y) {
+      iqr_x <- diff(quantile(x, probs = c(.05, .95)))
+      iqr_y <- diff(quantile(x, probs = c(.05, .95)))
+      (iqr_x*length(x) + iqr_y*length(y))/length(c(x,y))
+    }
+    (median(x)-median(y)) / .weighted_iqr(x,y)
+  }
 
   # make sure there is the proper kind of data frame, and check its attributes
   attrs = attr(data, "eyetrackingR")
@@ -270,38 +280,36 @@ analyze_boot_splines.boot_splines_data <- function(data) {
   low_prob <- .5 - ((1-bootstrap_attr$alpha)/2)
   high_prob <- .5 + ((1-bootstrap_attr$alpha)/2)
 
-  # if it's within subjects, getting the Mean and CI involves only taking the mean and 1.96*SD at each timepoint
   if (bootstrap_attr$within_subj == TRUE) {
-
-    samples = data[, -1]
-
-    bootstrapped_data <- data.frame(
-      Time = data[['Time']],
-      MeanDiff = apply(samples, 1, mean),
-      SE = apply(samples, 1, sd),
-      CI_low = round(apply(samples, 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5),
-      CI_high = round(apply(samples, 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5)
-    )
-
-    bootstrapped_data <- mutate(bootstrapped_data,
-                                Significant = ifelse((CI_high > 0 & CI_low > 0) | (CI_high < 0 & CI_low < 0), TRUE, FALSE))
+    
+    data_gathered <- tidyr::gather_(data,key_col = "Sample", value_col = "Val", 
+                                      gather_cols = paste0("Sample", 1:bootstrap_attr$samples ) )
+    data_summarized <- summarize(.data = group_by(Time, .data = data_gathered),
+                                   MeanDiff = mean(Val, na.rm=TRUE),
+                                   SE = sd(Val, na.rm=TRUE),
+                                   CI_low  = quantile(Val, probs = low_prob, na.rm=TRUE),
+                                   CI_high = quantile(Val, probs = high_prob, na.rm=TRUE),
+                                   Statistic = .get_nonparametric_stat(Val, 0))
+    bootstrapped_data <- mutate(ungroup(data_summarized),
+                                Significant = (CI_high > 0 & CI_low > 0) | (CI_high < 0 & CI_low < 0) )
   }
   else {
-    samples <- bootstrap_attr$samples
     
-    cond_lvls <- levels(data[[bootstrap_attr$predictor_column]])
-    diffs <- data[data[[bootstrap_attr$predictor_column]]==cond_lvls[1],c(-1,-2)] - data[data[[bootstrap_attr$predictor_column]]==cond_lvls[2],c(-1,-2)]
-
-    # calculate means and CIs
-    bootstrapped_data <- data.frame(
-      Time = data$Time[data[[bootstrap_attr$predictor_column]]==cond_lvls[1]],
-      MeanDiff = rowMeans(diffs, na.rm=TRUE),
-      SE = as.vector(apply(diffs, 1, sd, na.rm=TRUE)),
-      CI_low = as.vector(round(apply(diffs, 1, function (x) { quantile(x,probs=low_prob, na.rm=TRUE) }),5)),
-      CI_high = as.vector(round(apply(diffs, 1, function (x) { quantile(x,probs=high_prob, na.rm=TRUE) }),5))
-    )
-
-    bootstrapped_data$Significant <- with(bootstrapped_data, (CI_high > 0 & CI_low > 0) | (CI_high < 0 & CI_low < 0) )
+    # Reshape bs_dat:
+    data_gathered <- tidyr::gather_(data, key_col = "Sample", value_col = "Val", 
+                                      gather_cols = paste0("Sample", 1:bootstrap_attr$samples ))
+    data_spread <- tidyr::spread_(data_gathered, key_col = bootstrap_attr$predictor_column, value_col = "Val")
+    colnames(data_spread)[3:4] <- c('Lvl1','Lvl2')
+    data_spread$Val <- with(data_spread, Lvl1-Lvl2)
+    
+    data_summarized <- summarize(.data = group_by(Time, .data = data_spread),
+                                 MeanDiff = mean(Val, na.rm=TRUE),
+                                 SE = sd(Val, na.rm=TRUE),
+                                 CI_low  = quantile(Val, probs = low_prob, na.rm=TRUE),
+                                 CI_high = quantile(Val, probs = high_prob, na.rm=TRUE),
+                                 Statistic = .get_nonparametric_stat(Lvl1, Lvl2))
+    bootstrapped_data <- mutate(ungroup(data_summarized),
+                                Significant = (CI_high > 0 & CI_low > 0) | (CI_high < 0 & CI_low < 0) )
   }
 
   bootstrapped_data = as.data.frame(bootstrapped_data)
