@@ -4,22 +4,18 @@
 #'
 #' @param vec Logical
 #' @return A numeric vector
-.get_threshold <- function(threshold, alpha, test, dfs, quiet) {
-  if (is.null(threshold)) {
+.get_threshold <- function(alpha, test, dfs, quiet) {
     if (test %in% c("lmer","glmer")) {
       if (!quiet) message("Using the normal approximation for critical value on parameter in ", test)
       crit_pos =  qnorm(p=1-alpha/2)
     } else if (test=="t.test") {
       crit_pos <- qt(1-alpha/2, df = dfs)
     } else if (test=="wilcox.test") {
-      crit_pos <- qsignrank(p = 1-alpha/2, n = dfs+1 )
+      crit_pos <- NA
     } else if (test=="lm" | test=="glm") {
       crit_pos <- qt(1-alpha/2, df = dfs)
     } 
-  } else {
-    crit_pos <- ifelse(sign(threshold)==1,  threshold, -threshold)
-  }
-  crit_pos
+  return(crit_pos)
 }
 
 #' .label_consecutive()

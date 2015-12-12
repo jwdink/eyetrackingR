@@ -240,7 +240,8 @@ analyze_time_bins.time_sequence_data <- function(data,
 
   # Data info:
   data_options <- attr(data, "eyetrackingR")$data_options
-  if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
+  if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: more informative?
+  dots <- lazyeval::lazy_dots(...)
   
   # Need either alpha or threshold:
   if (!is.null(threshold) & !is.null(alpha)) stop("Please only specify alpha or threshold, not both.")
@@ -294,7 +295,6 @@ analyze_time_bins.time_sequence_data <- function(data,
   }
   
   # Run a model for each time-bin
-  dots <- lazyeval::lazy_dots(...)
   if (test!="boot_splines") {
     if (!quiet) message("Computing ", test, " for each time bin...")
     
@@ -326,7 +326,7 @@ analyze_time_bins.time_sequence_data <- function(data,
         colnames(df_err) <- paste0("ErrorMsg", seq_along(res_err_warn$err))
         out <- df_err
       } else {
-        # need to manually extract degrees of freedom for (g)lm.
+        # need to manually extract degrees of freedom for some tests
         # (not needed if func resulted in error)
         if (test %in% c("lm","glm")) out$parameter <- df.residual(res_err_warn$res)
       }
@@ -359,18 +359,24 @@ analyze_time_bins.time_sequence_data <- function(data,
     # Make model specifications the same for all test-types:
     if (test == "t.test") {
       df_models$std.error <- with(df_models, (conf.high-conf.low)/(1.96*2))
+      df_models$estimate <- df_models$estimate1 - df_models$estimate2
     } else if (test %in% c('glmer', 'lmer')) {
       if (!quiet) message("Using the normal approximation for p-value on parameter in ", test,".") 
       df_models$p.value <- with(df_models, 2*pnorm(q = abs(statistic), lower.tail = FALSE))
       df_models$parameter <- NA
+    } else if (test == "wilcox.test") {
+      df_models$statistic <- NA
+      df_models$std.error <- NA
+      df_models$estimate <- NA
+      df_models$parameter <- NA
     }
-    
-    # Adjust P-val.
-    p_adjust_method <- ifelse(is.null(dots$p_adjust_method$expr), "none", dots$p_adjust_method$expr)
-    df_models$p.value <- p.adjust(p = df_models$p.value, method = p_adjust_method)
-    
+
     # Find Critical Value:
-    df_models$CritStatisticPos <- .get_threshold(threshold, alpha, test, df_models$parameter, quiet)
+    if (is.null(threshold)) {
+      df_models$CritStatisticPos <- .get_threshold(alpha, test, df_models$parameter, quiet)
+    } else {
+      df_models$CritStatisticPos <- ifelse(sign(threshold)==1,  threshold, -threshold)
+    }
     df_models$CritStatisticNeg <- -df_models$CritStatisticPos
     
     # Filter Param-of-Interest:
@@ -384,6 +390,13 @@ analyze_time_bins.time_sequence_data <- function(data,
         stop(msg)
       }
     }
+    
+    # Adjust P-val.
+    p_adjust_method <- ifelse(is.null(dots$p_adjust_method$expr), "none", dots$p_adjust_method$expr)
+    df_models_this_param$p.value <- p.adjust(p = df_models_this_param$p.value, method = p_adjust_method)
+    # threshold no longer computable:
+    if (p_adjust_method != "none" & is.null(alpha)) stop("If specifying p-value adjustment, must give alpha, not threshold.") 
+    if (p_adjust_method != 'none') df_models_this_param$CritStatisticNeg <- df_models_this_param$CritStatisticPos <- NA
 
     # Generate Output:
     new_cols <- list(Estimate = quote(estimate), 
@@ -462,12 +475,12 @@ analyze_time_bins.time_sequence_data <- function(data,
   }
   
   # Compute Information about Runs:
-  if (is.null(threshold) | test=="boot_splines") {
-    out$PositiveRuns <- .label_consecutive((alpha>out$Prob) & out$Estimate>0)
-    out$NegativeRuns <- .label_consecutive((alpha>out$Prob) & out$Estimate<0)
-  } else {
+  if (is.null(alpha)) {
     out$PositiveRuns <- .label_consecutive(out$Statistic>out$CritStatisticPos)
     out$NegativeRuns <- .label_consecutive(out$Statistic<out$CritStatisticNeg)
+  } else {
+    out$PositiveRuns <- .label_consecutive((alpha>out$Prob) & out$Statistic>0)
+    out$NegativeRuns <- .label_consecutive((alpha>out$Prob) & out$Statistic<0)
   }
   
   positive_runs = lapply(unique(na.omit(out$PositiveRuns)), function(run) {
@@ -676,7 +689,6 @@ plot.bin_analysis <- function(x, type = "statistic", ...) {
         geom_line(mapping = aes(x = Time, y= CritStatisticPos), linetype="dashed") +
         geom_line(mapping = aes(x = Time, y= CritStatisticNeg), linetype="dashed")
     } 
-    #g <- g + geom_line(size=2, alpha =.25, color = "blue", mapping = aes(x = Time, y = ifelse((Prob < .05), Statistic, NA)))
     if (length(unique(x$AOI))>1) g <- g + facet_wrap( ~ AOI)
   } else {
     g <- ggplot(data = x, mapping = aes(x = Time, y= Estimate)) +
