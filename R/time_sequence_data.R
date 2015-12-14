@@ -681,7 +681,7 @@ plot.bin_analysis <- function(x, type = NULL, ...) {
     if (type == "statistic") message("Cannot compute critical value when p-value adjustment is used.")
   } else if (test == "boot_splines") {
     if (is.null(type)) type <- "estimate"
-    if (type %in% c('pvaue','neg_log_pvalue')) stop("Boot-splines test does not produce p-values.")
+    if (type %in% c('pvalue','neg_log_pvalue')) stop("Boot-splines test does not produce p-values.")
   } else if (test == "wilcox.test") {
     if (is.null(type)) type <- "neg_log_pvalue"
     if (type %in% c("statistic", "estimate")) stop("Can only plot p-values for wilcox test.")

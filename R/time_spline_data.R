@@ -57,6 +57,10 @@ make_boot_splines_data.time_sequence_data <- function (data,
   # get attrs:
   attrs <- attr(data, "eyetrackingR")
   data_options <- attrs$data_options
+  called_from_top <- !isNamespace(topenv(parent.frame(1)))
+  if (called_from_top) {
+    warning("Calling boot-splines from this function is deprecated. Please use `analyze_time_bins` for boot-splines.")
+  }
   
   # check predictor:
   if (!is.factor(data[[predictor_column]])) {
@@ -69,7 +73,9 @@ make_boot_splines_data.time_sequence_data <- function (data,
   if (is.null(summarized_by)) stop("This analysis requires summarized data. ",
                                    "When using the 'make_time_sequence_data' function, please select an argument for 'summarize_by'",
                                    " (e.g., the participant column).")
-
+  if (length(summarized_by)>1) stop("Data should only be summarized by one thing (e.g., participant, item, not both). ",
+                                    "Participant/Item analyses should be run separately.")
+  
   # validate arguments
   if ( length(levels(as.factor(data[[predictor_column]]))) != 2 ) {
     stop('make_boot_splines_data requires a predictor_column with exactly 2 levels.')
@@ -276,6 +282,12 @@ analyze_boot_splines.boot_splines_data <- function(data) {
   data_options = attrs$data_options
   if (is.null(bootstrap_attr)) stop("Dataframe has been corrupted.") # <----- fix later
 
+  called_from_top <- !isNamespace(topenv(parent.frame(1)))
+  if (called_from_top) {
+    warning("Calling boot-splines from this function is deprecated. Please use `analyze_time_bins` for boot-splines.")
+  }
+  
+  
   # adjust CI based on alpha
   low_prob <- .5 - ((1-bootstrap_attr$alpha)/2)
   high_prob <- .5 + ((1-bootstrap_attr$alpha)/2)
