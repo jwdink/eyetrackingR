@@ -268,7 +268,8 @@ analyze_time_bins.time_sequence_data <- function(data,
       if (predictor_column != "AOI") {       # its not the main predictor....
         if (!is.null(formula)) {             # they did specify a formula
           if (!grepl(pattern = 'AOI', x = deparse(formula))) {
-            warning("There are multiple AOIs in your data frame, but your model does not use AOI as a predictor/covariate!")
+            warning("There are multiple AOIs in your data frame, but your model does not use AOI as a predictor/covariate!",
+                    immediate. = TRUE)
           }                                  # the formula has AOI-- no problem
         } else {                             # they did NOT specify a formula
           stop("If multiple AOIs in data, and `aoi` argument not specified, then you must manually specify a formula.")
@@ -362,7 +363,8 @@ analyze_time_bins.time_sequence_data <- function(data,
         message("At least one time-bin produced warnings--be sure to check 'Warning' col in output.")
         for (col in warn_cols) {
           unique_msgs <- unique(as.character(df_models[,col]))
-          if (length(unique_msgs)==1) warning("All time-bins produced same warning: '", unique_msgs, "'")
+          if (length(unique_msgs)==1) warning("All time-bins produced same warning: '", unique_msgs, "'",
+                                              immediate. = TRUE)
         }
       }
       err_cols <- grep("ErrorMsg", colnames(df_models))
@@ -370,7 +372,8 @@ analyze_time_bins.time_sequence_data <- function(data,
         message("At least one time-bin produced errors--be sure to check 'Error' col in output.")
         for (col in err_cols) {
           unique_msgs <- unique(as.character(df_models[,col]))
-          if (length(unique_msgs)==1) warning("All time-bins produced same error: '", unique_msgs, "'")
+          if (length(unique_msgs)==1) warning("All time-bins produced same error: '", unique_msgs, "'",
+                                              immediate. = TRUE)
         }
       }
     }

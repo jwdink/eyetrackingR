@@ -10,26 +10,9 @@
 #' @importFrom lazyeval interp
 #' @import ggplot2
 #' @import dplyr
+#' @import stats
 #' @importFrom tidyr  gather
 #' @importFrom tidyr  spread
-#' @importFrom stats  plogis
-#' @importFrom stats  qlogis
-#' @importFrom stats  rnorm
-#' @importFrom stats  qgamma
-#' @importFrom stats  rbinom
-#' @importFrom stats  rexp
-#' @importFrom stats  rpois
-#' @importFrom stats  as.formula
-#' @importFrom stats  formula
-#' @importFrom stats  median
-#' @importFrom stats  na.omit
-#' @importFrom stats  poly
-#' @importFrom stats  predict
-#' @importFrom stats  qnorm
-#' @importFrom stats  qsignrank
-#' @importFrom stats  qt
-#' @importFrom stats  quantile
-#' @importFrom stats  sd
 #' @importFrom graphics plot
 #'
 #' @docType package

@@ -59,7 +59,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
   data_options <- attrs$data_options
   called_from_top <- !isNamespace(topenv(parent.frame(1)))
   if (called_from_top) {
-    warning("Calling boot-splines from this function is deprecated. Please use `analyze_time_bins` for boot-splines.")
+    .Deprecated(msg = "Calling boot-splines from this function is deprecated. Please use `analyze_time_bins` for boot-splines.")
   }
   
   # check predictor:
@@ -284,7 +284,7 @@ analyze_boot_splines.boot_splines_data <- function(data) {
 
   called_from_top <- !isNamespace(topenv(parent.frame(1)))
   if (called_from_top) {
-    warning("Calling boot-splines from this function is deprecated. Please use `analyze_time_bins` for boot-splines.")
+    .Deprecated(msg = "Calling boot-splines from this function is deprecated. Please use `analyze_time_bins` for boot-splines.")
   }
   
   
