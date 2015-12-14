@@ -36,7 +36,7 @@ response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)',
 df_time_within <- make_time_sequence_data(response_window_clean, 
                                           time_bin_size = 100, 
                                           aois = c("Animate"), 
-                                          predictor_columns = "Target",
+                                          predictor_columns = c("Target","Sex"),
                                           summarize_by = "ParticipantName")
 num_time_bins <- length(unique(df_time_within$TimeBin))
 tb_within <- analyze_time_bins(df_time_within, predictor_column = "Target", test = "t.test", 
@@ -72,7 +72,34 @@ test_that(desc = "The function analyze_time_bins has eyetrackingR attributes and
   expect_equal(length(which(is.na(tb_between_check$NegativeRuns))), 54)
 })
 
+# Interaction Term -----------------------------------------------------------------------------
+tb_interaction1 <- analyze_time_bins(df_time_within, predictor_column = "SexM:TargetInanimate", test = "lmer", alpha=.05,
+                                     formula = Prop ~ Sex*Target + (1|ParticipantName))
+#dput(round(tb_interaction1, 3), file = "tb_output_interaction.txt")
+tb_interaction1_check <- dget(file = "tb_output_interaction.txt")
 
+test_that(desc = "The function analyze_time_bins has correct data (interaction).", code = {
+  expect_true( all(tb_interaction1_check == round(tb_interaction1, 3), na.rm = TRUE) )
+  expect_true( all(is.na(tb_interaction1$PositiveRuns)) ) 
+  expect_true( all(is.na(tb_interaction1$NegativeRuns)) ) 
+})
 
+# Intercept Model -----------------------------------------------------------------------------
+df_time_intercept <- make_time_sequence_data(response_window_clean, 
+                                           time_bin_size = 100, 
+                                           aois = c("Animate"), 
+                                           predictor_columns = c("Sex","Target"),
+                                           summarize_by = "Trial")
+tb_intercept <- analyze_time_bins(df_time_intercept, predictor_column = "(Intercept)", test = "lmer", alpha=.05,
+                                  aoi = "Animate",
+                                  formula = Prop ~ Sex*Target + (1|Trial))
 
-
+# AOI as Predictor
+df_time_maoi <- make_time_sequence_data(response_window_clean, 
+                        time_bin_size = 100, 
+                        aois = c("Animate","Inanimate"), 
+                        predictor_columns = c("Sex","Target"),
+                        summarize_by = "Trial")
+tb_maoi <- make_time_cluster_data(df_time_maoi, predictor_column = "(Intercept)", test = "lmer", threshold=2,
+                       formula = Prop ~ AOI + (1|Trial))
+summary(tb_maoi)

@@ -64,7 +64,7 @@ response_window <- subset_by_window(data, window_start_time = 15500, window_end_
 response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
                                          predictor_columns = "Sex")
 
-time_cluster_data <- make_time_cluster_data(data = response_time, predictor_column = "Sex", 
+time_cluster_data <- make_time_cluster_data(data = response_time, predictor_column = "SexM", 
                          aoi = "Animate", test = "lmer", 
                          threshold = 1.5, 
                          formula = LogitAdjusted ~ Sex + (1|Trial) + (1|ParticipantName))

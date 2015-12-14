@@ -183,6 +183,9 @@ analyze_time_bins = function(data, ...) {
 #'   \code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Support for some of the 
 #' @param threshold         Value of statistic used in determining significance
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given
+#' @param aoi               Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
+#'                          then AOI should be a predictor/covariate in your model (so `formula` needs 
+#'                          to be specified).
 #' @param formula           What formula should be used for the test? Optional for all but
 #'   \code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.
 #' @param p_adjust_method   Method to adjust p.values for multiple corrections (default="none"). 
@@ -215,6 +218,7 @@ analyze_time_bins.time_sequence_data <- function(data,
                               test,
                               threshold = NULL,
                               alpha = NULL,
+                              aoi = NULL,
                               formula = NULL,
                               p_adjust_method = "none",
                               quiet = FALSE,
@@ -256,23 +260,25 @@ analyze_time_bins.time_sequence_data <- function(data,
     if (test %in% c("lmer","glmer")) stop("Please install the 'lme4' package to use this method.")
   }
 
-  # For Multiple aois:
+  # Multiple aois:
   if (!'AOI' %in% colnames(data)) stop("'AOI' column is missing from data.")
   aois <- unique(data[['AOI']])
-  if ( length(aois) > 1 ) {
-    list_of_dfs <- lapply(X = aois, FUN = function(this_aoi) {
-      if (!quiet) message("Analyzing ", this_aoi, "...")
-      this_df <- filter(data, AOI == this_aoi)
-      class(this_df) = class(data)
-      analyze_time_bins(data = this_df, predictor_column=predictor_column, test=test, 
-        threshold=threshold, alpha=alpha, formula=formula, return_model=return_model, quiet = quiet, ... = ...)
-    })
-    out <- bind_rows(list_of_dfs)
-    out <- as.data.frame(out)
-    class(out) = c('bin_analysis', class(out))
-    attr(out,"eyetrackingR") <- list(formula= formula)
-    return( out )
-  }
+  if ( length(aois) > 1 ) {                  # DF has more than one AOI...
+    if (is.null(aoi)) {                      # they haven't specified which is of interest
+      if (predictor_column != "AOI") {       # its not the main predictor....
+        if (!is.null(formula)) {             # they did specify a formula
+          if (!grepl(pattern = 'AOI', x = deparse(formula))) {
+            warning("There are multiple AOIs in your data frame, but your model does not use AOI as a predictor/covariate!")
+          }                                  # the formula has AOI-- no problem
+        } else {                             # they did NOT specify a formula
+          stop("If multiple AOIs in data, and `aoi` argument not specified, then you must manually specify a formula.")
+        } 
+      }                                      # predictor column *was* AOI-- no problem.
+    } else {                                 # they *did* specify which AOI is of interest
+      data <- filter(data, AOI == aoi)
+      if (nrow(data)==0) stop("AOI not found in data.")
+    }
+  } 
 
   # Check that data is collapsed (by e.g. participants):
   if (!test %in% c("lmer","glmer")) {
@@ -346,15 +352,26 @@ analyze_time_bins.time_sequence_data <- function(data,
     # Run models:
     df_models <- data %>%
       group_by(Time) %>%
-      do(the_test(formula = formula, data = ., ... = ...))
+      do(the_test(formula = formula, data = ., ... = ...)) %>%
+      as.data.frame()
     
     # Warn about warnings
     if (!quiet) {
-      if ( any(grepl("WarningMsg", colnames(df_models))) ) {
+      warn_cols <- grep("WarningMsg", colnames(df_models))
+      if ( length(warn_cols)>0 ) {
         message("At least one time-bin produced warnings--be sure to check 'Warning' col in output.")
+        for (col in warn_cols) {
+          unique_msgs <- unique(as.character(df_models[,col]))
+          if (length(unique_msgs)==1) warning("All time-bins produced same warning: '", unique_msgs, "'")
+        }
       }
-      if ( any(grepl("ErrorMsg", colnames(df_models))) ) {
+      err_cols <- grep("ErrorMsg", colnames(df_models))
+      if ( length(err_cols)>0 ) {
         message("At least one time-bin produced errors--be sure to check 'Error' col in output.")
+        for (col in err_cols) {
+          unique_msgs <- unique(as.character(df_models[,col]))
+          if (length(unique_msgs)==1) warning("All time-bins produced same error: '", unique_msgs, "'")
+        }
       }
     }
     
@@ -404,8 +421,7 @@ analyze_time_bins.time_sequence_data <- function(data,
     new_cols <- append(new_cols, grep("WarningMsg", colnames(df_models), value = TRUE))
     new_cols <- append(new_cols, grep("ErrorMsg", colnames(df_models), value = TRUE))
     out <- select_(.data = df_models_this_param, .dots = new_cols)
-    out$AOI <- unique(data$AOI) # guaranteed to be just one
-  
+
   } else if (test=="boot_splines") {
 
     # arg-check:
@@ -429,10 +445,7 @@ analyze_time_bins.time_sequence_data <- function(data,
                   Prob = NA, 
                   DF = NA,
                   CritStatisticNeg =  NA, 
-                  CritStatisticPos =  NA,
-                  AOI = data$AOI[1]
-                  
-    )
+                  CritStatisticPos =  NA)
     
   }
   

@@ -8,7 +8,7 @@
 analyze_time_bins(data, ...)
 
 \method{analyze_time_bins}{time_sequence_data}(data, predictor_column, test,
-  threshold = NULL, alpha = NULL, formula = NULL,
+  threshold = NULL, alpha = NULL, aoi = NULL, formula = NULL,
   p_adjust_method = "none", quiet = FALSE, ...)
 }
 \arguments{
@@ -27,6 +27,10 @@ Interaction terms are not currently supported.}
 \item{threshold}{Value of statistic used in determining significance}
 
 \item{alpha}{Alpha value for determining significance, ignored if threshold is given}
+
+\item{aoi}{Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
+then AOI should be a predictor/covariate in your model (so `formula` needs 
+to be specified).}
 
 \item{formula}{What formula should be used for the test? Optional for all but
 \code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.}
