@@ -34,10 +34,14 @@ intervals per second, or hundredths of a second. Default is the same size as tim
 A bootstrapped distribution of samples for each time-bin
 }
 \description{
-This function takes proportion-looking data over-time (from \code{time_sequence_data()}), fits 
-smoothing splines to this data, then bootstrap-resampes these splines to create a distribution.
-This distribution can be used by \code{analyze_boot_splines} to test when divergences between two
-conditions occur.
+Deprecated. Performing this analysis should be done by calling \code{analyze_time_bins(test="boot_splines")}.
+}
+\details{
+This method builds confidence intervals around proportion-looking data by bootstrap resampling.
+Data can be smoothed by fitting smoothing splines. This function performs the bootstrap resampling,
+\code{analyze_boot_splines} generates confidence intervals and tests for divergences.
+
+Limited to statistical test between two conditions.
 }
 \section{Methods (by class)}{
 \itemize{

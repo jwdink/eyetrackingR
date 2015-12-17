@@ -22,7 +22,8 @@ interested in a predictor, but the intercept, you can enter "intercept" for this
 Interaction terms are not currently supported.}
 
 \item{test}{What type of test should be performed in each time bin? Supports 
-\code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Support for some of the}
+\code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes experimental
+support for boot-splines.}
 
 \item{threshold}{Value of statistic used in determining significance}
 
@@ -33,7 +34,7 @@ then AOI should be a predictor/covariate in your model (so `formula` needs
 to be specified).}
 
 \item{formula}{What formula should be used for the test? Optional for all but
-\code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.}
+\code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this if you want to use a custom DV.}
 
 \item{p_adjust_method}{Method to adjust p.values for multiple corrections (default="none"). 
 See \code{p.adjust.methods}.}
@@ -44,9 +45,11 @@ See \code{p.adjust.methods}.}
 A dataframe indicating the results of the test at each time-bin.
 }
 \description{
-Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
-\code{lmer}. By default, uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed by manually specifying the formula.
-Results can be plotted to see how test-results or parameters estimates vary over time.
+Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test},
+\code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes experimental support for
+boot-splines. By default, uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
+by manually specifying the formula. Results can be plotted to see how test-results or parameters
+estimates vary over time. P-values can be adjusted for multiple comparisons with \code{p_adjust_method}.
 }
 \section{Methods (by class)}{
 \itemize{

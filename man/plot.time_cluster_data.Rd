@@ -13,7 +13,8 @@ Plot time_cluster_data, highlights clusters of above-threshold time-bins.}
 \item{type}{This function can plot the test-statistic ("statistic"), the parameter estimate +/-
 std. error ("estimate"), the p-value ("pvalue") or the negative-log-pvalue ("neg_log_pvalue").
 When test gives critical-statistic, default is to plot the test-statistic. Otherwise, default
-is to plot the estimate. For wilcox, only p-values can be plotted.}
+is to plot the estimate. For wilcox, only p-values can be plotted; for boot-splines, p-values 
+cannot be plotted.}
 
 \item{...}{Ignored}
 }

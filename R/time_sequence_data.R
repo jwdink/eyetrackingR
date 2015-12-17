@@ -165,9 +165,11 @@ make_time_sequence_data <- function (data,
 
 #' analyze_time_bins()
 #'
-#' Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
-#' \code{lmer}. By default, uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed by manually specifying the formula.
-#' Results can be plotted to see how test-results or parameters estimates vary over time.
+#' Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test},
+#' \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes experimental support for
+#' boot-splines. By default, uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
+#' by manually specifying the formula. Results can be plotted to see how test-results or parameters
+#' estimates vary over time. P-values can be adjusted for multiple comparisons with \code{p_adjust_method}.
 #' 
 #' @export
 analyze_time_bins = function(data, ...) {
@@ -180,14 +182,15 @@ analyze_time_bins = function(data, ...) {
 #'   interested in a predictor, but the intercept, you can enter "intercept" for this argument.
 #'   Interaction terms are not currently supported.
 #' @param test              What type of test should be performed in each time bin? Supports 
-#'   \code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Support for some of the 
+#'   \code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes experimental
+#'   support for boot-splines.
 #' @param threshold         Value of statistic used in determining significance
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given
 #' @param aoi               Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
 #'                          then AOI should be a predictor/covariate in your model (so `formula` needs 
 #'                          to be specified).
 #' @param formula           What formula should be used for the test? Optional for all but
-#'   \code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.
+#'   \code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this if you want to use a custom DV.
 #' @param p_adjust_method   Method to adjust p.values for multiple corrections (default="none"). 
 #'                          See \code{p.adjust.methods}.
 #' @param quiet             Should messages and progress bars be suppressed? Default is to show
@@ -262,8 +265,8 @@ analyze_time_bins.time_sequence_data <- function(data,
 
   # Multiple aois:
   if (!'AOI' %in% colnames(data)) stop("'AOI' column is missing from data.")
-  aois <- unique(data[['AOI']])
-  if ( length(aois) > 1 ) {                  # DF has more than one AOI...
+  unique_aois <- unique(data[['AOI']])
+  if ( length(unique_aois) > 1 ) {           # DF has more than one AOI...
     if (is.null(aoi)) {                      # they haven't specified which is of interest
       if (predictor_column != "AOI") {       # its not the main predictor....
         if (!is.null(formula)) {             # they did specify a formula
@@ -363,8 +366,7 @@ analyze_time_bins.time_sequence_data <- function(data,
         message("At least one time-bin produced warnings--be sure to check 'Warning' col in output.")
         for (col in warn_cols) {
           unique_msgs <- unique(as.character(df_models[,col]))
-          if (length(unique_msgs)==1) warning("All time-bins produced same warning: '", unique_msgs, "'",
-                                              immediate. = TRUE)
+          if (length(unique_msgs)==1) cat("\nWarning: All time-bins produced same warning: '", unique_msgs, "'")
         }
       }
       err_cols <- grep("ErrorMsg", colnames(df_models))
@@ -372,8 +374,7 @@ analyze_time_bins.time_sequence_data <- function(data,
         message("At least one time-bin produced errors--be sure to check 'Error' col in output.")
         for (col in err_cols) {
           unique_msgs <- unique(as.character(df_models[,col]))
-          if (length(unique_msgs)==1) warning("All time-bins produced same error: '", unique_msgs, "'",
-                                              immediate. = TRUE)
+          if (length(unique_msgs)==1) cat("\nWarning: All time-bins produced same error: '", unique_msgs, "'")
         }
       }
     }
@@ -433,7 +434,7 @@ analyze_time_bins.time_sequence_data <- function(data,
     # Make Boot Splines:
     samples <- eval(dots$samples$expr)
     samples <- ifelse(is.null(samples), 1000, samples)
-    the_args <- list(data = data, predictor_column = predictor_column, aoi = aois)
+    the_args <- list(data = data, predictor_column = predictor_column, aoi = aoi, alpha = alpha)
     for (this_arg in names(dots)) {
       the_args[[this_arg]] <- dots[[this_arg]]$expr
     }
@@ -518,7 +519,7 @@ summary.bin_analysis <- function(object, ...) {
   df_neg <- bind_rows(lapply(attrs$negative_runs, as.data.frame))
   
   p1 <- paste("Test Type:\t", attrs$test,
-              "\nPredictor:\t", attrs$predictor_column,
+              "\nPredictor:\t", attrs$predictor,
               "\nFormula:\t", Reduce(paste, deparse(attrs$formula)),
               "\nRuns of Significant Time Bins:")
   if (length(positive_runs) > 0) {

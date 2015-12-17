@@ -1,7 +1,7 @@
 #' Bootstrap analysis of time-clusters.
 #'
-#' Takes data whose time bins have been clustered by significance (using the \code{make_time_cluster_data}
-#' function) and performs a bootstrapping analyses (Maris & Oostenveld, 2007). This analysis takes a summed
+#' Takes data whose time bins have been clustered by test-statistic (using the \code{make_time_cluster_data}
+#' function) and performs a permutation test (Maris & Oostenveld, 2007). This analysis takes a summed
 #' statistic for each cluster, and compares it to the "null" distribution of sum statistics obtained by
 #' shuffling/resampling the data and extracting the largest cluster from each resample.
 #' @export
@@ -15,16 +15,18 @@ analyze_time_clusters <-function(data, ...) {
 #' @param samples       How many iterations should be performed in the bootstrap resampling procedure?
 #' @param formula       Formula for test. Should be identical to that passed to make_time_cluster_data fxn (if
 #'   arg ignored there, can be ignored here)
-#' @param shuffle_by    If the predictor_column is numeric *and* within-subjects, then observations with the
-#'   same predictor value could nevertheless correspond to distinct conditions/categories that should be
-#'   shuffled separately. For example, when using vocabulary scores to predict looking behavior, a participant
-#'   might get identical vocab scores for verbs and nouns; these are nevertheless distinct categories that
-#'   should be re-assigned separately when bootstrap-resampling data. The 'shuffle_by' argument allows you to
-#'   specify a column which indicates these kinds of distinct categories that should be resampled separately--
+#' @param shuffle_by    Along which attribute should the data be resampled? Default is the predictor
+#'   column. But if the predictor_column is numeric *and* within-subjects, then observations with the 
+#'   same predictor value could nevertheless correspond to distinct conditions/categories that
+#'   should be shuffled separately. For example, when using vocabulary scores to predict looking
+#'   behavior, a participant might get identical vocab scores for verbs and nouns; these are
+#'   nevertheless distinct categories that should be re-assigned separately when
+#'   bootstrap-resampling data. The 'shuffle_by' argument allows you to specify a column which
+#'   indicates these kinds of distinct categories that should be resampled separately--
 #'   but it's only needed if you've specified a numeric *and* within-subjects predictor column.
 #' @param parallel      Use foreach for speed boost? By default off. May not work on Windows.
-#' @param quiet         Display progress bar? Ignored when parallel=TRUE.
-#' @param ...            Other args for to selected 'test' function; should be identical to those passed to
+#' @param quiet         Display progress bar/messages? No progress bar when parallel=TRUE.
+#' @param ...           Other args for to selected 'test' function; should be identical to those passed to
 #'   \code{make_time_cluster_data} function
 #'   
 #' @examples 
@@ -333,7 +335,7 @@ print.cluster_analysis <- function(x, ...) {
 #' Make data for cluster analysis.
 #'
 #' Takes data that has been summarized into time-bins by \code{make_time_sequence_data()}, finds adjacent time
-#' bins that pass some threshold of significance, and assigns these adjacent bins into groups (clusters).
+#' bins that pass some test-statistic threshold, and assigns these adjacent bins into groups (clusters).
 #' Output is ready for a cluster permutation-based analyses (Maris & Oostenveld, 2007)
 #' @export
 make_time_cluster_data <-function(data, ...) {
@@ -341,15 +343,15 @@ make_time_cluster_data <-function(data, ...) {
 }
 #' @describeIn make_time_cluster_data Make data for time cluster analysis
 #' @param data   The output of the \code{make_time_sequence_data} function
-#' @param predictor_column  The variable whose test statistic you are interested in. Testing the
-#'   intercept or interaction terms not currently supported
+#' @param predictor_column  The variable whose test statistic you are interested in. 
 #' @param aoi               Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
 #'                          then AOI should be a predictor/covariate in your model (so `formula` needs 
 #'                          to be specified).
 #' @param test              What type of test should be performed in each time bin? Supports
-#'   \code{t.test}, \code{(g)lm}, or \code{(g)lmer}. Does not support \code{wilcox.test}.
-#' @param threshold         Value of statistic used in determining significance. Non-directional (two-tailed).
-#' @param formula           What formula should be used for test? Optional (for all but \code{lmer}), if unset
+#'   \code{t.test}, \code{(g)lm}, or \code{(g)lmer}.Also includes experimental support for the boot-splines method. 
+#'                          Does not support \code{wilcox.test}. 
+#' @param threshold         Time-bins with test-statistics greater than this amount will be grouped into clusters. 
+#' @param formula           What formula should be used for test? Optional (for all but \code{(g)lmer}), if unset
 #'   uses \code{Prop ~ [predictor_column]}
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
 #'   var.equal, etc.)
@@ -415,7 +417,7 @@ make_time_cluster_data.time_sequence_data <- function(data,
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   if (test == "wilcox.test") stop("The wilcox.test is not supported for cluster-analysis.")
   if (test == "boot_splines") {
-    if (is.null(dots$alpha$expr)) stop("Please specify alpha for this test.")
+    if (is.null(dots$alpha$expr)) stop("For boot_splines test, please specify alpha instead of threshold.")
   } else {
     if (is.null(threshold)) stop("Please specify threshold for this test.")
   }
@@ -438,8 +440,9 @@ make_time_cluster_data.time_sequence_data <- function(data,
   for (this_arg in names(dots)) {
     the_args[[this_arg]] <- dots[[this_arg]]$expr
   }
-  time_bin_summary <- do.call(analyze_time_bins, the_args) %>%
-    rename(ClusterPos = PositiveRuns, ClusterNeg = NegativeRuns)
+  analyze_time_bins(data, predictor_column, test, threshold, dots$alpha$expr, aoi = aoi, formula = formula)
+  time_bin_summary <- do.call(analyze_time_bins, the_args) 
+  time_bin_summary <- rename(time_bin_summary, ClusterPos = PositiveRuns, ClusterNeg = NegativeRuns)
   formula <- attr(time_bin_summary, "eyetrackingR")$formula
 
   # Compute Sum Statistic for each Positive Cluster
@@ -548,7 +551,8 @@ plot.cluster_analysis <- function(x, ...) {
 #' @param type This function can plot the test-statistic ("statistic"), the parameter estimate +/-
 #'   std. error ("estimate"), the p-value ("pvalue") or the negative-log-pvalue ("neg_log_pvalue").
 #'   When test gives critical-statistic, default is to plot the test-statistic. Otherwise, default
-#'   is to plot the estimate. For wilcox, only p-values can be plotted.
+#'   is to plot the estimate. For wilcox, only p-values can be plotted; for boot-splines, p-values 
+#'   cannot be plotted.
 #' @param ... Ignored
 #'
 #' @export

@@ -16,9 +16,12 @@ analyze_boot_splines(data)
 A dataframe indicating means and CIs for each time-bin
 }
 \description{
+Deprecated. Performing this analysis should be done by calling \code{analyze_time_bins(test="boot_splines")}.
+}
+\details{
 Estimates a confidence interval over the difference between means (within- or between-subjects)
-from a \code{boot_splines_data} object. Confidence intervals are derived from the alpha
-used to shape the dataset (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
+from \code{boot_splines_data}. Confidence intervals are derived from the alpha argument in 
+\code{boot_splines_data} (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
 }
 \section{Methods (by class)}{
 \itemize{

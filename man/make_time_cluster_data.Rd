@@ -16,19 +16,19 @@ make_time_cluster_data(data, ...)
 \item{...}{Any other arguments to be passed to the selected 'test' function (e.g., paired,
 var.equal, etc.)}
 
-\item{predictor_column}{The variable whose test statistic you are interested in. Testing the
-intercept or interaction terms not currently supported}
+\item{predictor_column}{The variable whose test statistic you are interested in.}
 
 \item{aoi}{Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
 then AOI should be a predictor/covariate in your model (so `formula` needs 
 to be specified).}
 
 \item{test}{What type of test should be performed in each time bin? Supports
-\code{t.test}, \code{(g)lm}, or \code{(g)lmer}. Does not support \code{wilcox.test}.}
+\code{t.test}, \code{(g)lm}, or \code{(g)lmer}.Also includes experimental support for the boot-splines method. 
+                       Does not support \code{wilcox.test}.}
 
-\item{threshold}{Value of statistic used in determining significance. Non-directional (two-tailed).}
+\item{threshold}{Time-bins with test-statistics greater than this amount will be grouped into clusters.}
 
-\item{formula}{What formula should be used for test? Optional (for all but \code{lmer}), if unset
+\item{formula}{What formula should be used for test? Optional (for all but \code{(g)lmer}), if unset
 uses \code{Prop ~ [predictor_column]}}
 }
 \value{
@@ -37,7 +37,7 @@ The original data, augmented with information about clusters. Calling summary on
 }
 \description{
 Takes data that has been summarized into time-bins by \code{make_time_sequence_data()}, finds adjacent time
-bins that pass some threshold of significance, and assigns these adjacent bins into groups (clusters).
+bins that pass some test-statistic threshold, and assigns these adjacent bins into groups (clusters).
 Output is ready for a cluster permutation-based analyses (Maris & Oostenveld, 2007)
 }
 \section{Methods (by class)}{

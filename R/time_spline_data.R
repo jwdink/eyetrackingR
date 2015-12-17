@@ -1,9 +1,13 @@
 #' Bootstrap resample splines for time-series data.
 #'
-#' This function takes proportion-looking data over-time (from \code{time_sequence_data()}), fits 
-#' smoothing splines to this data, then bootstrap-resampes these splines to create a distribution.
-#' This distribution can be used by \code{analyze_boot_splines} to test when divergences between two
-#' conditions occur.
+#' Deprecated. Performing this analysis should be done by calling \code{analyze_time_bins(test="boot_splines")}. 
+#' 
+#' This method builds confidence intervals around proportion-looking data by bootstrap resampling.
+#' Data can be smoothed by fitting smoothing splines. This function performs the bootstrap resampling,
+#' \code{analyze_boot_splines} generates confidence intervals and tests for divergences.
+#' 
+#' Limited to statistical test between two conditions.
+#' 
 #' @export
 make_boot_splines_data = function(data, predictor_column, within_subj, aoi,smoother, samples, resolution, alpha) {
   UseMethod("make_boot_splines_data")
@@ -222,10 +226,12 @@ make_boot_splines_data.time_sequence_data <- function (data,
 }
 
 #' Estimate confidence intervals for bootstrapped splines data
+#' 
+#' Deprecated. Performing this analysis should be done by calling \code{analyze_time_bins(test="boot_splines")}. 
 #'
 #' Estimates a confidence interval over the difference between means (within- or between-subjects)
-#' from a \code{boot_splines_data} object. Confidence intervals are derived from the alpha
-#' used to shape the dataset (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
+#' from \code{boot_splines_data}. Confidence intervals are derived from the alpha argument in 
+#' \code{boot_splines_data} (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
 #' @export
 analyze_boot_splines <- function(data) {
   UseMethod("analyze_boot_splines")
@@ -307,7 +313,6 @@ analyze_boot_splines.boot_splines_data <- function(data) {
   }
   else {
     
-    # Reshape bs_dat:
     data_gathered <- tidyr::gather_(data, key_col = "Sample", value_col = "Val", 
                                       gather_cols = paste0("Sample", 1:bootstrap_attr$samples ))
     data_spread <- tidyr::spread_(data_gathered, key_col = bootstrap_attr$predictor_column, value_col = "Val")
