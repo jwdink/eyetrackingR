@@ -5,12 +5,16 @@
 \title{Plot test-statistic for each time-bin in a time-series, highlight clusters.
 Plot time_cluster_data, highlights clusters of above-threshold time-bins.}
 \usage{
-\method{plot}{time_cluster_data}(x, clusters = NULL, ...)
+\method{plot}{time_cluster_data}(x, type = NULL, ...)
 }
 \arguments{
 \item{x}{The output of \code{make_time_cluster_data}}
 
-\item{clusters}{A vector of the clusters you'd like highlighted. If left blank, all are highlighted}
+\item{type}{This function can plot the test-statistic ("statistic"), the parameter estimate +/-
+std. error ("estimate"), the p-value ("pvalue") or the negative-log-pvalue ("neg_log_pvalue").
+When test gives critical-statistic, default is to plot the test-statistic. Otherwise, default
+is to plot the estimate. For wilcox, only p-values can be plotted; for boot-splines, p-values 
+cannot be plotted.}
 
 \item{...}{Ignored}
 }

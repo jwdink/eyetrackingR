@@ -4,13 +4,15 @@
 \alias{plot.bin_analysis}
 \title{Plot test-statistic for each time-bin in a time-series}
 \usage{
-\method{plot}{bin_analysis}(x, type = "statistic", ...)
+\method{plot}{bin_analysis}(x, type = NULL, ...)
 }
 \arguments{
 \item{x}{The output of \code{analyze_time_bins}}
 
-\item{type}{Plot the test-statistic at each time bin ("statistic"), or the parameter estimate at each time
-bin ("estimate")? Note that estimate plots standard error, regardless of the alpha/threshold used originally}
+\item{type}{This function can plot the test-statistic ("statistic"), the parameter estimate +/-
+std. error ("estimate"), the p-value ("pvalue") or the negative-log-pvalue ("neg_log_pvalue").
+When test gives critical-statistic, default is to plot the test-statistic. Otherwise, default
+is to plot the estimate. For wilcox, only p-values can be plotted.}
 
 \item{...}{Ignored}
 }

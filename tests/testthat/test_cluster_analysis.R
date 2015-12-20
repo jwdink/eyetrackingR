@@ -1,6 +1,15 @@
 library("eyetrackingR")
 context("Time Cluster Analysis")
 
+round.data.frame <- function(df, digits = 0) {
+  for (col in colnames(df)) {
+    if (is.numeric(df[[col]])) {
+      df[[col]] <- round(x = df[[col]], digits = digits)
+    }
+  }
+  df
+}
+
 data("word_recognition")
 data <- make_eyetrackingr_data(word_recognition, 
                                participant_column = "ParticipantName",
@@ -32,9 +41,12 @@ response_time_by_ppt <- make_time_sequence_data(response_window_clean, time_bin_
                                          summarize_by = "ParticipantName")
 tclust_data_lm <- make_time_cluster_data(data = response_time_by_ppt, predictor_column = "MCDI_Verbs", test = "lm", 
                        threshold = -2, formula = Prop ~  MCDI_Verbs + MCDI_Nouns)
+#dput(x = round(tclust_data_lm, 3), file = "clust_dat_output_lm.txt")
+tclust_data_lm_check <- dget("clust_dat_output_lm.txt")
+
 test_that(desc = "The function make_time_cluster_data gives necessary eyetrackingR attributes with lm", code = {
+  expect_true( all(round(tclust_data_lm,3)==tclust_data_lm_check, na.rm=TRUE) )
   expect_true( all(class(tclust_data_lm) %in% c("time_cluster_data", "time_sequence_data", "data.frame")) )
-  expect_equal( nrow(tclust_data_lm), 1485 )
   expect_false( is.null( attr(tclust_data_lm,"eyetrackingR") ) )
   expect_equal( ncol(attr(tclust_data_lm, "eyetrackingR")$clusters), 5 )
   expect_equal( nrow(attr(tclust_data_lm, "eyetrackingR")$clusters), 1 )
@@ -52,7 +64,7 @@ response_time <- make_time_sequence_data(response_window_clean, time_bin_size = 
                                                 aois = "Animate",
                                                 predictor_columns = c("Age","Target"))
 
-tclust_data_lmer <- make_time_cluster_data(data = response_time, 
+tclust_data_lmer <- make_time_cluster_data(data = response_time,
                                            predictor_column = "Age", 
                                            test = "lmer", 
                                            threshold = 2, 
@@ -64,10 +76,11 @@ test_that(desc = "The function make_time_cluster_data gives necessary eyetrackin
   expect_equal( nrow(attr(tclust_data_lmer, "eyetrackingR")$clusters), 2 )
   expect_equal( ncol(attr(tclust_data_lmer, "eyetrackingR")$clusters), 5 )
 })
+tclust_anal_lmer <- analyze_time_clusters(tclust_data_lmer, within_subj = FALSE, samples = 10)
 
-# Cluster Analysis 3: t.test
+# Cluster Analysis 3: t.test, var.equal, between
 tclust_data_ttest <- make_time_cluster_data(data = response_time_by_ppt, predictor_column = "Sex", test = "t.test", 
-                                         threshold = -1.5)
+                                         var.equal=TRUE, threshold = -1.5)
 test_that(desc = "The function make_time_cluster_data gives necessary eyetrackingR attributes with t.test", code = {
   expect_true( all(class(tclust_data_ttest) %in% c("time_cluster_data", "time_sequence_data", "data.frame")) )
   expect_equal( nrow(tclust_data_ttest), 1485 )
@@ -76,43 +89,18 @@ test_that(desc = "The function make_time_cluster_data gives necessary eyetrackin
   expect_equal( ncol(attr(tclust_data_ttest, "eyetrackingR")$clusters), 5 )
 })
 
-tclust_analysis_ttest <- analyze_time_clusters(tclust_data_ttest, within_subj = FALSE, samples = 10)
+tclust_analysis_ttest <- analyze_time_clusters(tclust_data_ttest, within_subj = FALSE, samples = 10, var.equal=TRUE)
 test_that(desc = "The function analyze_time_clusters gives necessary eyetrackingR class with lm", code = {
   expect_true( all(class(tclust_analysis_ttest) %in% c("cluster_analysis")) )
   expect_equal( length( attr(tclust_analysis_ttest$time_bin_summary, "eyetrackingR")$negative_runs ), 2 )
 })
 
-
-# Cluster Analysis 4: wilcox.test (checking returned errors and warnings)
-# temp_make_time_cluster_data <- .make_function_fail_informatively(make_time_cluster_data)
-# 
-# result1 <- temp_make_time_cluster_data(data = response_time_by_ppt, formula = Prop ~ Target,
-#                                             predictor_column = "Target", test = "wilcox.test", 
-#                                             threshold = 150)
-# the_errors <- result1$warn
-# test_that(desc = "The function make_time_cluster_data gives errors in readable format", code = {
-#   expect_true( grepl("object 'Target' not found", the_errors) )
-# })
-
-# response_time_by_ppt2 <- make_time_sequence_data(response_window_clean, time_bin_size = 100, 
-#                                                 aois = "Animate",
-#                                                 predictor_columns = c("Target"),
-#                                                 summarize_by = "ParticipantName")
-# result2 <- temp_make_time_cluster_data(data = response_time_by_ppt2, paired=TRUE,
-#                                        predictor_column = "Target", test = "wilcox.test", 
-#                                        threshold = 150)
-# the_warnings <- result2$warn
-# test_that(desc = "The function make_time_cluster_data gives warnings in readable format", code = {
-#   expect_true( all(grepl("cannot compute exact p-value", the_warnings)) )
-# })
-# 
-# tclust_data_wilcox <- result2[[1]]
-# 
-# tclust_analysis_wilcox <- suppressWarnings(analyze_time_clusters(tclust_data_wilcox, within_subj = TRUE, paired=TRUE, samples = 10))
-# test_that(desc = "The function analyze_time_clusters gives necessary eyetrackingR class with wilcox", code = {
-#   expect_true( all(class(tclust_analysis_wilcox) %in% c("cluster_analysis")) )
-#   expect_equal( length( attr(tclust_analysis_wilcox$time_bin_summary, "eyetrackingR")$positive_runs ), 3 )
-# })
+# Cluster Analysis 4: boot-splines
+response_time_by_ppt <- dplyr::filter(response_time_by_ppt, !is.na(Prop))
+tclust_data_boot <- make_time_cluster_data(response_time_by_ppt, predictor_column = "Sex", test="boot_splines",
+                                           within_subj = FALSE, smoother = "smooth.spline", alpha=.05)
+tclust_data_boot2 <- make_time_cluster_data(response_time_by_ppt, predictor_column = "Sex", test="boot_splines",
+                                           within_subj = FALSE, bs_samples = 100, smoother = "loess", alpha=.05)
 
 
 

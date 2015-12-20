@@ -16,9 +16,12 @@ analyze_boot_splines(data)
 A dataframe indicating means and CIs for each time-bin
 }
 \description{
+Deprecated. Performing this analysis should be done by calling \code{analyze_time_bins(test="boot_splines")}.
+}
+\details{
 Estimates a confidence interval over the difference between means (within- or between-subjects)
-from a \code{boot_splines_data} object. Confidence intervals are derived from the alpha
-used to shape the dataset (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
+from \code{boot_splines_data}. Confidence intervals are derived from the alpha argument in 
+\code{boot_splines_data} (e.g., alpha = .05, CI=(.025,.975); alpha=.01, CI=(.005,.0995))
 }
 \section{Methods (by class)}{
 \itemize{
@@ -44,7 +47,7 @@ response_time <- make_time_sequence_data(response_window, time_bin_size = 500, a
 df_bootstrapped <- make_boot_splines_data(response_time,
                                           predictor_column = 'Sex',
                                           within_subj = FALSE,
-                                          samples = 500,
+                                          bs_samples = 500,
                                           alpha = .05,
                                           smoother = "smooth.spline")
 

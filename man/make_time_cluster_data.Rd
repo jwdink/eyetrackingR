@@ -16,17 +16,21 @@ make_time_cluster_data(data, ...)
 \item{...}{Any other arguments to be passed to the selected 'test' function (e.g., paired,
 var.equal, etc.)}
 
-\item{predictor_column}{The variable whose test statistic you are interested in. Testing the
-intercept or interaction terms not currently supported}
+\item{predictor_column}{The variable whose test statistic you are interested in.}
 
-\item{aoi}{If this dataframe has multiple AOIs, you must specify which to analyze}
+\item{aoi}{Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
+then AOI should be a predictor/covariate in your model (so `formula` needs 
+to be specified).}
 
 \item{test}{What type of test should be performed in each time bin? Supports
-\code{t.test}, \code{wilcox}, \code{lm}, or \code{lmer}.}
+\code{t.test}, \code{(g)lm}, or \code{(g)lmer}. Also includes experimental support for
+the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+\href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} 
+for more info). Does not support \code{wilcox.test}.}
 
-\item{threshold}{Value of statistic used in determining significance. Non-directional (two-tailed).}
+\item{threshold}{Time-bins with test-statistics greater than this amount will be grouped into clusters.}
 
-\item{formula}{What formula should be used for test? Optional (for all but \code{lmer}), if unset
+\item{formula}{What formula should be used for test? Optional (for all but \code{(g)lmer}), if unset
 uses \code{Prop ~ [predictor_column]}}
 }
 \value{
@@ -35,8 +39,13 @@ The original data, augmented with information about clusters. Calling summary on
 }
 \description{
 Takes data that has been summarized into time-bins by \code{make_time_sequence_data()}, finds adjacent time
-bins that pass some threshold of significance, and assigns these adjacent bins into groups (clusters).
-Output is ready for a cluster permutation-based analyses (Maris & Oostenveld, 2007)
+bins that pass some test-statistic threshold, and assigns these adjacent bins into groups (clusters).
+Output is ready for a cluster permutation-based analyses (Maris & Oostenveld, 2007). Supports \code{t.test},
+\code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes support for
+the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+\href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} for more info). 
+By default, this function uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
+by manually specifying the formula.
 }
 \section{Methods (by class)}{
 \itemize{
@@ -78,7 +87,7 @@ response_time <- make_time_sequence_data(response_window, time_bin_size = 500, a
    
 # but they do require a formula to be specified
 time_cluster_data <- make_time_cluster_data(data = response_time,
-                           predictor_column = "Sex",
+                           predictor_column = "SexM",
                            aoi = "Animate",
                            test = "lmer",
                            threshold = 1.5,

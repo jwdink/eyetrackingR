@@ -24,25 +24,27 @@ analyze_time_clusters(data, ...)
 \item{formula}{Formula for test. Should be identical to that passed to make_time_cluster_data fxn (if
 arg ignored there, can be ignored here)}
 
-\item{shuffle_by}{If the predictor_column is numeric *and* within-subjects, then observations with the
-same predictor value could nevertheless correspond to distinct conditions/categories that should be
-shuffled separately. For example, when using vocabulary scores to predict looking behavior, a participant
-might get identical vocab scores for verbs and nouns; these are nevertheless distinct categories that
-should be re-assigned separately when bootstrap-resampling data. The 'shuffle_by' argument allows you to
-specify a column which indicates these kinds of distinct categories that should be resampled separately--
+\item{shuffle_by}{Along which attribute should the data be resampled? Default is the predictor
+column. But if the predictor_column is numeric *and* within-subjects, then observations with the 
+same predictor value could nevertheless correspond to distinct conditions/categories that
+should be shuffled separately. For example, when using vocabulary scores to predict looking
+behavior, a participant might get identical vocab scores for verbs and nouns; these are
+nevertheless distinct categories that should be re-assigned separately when
+bootstrap-resampling data. The 'shuffle_by' argument allows you to specify a column which
+indicates these kinds of distinct categories that should be resampled separately--
 but it's only needed if you've specified a numeric *and* within-subjects predictor column.}
 
 \item{parallel}{Use foreach for speed boost? By default off. May not work on Windows.}
 
-\item{quiet}{Display progress bar? Ignored when parallel=TRUE.}
+\item{quiet}{Display progress bar/messages? No progress bar when parallel=TRUE.}
 }
 \value{
 A cluster-analysis object, which can be plotted and summarized to examine which temporal periods
   show a significant effect of the predictor variable
 }
 \description{
-Takes data whose time bins have been clustered by significance (using the \code{make_time_cluster_data}
-function) and performs a bootstrapping analyses (Maris & Oostenveld, 2007). This analysis takes a summed
+Takes data whose time bins have been clustered by test-statistic (using the \code{make_time_cluster_data}
+function) and performs a permutation test (Maris & Oostenveld, 2007). This analysis takes a summed
 statistic for each cluster, and compares it to the "null" distribution of sum statistics obtained by
 shuffling/resampling the data and extracting the largest cluster from each resample.
 }
@@ -64,7 +66,7 @@ response_window <- subset_by_window(data, window_start_time = 15500, window_end_
 response_time <- make_time_sequence_data(response_window, time_bin_size = 500, aois = "Animate", 
                                          predictor_columns = "Sex")
 
-time_cluster_data <- make_time_cluster_data(data = response_time, predictor_column = "Sex", 
+time_cluster_data <- make_time_cluster_data(data = response_time, predictor_column = "SexM", 
                          aoi = "Animate", test = "lmer", 
                          threshold = 1.5, 
                          formula = LogitAdjusted ~ Sex + (1|Trial) + (1|ParticipantName))

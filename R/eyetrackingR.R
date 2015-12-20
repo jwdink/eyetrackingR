@@ -30,6 +30,11 @@
 #' @importFrom stats  qt
 #' @importFrom stats  quantile
 #' @importFrom stats  sd
+#' @importFrom stats  rgamma
+#' @importFrom stats  df.residual
+#' @importFrom stats  p.adjust
+#' @importFrom tidyr  gather
+#' @importFrom tidyr  spread
 #' @importFrom graphics plot
 #'
 #' @docType package
@@ -66,6 +71,12 @@ utils::globalVariables(c('Prop',
                          'SwitchAOI',
                          'Min',
                          'Max',
+                         "term",
+                         ".",
+                         "SE",
+                         "Significant",
+                         "Start",
+                         "Stop",
                          ".Time",
                          'FirstSwitch',
                          '.Predicted',

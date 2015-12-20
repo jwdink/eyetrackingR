@@ -8,8 +8,8 @@
 analyze_time_bins(data, ...)
 
 \method{analyze_time_bins}{time_sequence_data}(data, predictor_column, test,
-  threshold = NULL, alpha = NULL, formula = NULL, return_model = FALSE,
-  quiet = FALSE, ...)
+  threshold = NULL, alpha = NULL, aoi = NULL, formula = NULL,
+  p_adjust_method = "none", quiet = FALSE, ...)
 }
 \arguments{
 \item{data}{The output of the 'make_time_sequence_data' function}
@@ -22,17 +22,23 @@ interested in a predictor, but the intercept, you can enter "intercept" for this
 Interaction terms are not currently supported.}
 
 \item{test}{What type of test should be performed in each time bin? Supports 
-\code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Support for some of the}
+  \code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes support for
+the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+\href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} for more info).}
 
 \item{threshold}{Value of statistic used in determining significance}
 
 \item{alpha}{Alpha value for determining significance, ignored if threshold is given}
 
-\item{formula}{What formula should be used for the test? Optional for all but
-\code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this to use a custom DV.}
+\item{aoi}{Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
+then AOI should be a predictor/covariate in your model (so `formula` needs 
+to be specified).}
 
-\item{return_model}{In the returned dataframe, should a model be given for each time bin, or
-just the summary of those models?}
+\item{formula}{What formula should be used for the test? Optional for all but
+\code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this if you want to use a custom DV.}
+
+\item{p_adjust_method}{Method to adjust p.values for multiple corrections (default="none"). 
+See \code{p.adjust.methods}.}
 
 \item{quiet}{Should messages and progress bars be suppressed? Default is to show}
 }
@@ -40,9 +46,13 @@ just the summary of those models?}
 A dataframe indicating the results of the test at each time-bin.
 }
 \description{
-Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test}, \code{wilcox.test}, \code{lm}, and
-\code{lmer}. By default, uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed by manually specifying the formula.
-Results can be plotted to see how test-results or parameters estimates vary over time.
+Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test},
+\code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes support for
+the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+\href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} for more info). 
+By default, this function uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
+by manually specifying the formula. Results can be plotted to see how test-results or parameters
+estimates vary over time. P-values can be adjusted for multiple comparisons with \code{p_adjust_method}.
 }
 \section{Methods (by class)}{
 \itemize{
