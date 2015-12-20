@@ -166,8 +166,10 @@ make_time_sequence_data <- function (data,
 #' analyze_time_bins()
 #'
 #' Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test},
-#' \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes experimental support for
-#' boot-splines. By default, uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
+#' \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes support for
+#' the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+#' \href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} for more info). 
+#' By default, this function uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
 #' by manually specifying the formula. Results can be plotted to see how test-results or parameters
 #' estimates vary over time. P-values can be adjusted for multiple comparisons with \code{p_adjust_method}.
 #' 
@@ -182,8 +184,9 @@ analyze_time_bins = function(data, ...) {
 #'   interested in a predictor, but the intercept, you can enter "intercept" for this argument.
 #'   Interaction terms are not currently supported.
 #' @param test              What type of test should be performed in each time bin? Supports 
-#'   \code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes experimental
-#'   support for boot-splines.
+#'   \code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes support for
+#' the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+#' \href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} for more info).
 #' @param threshold         Value of statistic used in determining significance
 #' @param alpha             Alpha value for determining significance, ignored if threshold is given
 #' @param aoi               Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
@@ -360,22 +363,20 @@ analyze_time_bins.time_sequence_data <- function(data,
       as.data.frame()
     
     # Warn about warnings
-    if (!quiet) {
-      warn_cols <- grep("WarningMsg", colnames(df_models))
-      if ( length(warn_cols)>0 ) {
-        message("At least one time-bin produced warnings--be sure to check 'Warning' col in output.")
-        for (col in warn_cols) {
-          unique_msgs <- unique(as.character(df_models[,col]))
-          if (length(unique_msgs)==1) cat("\nWarning: All time-bins produced same warning: '", unique_msgs, "'")
-        }
+    warn_cols <- grep("WarningMsg", colnames(df_models))
+    if ( length(warn_cols)>0 ) {
+      if (!quiet) message("At least one time-bin produced warnings--be sure to check 'Warning' col in output.")
+      for (col in warn_cols) {
+        unique_msgs <- unique(as.character(df_models[,col]))
+        if (length(unique_msgs)==1) warning("All time-bins produced the same warning: '", unique_msgs, "'")
       }
-      err_cols <- grep("ErrorMsg", colnames(df_models))
-      if ( length(err_cols)>0 ) {
-        message("At least one time-bin produced errors--be sure to check 'Error' col in output.")
-        for (col in err_cols) {
-          unique_msgs <- unique(as.character(df_models[,col]))
-          if (length(unique_msgs)==1) cat("\nWarning: All time-bins produced same error: '", unique_msgs, "'")
-        }
+    }
+    err_cols <- grep("ErrorMsg", colnames(df_models))
+    if ( length(err_cols)>0 ) {
+      if (!quiet) message("At least one time-bin produced errors--be sure to check 'Error' col in output.")
+      for (col in err_cols) {
+        unique_msgs <- unique(as.character(df_models[,col]))
+        if (length(unique_msgs)==1) stop("All time-bins produced same error: '", unique_msgs, "'")
       }
     }
     
@@ -432,12 +433,19 @@ analyze_time_bins.time_sequence_data <- function(data,
     if (is.null( dots$within_subj$expr )) stop("Method 'boot_splines' requires you specify `within_subj`.")
     
     # Make Boot Splines:
-    samples <- eval(dots$samples$expr)
-    samples <- ifelse(is.null(samples), 1000, samples)
+    bs_samples <- eval(dots$bs_samples$expr)
+    if (is.null(bs_samples)) {
+      if (!is.null(dots$samples$expr)) {
+        bs_samples <- eval(dots$samples$expr)
+        warning("The 'samples' argument is deprecated in boot-splines, please use 'bs_samples' in the future.", 
+                call. = FALSE)
+      }
+    }
     the_args <- list(data = data, predictor_column = predictor_column, aoi = aoi, alpha = alpha)
     for (this_arg in names(dots)) {
       the_args[[this_arg]] <- dots[[this_arg]]$expr
     }
+    the_args[["bs_samples"]] <- ifelse(is.null(bs_samples), 1000, bs_samples)
     bs_dat <- do.call(make_boot_splines_data, the_args)
     
     # Get Estimates:

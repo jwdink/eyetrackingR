@@ -74,6 +74,21 @@ analyze_time_clusters.time_cluster_data <-function(data,
   attrs <-attr(data, "eyetrackingR")
   data_options <-attrs$data_options
   dots <- lazyeval::lazy_dots(...)
+  
+  # Check dots:
+  if (is.null(attrs$the_dots)) attrs$the_dots <- c()
+  dots_found <- attrs$the_dots %in% names(dots)
+  if (!all(dots_found)) {
+    warning(immediate. = TRUE,
+            "Not all extra args supplied to `make_time_cluster_data` were supplied here! Missing: ",
+            paste(attrs$the_dots[!dots_found], collapse=", "))
+  }
+  dots_extra <- setdiff(names(dots), attrs$the_dots)
+  if (length(dots_extra)>0) {
+    warning(immediate. = TRUE,
+             "Not all extra args given here were supplied to `make_time_cluster_data`! Missing previously: ",
+             paste(dots_extra, collapse=", "))
+  }
 
   # Shuffle data by
   if (is.null(shuffle_by)) {
@@ -336,7 +351,13 @@ print.cluster_analysis <- function(x, ...) {
 #'
 #' Takes data that has been summarized into time-bins by \code{make_time_sequence_data()}, finds adjacent time
 #' bins that pass some test-statistic threshold, and assigns these adjacent bins into groups (clusters).
-#' Output is ready for a cluster permutation-based analyses (Maris & Oostenveld, 2007)
+#' Output is ready for a cluster permutation-based analyses (Maris & Oostenveld, 2007). Supports \code{t.test},
+#' \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes support for
+#' the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+#' \href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} for more info). 
+#' By default, this function uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
+#' by manually specifying the formula. 
+#' 
 #' @export
 make_time_cluster_data <-function(data, ...) {
   UseMethod("make_time_cluster_data")
@@ -348,8 +369,10 @@ make_time_cluster_data <-function(data, ...) {
 #'                          then AOI should be a predictor/covariate in your model (so `formula` needs 
 #'                          to be specified).
 #' @param test              What type of test should be performed in each time bin? Supports
-#'   \code{t.test}, \code{(g)lm}, or \code{(g)lmer}.Also includes experimental support for the boot-splines method. 
-#'                          Does not support \code{wilcox.test}. 
+#'                          \code{t.test}, \code{(g)lm}, or \code{(g)lmer}. Also includes experimental support for
+#'                          the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+#'                          \href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} 
+#'                          for more info). Does not support \code{wilcox.test}. 
 #' @param threshold         Time-bins with test-statistics greater than this amount will be grouped into clusters. 
 #' @param formula           What formula should be used for test? Optional (for all but \code{(g)lmer}), if unset
 #'   uses \code{Prop ~ [predictor_column]}
@@ -422,7 +445,6 @@ make_time_cluster_data.time_sequence_data <- function(data,
     if (is.null(threshold)) stop("Please specify threshold for this test.")
   }
   
-
   # Filter Data:
   if (is.null(aoi)) {
     if (length(unique(data$AOI)) == 1) {
@@ -440,7 +462,6 @@ make_time_cluster_data.time_sequence_data <- function(data,
   for (this_arg in names(dots)) {
     the_args[[this_arg]] <- dots[[this_arg]]$expr
   }
-  analyze_time_bins(data, predictor_column, test, threshold, dots$alpha$expr, aoi = aoi, formula = formula)
   time_bin_summary <- do.call(analyze_time_bins, the_args) 
   time_bin_summary <- rename(time_bin_summary, ClusterPos = PositiveRuns, ClusterNeg = NegativeRuns)
   formula <- attr(time_bin_summary, "eyetrackingR")$formula
@@ -459,19 +480,20 @@ make_time_cluster_data.time_sequence_data <- function(data,
   df_timeclust <- left_join(data, time_bin_summary[,c('Time','ClusterNeg','ClusterPos')], by=c('Time'))
   
   # Collect info about each cluster:
-  clusters = data.frame(Cluster = seq_along(c(sum_stat_pos, sum_stat_neg)),
-                        Direction = unlist(c(rep("Positive", length.out = length(sum_stat_pos)), 
-                                             rep("Negative", length.out = length(sum_stat_neg)))),
-                        SumStatistic = c(sum_stat_pos, sum_stat_neg),
-                        StartTime = unlist(c(sapply(seq_along(sum_stat_pos),
-                                                    FUN = function(clust) time_bin_summary$Time[first(which(time_bin_summary$ClusterPos==clust))] ),
-                                             sapply(seq_along(sum_stat_neg),
-                                                    FUN = function(clust) time_bin_summary$Time[first(which(time_bin_summary$ClusterNeg==clust))] ) )),
-                        EndTime = unlist(c(sapply(seq_along(sum_stat_pos),
-                                                  FUN = function(clust) time_bin_summary$Time[last(which(time_bin_summary$ClusterPos==clust))] ),
-                                           sapply(seq_along(sum_stat_neg),
-                                                  FUN = function(clust) time_bin_summary$Time[last(which(time_bin_summary$ClusterNeg==clust))] ) ))
-  ) 
+  clusters <-
+    data.frame(Cluster = seq_along(c(sum_stat_pos, sum_stat_neg)),
+               Direction = unlist(c(rep("Positive", length.out = length(sum_stat_pos)), 
+                                    rep("Negative", length.out = length(sum_stat_neg)))),
+               SumStatistic = c(sum_stat_pos, sum_stat_neg),
+               StartTime = unlist(c(sapply(seq_along(sum_stat_pos),
+                                           FUN = function(clust) time_bin_summary$Time[first(which(time_bin_summary$ClusterPos==clust))] ),
+                                    sapply(seq_along(sum_stat_neg),
+                                           FUN = function(clust) time_bin_summary$Time[first(which(time_bin_summary$ClusterNeg==clust))] ) )),
+               EndTime = unlist(c(sapply(seq_along(sum_stat_pos),
+                                         FUN = function(clust) time_bin_summary$Time[last(which(time_bin_summary$ClusterPos==clust))] ),
+                                  sapply(seq_along(sum_stat_neg),
+                                         FUN = function(clust) time_bin_summary$Time[last(which(time_bin_summary$ClusterNeg==clust))] ) ))
+    ) 
   clusters$EndTime <-clusters$EndTime + attrs$time_bin_size
 
   # Output data, add attributes w/ relevant info
@@ -484,7 +506,8 @@ make_time_cluster_data.time_sequence_data <- function(data,
                                               threshold = threshold,
                                               alpha = dots$alpha$expr,
                                               formula = formula,
-                                              time_bin_summary = time_bin_summary)
+                                              time_bin_summary = time_bin_summary,
+                                              the_dots = names(dots) )
   )
   df_timeclust
 
@@ -558,5 +581,5 @@ plot.cluster_analysis <- function(x, ...) {
 #' @export
 #' @return A ggplot object
 plot.time_cluster_data <- function(x, type = NULL, ...) {
-  plot(attr(x, "eyetrackingR")$time_bin_summary)
+  plot(attr(x, "eyetrackingR")$time_bin_summary, type= type)
 }

@@ -47,7 +47,7 @@ response_time <- make_time_sequence_data(response_window, time_bin_size = 500, a
 df_bootstrapped <- make_boot_splines_data(response_time,
                                           predictor_column = 'Sex',
                                           within_subj = FALSE,
-                                          samples = 500,
+                                          bs_samples = 500,
                                           alpha = .05,
                                           smoother = "smooth.spline")
 

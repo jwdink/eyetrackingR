@@ -9,7 +9,7 @@
 #' Limited to statistical test between two conditions.
 #' 
 #' @export
-make_boot_splines_data = function(data, predictor_column, within_subj, aoi,smoother, samples, resolution, alpha) {
+make_boot_splines_data = function(data, predictor_column, within_subj, aoi, bs_samples, smoother, resolution, alpha, ...) {
   UseMethod("make_boot_splines_data")
 }
 #' @describeIn make_boot_splines_data
@@ -18,11 +18,12 @@ make_boot_splines_data = function(data, predictor_column, within_subj, aoi,smoot
 #' @param predictor_column What predictor var to split by? Maximum two conditions
 #' @param within_subj Are the two conditions within or between subjects?
 #' @param aoi Which AOI do you wish to perform the analysis on?
+#' @param bs_samples How many iterations to run bootstrap resampling? Default 1000
 #' @param smoother Smooth data using "smooth.spline," "loess," or "none" for no smoothing
-#' @param samples How many iterations to run bootstrap resampling? Default 1000
 #' @param resolution What resolution should we return predicted splines at, in ms? e.g., 10ms = 100
 #'   intervals per second, or hundredths of a second. Default is the same size as time-bins.
 #' @param alpha p-value when the groups are sufficiently "diverged"
+#' @param ... Ignored
 #' 
 #' @examples 
 #' data(word_recognition)
@@ -42,7 +43,7 @@ make_boot_splines_data = function(data, predictor_column, within_subj, aoi,smoot
 #' df_bootstrapped <- make_boot_splines_data(response_time, 
 #'                                           predictor_column = 'Sex', 
 #'                                           within_subj = FALSE, 
-#'                                           samples = 500, 
+#'                                           bs_samples = 500, 
 #'                                           alpha = .05,
 #'                                           smoother = "smooth.spline") 
 #' 
@@ -53,10 +54,10 @@ make_boot_splines_data.time_sequence_data <- function (data,
                                                        predictor_column,
                                                        within_subj,
                                                        aoi = NULL,
+                                                       bs_samples = 1000,
                                                        smoother = "smooth.spline",
-                                                       samples = 1000,
                                                        resolution = NULL,
-                                                       alpha = .05) {
+                                                       alpha = .05, ...) {
   
   # get attrs:
   attrs <- attr(data, "eyetrackingR")
@@ -65,6 +66,18 @@ make_boot_splines_data.time_sequence_data <- function (data,
   if (called_from_top) {
     .Deprecated(msg = "Calling boot-splines from this function is deprecated. Please use `analyze_time_bins` for boot-splines.")
   }
+  dots <- lazyeval::lazy_dots(...)
+  if ( !is.null(dots$samples) ) {
+    if (missing(bs_samples)) {
+      bs_samples <- eval(dots$samples$expr)
+      warning("The 'samples' argument is deprecated, please use 'bs_samples' in the future.", call. = FALSE)
+    }
+    for (extra_arg in names(dots)) {
+      if (extra_arg!="samples") warning("Argument '", extra_arg, "' ignored.", call. = FALSE)
+    }
+  }
+  
+  
   
   # check predictor:
   if (!is.factor(data[[predictor_column]])) {
@@ -152,11 +165,11 @@ make_boot_splines_data.time_sequence_data <- function (data,
       run_subjects_rows <- lapply(run_subjects, function(sub) subsetted_data$RowNum[ subsetted_data[[summarized_by]] == sub ])
 
       # bootstrap
-      bootstrapped_data <- replicate(samples, sampler(subsetted_data, run_subjects_rows, data_options, resolution, smoother))
+      bootstrapped_data <- replicate(bs_samples, sampler(subsetted_data, run_subjects_rows, data_options, resolution, smoother))
       bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
 
       # label each sample by number
-      sample_rows <- paste('Sample', c(1:samples), sep="")
+      sample_rows <- paste('Sample', c(1:bs_samples), sep="")
       colnames(bootstrapped_data) <- sample_rows
 
       bootstrapped_data <- data.frame(stringsAsFactors = FALSE,
@@ -195,10 +208,10 @@ make_boot_splines_data.time_sequence_data <- function (data,
     run_subjects_rows = lapply(run_subjects, function(sub) df_diff$RowNum[ df_diff[[summarized_by]] == sub ])
 
     # bootstrap
-    bootstrapped_data <- replicate(samples, sampler(df_diff, run_subjects_rows, data_options, resolution, smoother))
+    bootstrapped_data <- replicate(bs_samples, sampler(df_diff, run_subjects_rows, data_options, resolution, smoother))
     bootstrapped_data <- data.frame(matrix(unlist(bootstrapped_data), nrow=nrow(bootstrapped_data), byrow=FALSE))
 
-    sample_rows <- paste('Sample', c(1:samples), sep="")
+    sample_rows <- paste('Sample', c(1:bs_samples), sep="")
     colnames(bootstrapped_data) <- sample_rows
 
     bootstrapped_data <- data.frame(
@@ -216,7 +229,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
     bootstrapped = list(data_options = data_options,
                         within_subj = within_subj,
                         predictor_column = predictor_column,
-                        samples = samples,
+                        samples = bs_samples,
                         alpha = alpha,
                         resolution = resolution,
                         min_time = min(combined_bootstrapped_data[['Time']])
@@ -260,7 +273,7 @@ analyze_boot_splines <- function(data) {
 #' df_bootstrapped <- make_boot_splines_data(response_time,
 #'                                           predictor_column = 'Sex',
 #'                                           within_subj = FALSE,
-#'                                           samples = 500,
+#'                                           bs_samples = 500,
 #'                                           alpha = .05,
 #'                                           smoother = "smooth.spline")
 #' 
@@ -276,7 +289,7 @@ analyze_boot_splines.boot_splines_data <- function(data) {
   .get_nonparametric_stat <- function(x,y) {
     .weighted_iqr <- function(x,y) {
       iqr_x <- diff(quantile(x, probs = c(.05, .95)))
-      iqr_y <- diff(quantile(x, probs = c(.05, .95)))
+      iqr_y <- diff(quantile(y, probs = c(.05, .95)))
       (iqr_x*length(x) + iqr_y*length(y))/length(c(x,y))
     }
     (median(x)-median(y)) / .weighted_iqr(x,y)

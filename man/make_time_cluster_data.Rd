@@ -23,8 +23,10 @@ then AOI should be a predictor/covariate in your model (so `formula` needs
 to be specified).}
 
 \item{test}{What type of test should be performed in each time bin? Supports
-\code{t.test}, \code{(g)lm}, or \code{(g)lmer}.Also includes experimental support for the boot-splines method. 
-                       Does not support \code{wilcox.test}.}
+\code{t.test}, \code{(g)lm}, or \code{(g)lmer}. Also includes experimental support for
+the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+\href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} 
+for more info). Does not support \code{wilcox.test}.}
 
 \item{threshold}{Time-bins with test-statistics greater than this amount will be grouped into clusters.}
 
@@ -38,7 +40,12 @@ The original data, augmented with information about clusters. Calling summary on
 \description{
 Takes data that has been summarized into time-bins by \code{make_time_sequence_data()}, finds adjacent time
 bins that pass some test-statistic threshold, and assigns these adjacent bins into groups (clusters).
-Output is ready for a cluster permutation-based analyses (Maris & Oostenveld, 2007)
+Output is ready for a cluster permutation-based analyses (Maris & Oostenveld, 2007). Supports \code{t.test},
+\code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes support for
+the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+\href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} for more info). 
+By default, this function uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
+by manually specifying the formula.
 }
 \section{Methods (by class)}{
 \itemize{

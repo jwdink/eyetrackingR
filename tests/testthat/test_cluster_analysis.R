@@ -64,7 +64,7 @@ response_time <- make_time_sequence_data(response_window_clean, time_bin_size = 
                                                 aois = "Animate",
                                                 predictor_columns = c("Age","Target"))
 
-tclust_data_lmer <- make_time_cluster_data(data = response_time, 
+tclust_data_lmer <- make_time_cluster_data(data = response_time,
                                            predictor_column = "Age", 
                                            test = "lmer", 
                                            threshold = 2, 
@@ -76,6 +76,7 @@ test_that(desc = "The function make_time_cluster_data gives necessary eyetrackin
   expect_equal( nrow(attr(tclust_data_lmer, "eyetrackingR")$clusters), 2 )
   expect_equal( ncol(attr(tclust_data_lmer, "eyetrackingR")$clusters), 5 )
 })
+tclust_anal_lmer <- analyze_time_clusters(tclust_data_lmer, within_subj = FALSE, samples = 10)
 
 # Cluster Analysis 3: t.test, var.equal, between
 tclust_data_ttest <- make_time_cluster_data(data = response_time_by_ppt, predictor_column = "Sex", test = "t.test", 
@@ -93,5 +94,13 @@ test_that(desc = "The function analyze_time_clusters gives necessary eyetracking
   expect_true( all(class(tclust_analysis_ttest) %in% c("cluster_analysis")) )
   expect_equal( length( attr(tclust_analysis_ttest$time_bin_summary, "eyetrackingR")$negative_runs ), 2 )
 })
+
+# Cluster Analysis 4: boot-splines
+response_time_by_ppt <- dplyr::filter(response_time_by_ppt, !is.na(Prop))
+tclust_data_boot <- make_time_cluster_data(response_time_by_ppt, predictor_column = "Sex", test="boot_splines",
+                                           within_subj = FALSE, smoother = "smooth.spline", alpha=.05)
+tclust_data_boot2 <- make_time_cluster_data(response_time_by_ppt, predictor_column = "Sex", test="boot_splines",
+                                           within_subj = FALSE, bs_samples = 100, smoother = "loess", alpha=.05)
+
 
 

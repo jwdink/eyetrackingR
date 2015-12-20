@@ -64,8 +64,7 @@ response_time <- make_time_sequence_data(response_window_clean,
                                   time_bin_size = 100, 
                                   predictor_columns = c("Target"),
                                   aois = "Animate",
-                                  summarize_by = "ParticipantName"
-                            )
+                                  summarize_by = "ParticipantName" )
 
 # visualize timecourse
 plot(response_time, predictor_column = "Target") + 
@@ -81,11 +80,11 @@ EyetrackingR provides `analyze_time_bins`, a function that makes sequential test
 
 ```{r, warning=FALSE}
 tb_analysis <- analyze_time_bins(data = response_time, predictor_column = "Target", test = "t.test", alpha = .05)
-plot(tb_analysis, type = "estimate")
+plot(tb_analysis, type = "estimate") + theme_light()
 summary(tb_analysis)
 ```
 
-This method suggests that looking diverges across conditions as early as 16100. However, this method does not control the family-wise error rate. Because we are performing so many tests, we are bound to get *some* statistically significant results, even if no effect is actually present. If there is no real effect, if each test is completely independent, and if our alpha for each test is .05, then the odds of at least one false alarm is...
+This method suggests that looking diverges across conditions as early as 16100. However, this method does not control the family-wise error rate--that is, the probability of finding at least one divergence across conditions where none actually exists. Because we are performing so many tests, we are bound to get *some* statistically significant results, even if no effect is actually present. If there is no real effect, if each test is completely independent, and if our alpha for each test is .05, then the odds of at least one false alarm is...
 
 ```{r}
 alpha <- .05
@@ -95,7 +94,7 @@ num_time_bins <- nrow(tb_analysis)
 (prob_at_least_one_false_alarm <- 1-prob_no_false_alarm_any_bin)
 ```
 
-...almost 95%! Of course, two of the assumptions I described above aren't met: the independence assumption isn't met, and the "no real effect" assumption probably isn't met (given the analyses in the other vignettes). But we still need to control for family-wise error rate.
+...almost 95%! Of course, two of the assumptions I described above aren't met: the independence assumption isn't met (clearly a given time-bin should be similar to its neighboring time-bins), and the "no real effect" assumption probably isn't met (given the analyses in the other vignettes). But we still need to control for family-wise error rate.
 
 One approach is a bonferroni correction. If we simply lower our alpha according to the number of time-bins, then the family-wise error rate goes back down:
 
@@ -111,38 +110,40 @@ We apply this correction by using the `p_adjust_method`:
 ```{r, warning=FALSE}
 tb_analysis_bonf <- analyze_time_bins(data = response_time, predictor_column = "Target", test = "t.test", alpha = .05,
                                  p_adjust_method = "bonferroni")
-plot(tb_analysis_bonf)
+plot(tb_analysis_bonf) + theme_light()
 summary(tb_analysis_bonf)
 ```
 
-This method seems overly conservative, and indeed it is. This correction assumes the 'worst case scenario' that all time-bins are fully independent, which as we mentioned, is clearly not the case. Other methods are less stringent. Any method available in R's `p.adjust` function are available to `analyze_time_bins`. See the documentation of that function for more details. As mentioned there, there isn't really a good reason to use the Bonferroni method, because Holm's method controls family-wise error just as well, but sometimes is more powerful:
+This method seems overly conservative, and indeed it is: this correction assumes the 'worst case scenario' that all time-bins are fully independent-- which as we mentioned, is clearly not the case. Other methods are less stringent. Any method available in R's `p.adjust` function are available to `analyze_time_bins`. See the documentation of that function for more details. As mentioned there, there isn't really a good reason to use the Bonferroni method, because Holm's method controls family-wise error just as well, but sometimes is more powerful:
 
 ```{r, warning=FALSE}
 tb_analysis_holm <- analyze_time_bins(data = response_time, predictor_column = "Target", test = "t.test", alpha = .05,
                                  p_adjust_method = "holm")
-plot(tb_analysis_holm)
+plot(tb_analysis_holm) + theme_light()
 summary(tb_analysis_holm)
 ```
 
 ## Bootstrapped smoothed divergence analysis
 
-One concern with multiple-testing with corrections is that it severely limits our power: by controlling the family-wise error rate, we sacrifice our ability to detect effects when they are present. 
+One concern with multiple-testing using corrections is that it severely limits our power: by controlling the family-wise error rate, we sacrifice our ability to detect effects when they are present. 
 
-In fact, even the uncorrected test seems to have made a small failure: it splines our runs of statistically significant time-bins in two, due to a small downward blip in one of the time-bins. It seems unlikely the effect actually vanished for this single time bin: instead, it seems more likely that eye-tracking data is noisy, and that we should try to ignore the small variations that originate from this noise.
+In fact, even the uncorrected, overly liberal test seems to have made a small error in the conservative direction: it split our runs of statistically significant time-bins in two, due to a small downward blip in one of the time-bins. It seems unlikely the effect actually vanished for this single time bin: instead, it seems more likely that eye-tracking data is noisy, and that we should try to ignore the small variations that are a result of this noise.
 
 One approach is to perform a statistical test that operates over a smoothed version of our data (similar to Wendt et al., 2014). This involves:
 
-1. Resampling our with replacement from our data (e.g., randomly resampling subjects from each condition).
+1. Resampling with replacement from our data (e.g., randomly resampling subjects from each condition).
 2. For each resample, fitting a smoothing curve to the data (choosing either `smooth.spline()`, `loess()`, or no smoother)
-3. Obtaining the 95% confidence intervals of this distribution in order to determine which time-bins differ significantly.
+3. Repeating steps (1) and (2) thousands of times to generate a distribution,
+4. Obtain the 95% confidence intervals of this distribution. Those time-bins whose confidence intervals do not overlap with zero can be considered statistically significant at alpha = .05.
 
 This is a useful technique for estimating the timepoints of divergence between two conditions, while the smoothing helps remove minor deviations that might disrupt what would otherwise be considered a single divergent period. This can be especially helpful in infant data, which can be extremely noisy. Note that this approach can only deal with testing differences across two levels of a predictor (e.g., an experimental manipulation, not a continous covariate).
 
 This method returns a list of divergences between your two conditions based on time windows in which (by default) the 95% confidence intervals did not include 0 (i.e., *p* < .05).
 
 ```{r, warning=FALSE}
-tb_bootstrap <- analyze_time_bins(response_time, predictor_column = 'Target', within_subj = TRUE, test= 'boot_splines', alpha = .05)
-plot(tb_bootstrap)
+tb_bootstrap <- analyze_time_bins(response_time, predictor_column = 'Target', test= 'boot_splines', 
+                                  within_subj = TRUE, bs_samples = 1000, alpha = .05)
+plot(tb_bootstrap) + theme_light()
 summary(tb_bootstrap)
 ```
 
@@ -151,85 +152,65 @@ We can see that this method (probably correctly) identified that our trial invol
 However, it is important to note that this method doesn't explicitly control the family-wise error rate. And unfortunately, because this test doesn't produce a p-value for each bin, we can only perform a (manual) Bonferroni-correction.
 
 ```{r, warning=FALSE}
-tb_bootstrap_bonf <- analyze_time_bins(response_time, predictor_column = 'Target', within_subj = TRUE, test= 'boot_splines', 
-                                  alpha = .05/num_time_bins)
-plot(tb_bootstrap_bonf)
+tb_bootstrap_bonf <- analyze_time_bins(response_time, predictor_column = 'Target', test= 'boot_splines', 
+                                  within_subj = TRUE, alpha = .05/num_time_bins)
+plot(tb_bootstrap_bonf) + theme_light()
 summary(tb_bootstrap_bonf)
 ```
 
-Note that, for designs such as this one, it's often important to test the effect by collapsing across both subjects and items. We can repeat the boot-splines analysis, but this time collapsing within *items* instead of *subjects*. Ideally, both analyses should give very similar results.
-
-We do this below. Note that we want to set `within_subj` to FALSE-- this argument now essentially means `within_items`, and this is not true of this dataset (each item was either animate or inanimate).
-
-```{r, warning=FALSE}
-response_time_item <- make_time_sequence_data(response_window_clean,
-                                  time_bin_size = 100, 
-                                  predictor_columns = c("Target"),
-                                  aois = "Animate",
-                                  summarize_by = "Trial") # <---"Trial" corresponds to both item and trial 
-tb_bootstrap_item <- analyze_time_bins(response_time_item, predictor_column = 'Target', within_subj = FALSE, test= 'boot_splines', 
-                                  alpha = .05/num_time_bins)
-plot(tb_bootstrap_item)
-```
+Once correcting, the test suffers from many of the same problems as the Bonferroni t-tests.
 
 ## Bootstrapped cluster-based permutation analysis
 
-Above we saw problems both with false-alarms and sensitivity. This is not a zero-sum game. One approach that offers the best compromise is referred to as a cluster-based permutation analysis (Maris & Oostenveld, 2007). 
+Above we saw problems both with false-alarms and sensitivity. This is not a zero-sum game. One approach that offers an excellent  compromise between the two is referred to as a cluster-based permutation analysis (Maris & Oostenveld, 2007). 
 
-Essentially, this is a two step procedure. First, we run a test on each time bin that quantifies the statistical significance of the effect at each time bin. This acts as a "first pass," and we group together into clusters all adjacent bins that get through this first pass. We then shuffle the data, performing this test-then-cluster on each iteration of the shuffled data. This shuffled data tells us what kinds of clusters we should expect if there were no effect (i.e., randomly scrambled data).
+This procedure involves two main steps. First, we run a test on each time bin that quantifies the statistical significance of the effect at each time bin. This acts as a "first pass," and we group together into clusters all adjacent bins that get through this first pass. We then shuffle the data, performing this test-then-cluster on each iteration of the shuffled data. This shuffled data tells us what kinds of clusters we should expect if there were no effect (i.e., randomly scrambled data).
 
----
+***
 In more detail, what eyetrackingR does is:
 
 1. Run a statistical test on each time-bin of your data. This can be any valid and appropriate statistic test that quantifies the probability of the effect: t-test, wilcox.test, linear models, etc.-- whatever is appropriate for your data.
-2. Take the time-bins whose test passed the a threshold statistic (e.g., t > ~2), and group them by adjacency. We will call these time-clusters.
+2. Take the time-bins whose test passed the threshold statistic (e.g., t > 2), and group them by adjacency. We will call these time-clusters.
 3. For each time-cluster, calculate the sum of the statistics for the time-bins inside it.
 4. Take the data and randomly shuffle it.
 5. Perform (1)-(3) on the shuffled dataset. Save the biggest sum-statistic.
 6. Repeat steps (4) and (5) hundreds of times. This will lead to a distribution of summed-statistics, each representing the results of a statistical test on shuffled data. Intuitively, this distribution represents what kind of sum-statistics we would expect to get by chance, if no effect were present (i.e., if the data were just randomly shuffled).
-7. Compare the cluster-statistics from step (3) to the distribution found in (6) to obtain a p-value. So, for example, imagine we get a distribution of sum-statistics, and 6.4% of the sum-statistics in this distribution are more extreme the sum-statistic of our cluster, then our *p*-value for this cluster is *p* = .064.
----
+7. Compare the cluster-statistics from step (3) to the distribution found in (6) to obtain a p-value. So, for example, if we get a distribution of sum-statistics, and 6.4% of the sum-statistics in this distribution are more extreme the sum-statistic of our cluster, then our *p*-value for this cluster is *p* = .064.
+
+***
 
 This analysis has two main advanatges over the ones reviewed so far:
 
 1. It naturally controls the false-alarm rate while sacrificing little sensitivity. 
 2. The implementation in eyetrackingR allows you to use this method with a variety of statistical techniques (`t.test`, `wilcox.test`, `(g)lm`, and `(g)lmer`), so that continuous predictors, covariates, etc. can also be included in the model being tested. We even provide (experimental) support for using boot-splines as the test performed at each time bin.
 
-First, we need to set a threshold for our "first pass," for what we will consider a valid cluster. This can be a source of misconceptions. The _size_ of the initial threshold you set doesn't matter too much, but you should set it in a principled way (e.g., don't run the cluster analysis, examine the result, then decide you want to use a different threshold). But perhaps surprisingly, the test controls the family-wise error rate, even if we don't choose a threshold that corresponds to p = .05. This is because the threshold affects both the first pass and the shuffled data. 
+To perform this analysis, we first need to set a threshold for our "first pass," for which time-bins will be included in clusters. This can be a source of misconceptions. The _size_ of the initial threshold you set should be set in a principled way (e.g., don't run the cluster analysis, examine the result, then decide you want to use a different threshold). But perhaps surprisingly, the test controls the family-wise error rate, even if we don't choose a threshold that corresponds to p = .05. This is because the threshold affects both the first pass and the shuffled data: if we let more time-bins into our intial clusters, then more time-bins will be let into our shuffled data as well, and bigger time-clusters will be expected under the null distribution. 
 
-Here, we'll use a t.test for owe choose a slightly liberal threshold, to avoid splitting our clusters into two (like the t-test on each time)
-
-To perform this procedure using eyetrackingR, we'll need to make a `time_sequence_data` dataframe. In this case, we already made above (`response_window`).
-
-Next, we'll set the threshold for the t-statistic that will be considered a divergence. This can be a source of misconceptions. The _size_ of the initial threshold you set doesn't matter too much, but you should set it in a principled way (e.g., don't run the cluster analysis, examine the result, then decide you want to use a different threshold). Here, we'll just set it based on the t-distribution: ~2.06 corresponds to the usual statistic we would use in a t-test for this sample.
+Here, we'll just set our threshold based on the t-distribution: ~2.06 corresponds to the usual statistic we would use in a t-test for this sample.
 
 ```{r, warning=FALSE}
 num_sub = length(unique((response_window_clean$ParticipantName)))
 threshold_t = qt(p = 1 - .05/2, 
                  df = num_sub-1) # pick threshold t based on alpha = .05 two tailed
-levels(response_window_clean$Target) 
 ```
 
 We can then look for initial clusters:
 
 ```{r, warning=FALSE}
-stop("oo")
 df_timeclust <- make_time_cluster_data(response_time, 
-                                      test= "lmer",
-                                      formula = Prop ~ Target + (1|Participant) + (1+Target|Trial),
+                                      test= "t.test", paired=TRUE,
                                       predictor_column = "Target", 
                                       threshold = threshold_t) 
-plot(df_timeclust) +
-  ylab("T-Statistic")
+plot(df_timeclust) +  ylab("T-Statistic") + theme_light()
 summary(df_timeclust)
 ```
 
 The above tells us there are two potential clusters. As described in the procedure above, eyetrackingR next bootstraps a "null" distribution, which can be visualized:
 
 ```{r, warning=FALSE}
-clust_analysis <- analyze_time_clusters(df_timeclust, within_subj = TRUE, paired=TRUE, 
-                                        samples=100) # in practice, you should use a lot more
-plot(clust_analysis)
+clust_analysis <- analyze_time_clusters(df_timeclust, within_subj=TRUE, paired=TRUE,
+                                        samples=150) # in practice, you should use a lot more
+plot(clust_analysis) + theme_light()
 ```
 
 How can we interpret these results? 
@@ -238,15 +219,39 @@ How can we interpret these results?
 summary(clust_analysis)
 ```
 
-The probabilities listed above tell us the probability of seeing the effect of each cluster (or bigger) by chance. So we can report these as p-values with alpha=.05 (two-tailed). Each cluster that passes criterion is a cluster whose stretch of time exhibited a reliable effect.
+The probabilities listed above tell us the probability of seeing the effect of each cluster (or bigger) by chance. Of course, these probabilities aren't accurate unless we run enough iterations to get a fuller simulation of the whole null distribution (we've just ommitted this for purposes of speed).
 
-## Summary
+Note that we actually ended up getting virtually identical results to our initial analysis of sequential time-bins! That's because the effect here was quite large; we didn't have to worry about spuriously significant time-bins because there pretty much weren't any.
 
-The two methods described here have several advantages and disadvantages. 
+Let's run a quick analysis that does a better job of showing off the virtues of cluster analysis. We'll examine the hypothesis that infants with higher MCDI vocabulary scores have a baseline bias to look at the animate object. Note that this is different from the hypothesis that high-vocab infants are likely to look at the trial *target*; we are instead examining the unlikely hypothesis that high-vocab infants have a baseline preference. 
 
-The boot-splines method is especially well-suited for simple designs with large but noisy effects. The splines help smooth over noise, and with such large effects, sensitivity-sacrificing methods that control for the false-alarm rate are less of a concern.
+This analysis is good for showing off the virtues of cluster analysis for two reasons. First, the effect is unlikely to be real, but (we will see that) sequential independent tests at each time-bin give some false-alarms. Second, this effect can't be assessed with analyses that only allow for testing two-level factors (like bootstrapping-splines), because our predictor is continuous. EyetrackingR allows us to accomplish this quite easily by using `lm` as our test instead of `t-test`.
 
-The time-cluster is better-suited for subtle but less noisy effects. This method is extremely sensitive, while setting an upper-bound on the family-wise false-alarm rate (% of spurious experiments, regardless of number-of-time-bins). This method also allows for a wider range of experimental designs and predictors that simply cannot be captured by the boot-splines method (e.g, continuous predictors, covariates, or anything else available to hierarchical models). The main disadvantage of this method is that it does not gracefully deal with noisy data. Because we simply group time-bins by adjacency, a single noisy time-bin (perhaps one with missing data) can break up a time-cluster that otherwise reliably exhibits an effect. In simple experimental designs with noisy data (many infant-studies), the boot-splines method can avoid this pitfall.
+```{r, warning=FALSE}
+response_time_between <- make_time_sequence_data(response_window_clean,
+                                  time_bin_size = 100, 
+                                  predictor_columns = c("Sex", "MCDI_Total"),
+                                  aois = "Animate",
+                                  summarize_by = "ParticipantName" )
+
+df_timeclust_between <- make_time_cluster_data(response_time_between, 
+                                      test= "lm",
+                                      predictor_column = "MCDI_Total", 
+                                      threshold = threshold_t) 
+plot(df_timeclust_between) +  ylab("T-Statistic") + theme_light()
+summary(df_timeclust_between)
+```
+
+If we used the uncorrected sequential test method, we would get what appears to be a statistically significant preference for the animate object among high-vocab children early in the trial. Should we trust this as a real effect?
+
+```{r}
+clust_analysis_between <- analyze_time_clusters(df_timeclust_between, within_subj = FALSE, 
+                                        samples=100) # in practice, you should use a lot more
+plot(clust_analysis_between) + theme_light()
+summary(clust_analysis_between)
+```
+
+Cluster-analysis (probably correctly) says no: we should expect to get a divergence at least this large ~%25 of the time under the null-hypothesis.
 
 ## References
 

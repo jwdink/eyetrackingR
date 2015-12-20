@@ -5,12 +5,12 @@
 \alias{make_boot_splines_data.time_sequence_data}
 \title{Bootstrap resample splines for time-series data.}
 \usage{
-make_boot_splines_data(data, predictor_column, within_subj, aoi, smoother,
-  samples, resolution, alpha)
+make_boot_splines_data(data, predictor_column, within_subj, aoi, bs_samples,
+  smoother, resolution, alpha, ...)
 
 \method{make_boot_splines_data}{time_sequence_data}(data, predictor_column,
-  within_subj, aoi = NULL, smoother = "smooth.spline", samples = 1000,
-  resolution = NULL, alpha = 0.05)
+  within_subj, aoi = NULL, bs_samples = 1000, smoother = "smooth.spline",
+  resolution = NULL, alpha = 0.05, ...)
 }
 \arguments{
 \item{data}{The output of \code{time_sequence_data()}}
@@ -21,14 +21,16 @@ make_boot_splines_data(data, predictor_column, within_subj, aoi, smoother,
 
 \item{aoi}{Which AOI do you wish to perform the analysis on?}
 
-\item{smoother}{Smooth data using "smooth.spline," "loess," or "none" for no smoothing}
+\item{bs_samples}{How many iterations to run bootstrap resampling? Default 1000}
 
-\item{samples}{How many iterations to run bootstrap resampling? Default 1000}
+\item{smoother}{Smooth data using "smooth.spline," "loess," or "none" for no smoothing}
 
 \item{resolution}{What resolution should we return predicted splines at, in ms? e.g., 10ms = 100
 intervals per second, or hundredths of a second. Default is the same size as time-bins.}
 
 \item{alpha}{p-value when the groups are sufficiently "diverged"}
+
+\item{...}{Ignored}
 }
 \value{
 A bootstrapped distribution of samples for each time-bin
@@ -65,7 +67,7 @@ response_time <- make_time_sequence_data(response_window, time_bin_size = 500, a
 df_bootstrapped <- make_boot_splines_data(response_time, 
                                           predictor_column = 'Sex', 
                                           within_subj = FALSE, 
-                                          samples = 500, 
+                                          bs_samples = 500, 
                                           alpha = .05,
                                           smoother = "smooth.spline") 
 

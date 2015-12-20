@@ -7,6 +7,7 @@ Changes in 0.1.1.9001:
 * The functions `make_boot_splines_data` and `analyze_boot_splines` are now deprecated. To perform this type of analysis, use `test="boot_splines"` in `analyze_time_bins`. 
 * Warnings and errors are now given in the returned dataframe for `analyze_time_bins`.
 * Fixed plotting methods for time-cluster data
+* The `analyze_time_clusters` function now checks that the extra arguments passed to it are the same as the arguments passed
 
 Changes in 0.1.1.9000:
 

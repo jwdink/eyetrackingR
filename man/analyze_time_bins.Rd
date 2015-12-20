@@ -22,8 +22,9 @@ interested in a predictor, but the intercept, you can enter "intercept" for this
 Interaction terms are not currently supported.}
 
 \item{test}{What type of test should be performed in each time bin? Supports 
-\code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes experimental
-support for boot-splines.}
+  \code{t.test}, \code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes support for
+the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+\href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} for more info).}
 
 \item{threshold}{Value of statistic used in determining significance}
 
@@ -46,8 +47,10 @@ A dataframe indicating the results of the test at each time-bin.
 }
 \description{
 Runs a test on each time-bin of \code{time_sequence_data}. Supports \code{t.test},
-\code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes experimental support for
-boot-splines. By default, uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
+\code{wilcox.test}, \code{(g)lm}, and \code{(g)lmer}. Also includes support for
+the "bootstrapped-splines" test (see \code{?make_boot_splines_data} and 
+\href{http://www.eyetracking-r.com/vignettes/divergence}{the divergence vignette} for more info). 
+By default, this function uses 'proportion-looking' (\code{Prop}) as the DV, which can be changed
 by manually specifying the formula. Results can be plotted to see how test-results or parameters
 estimates vary over time. P-values can be adjusted for multiple comparisons with \code{p_adjust_method}.
 }
