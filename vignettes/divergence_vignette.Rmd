@@ -179,7 +179,7 @@ In more detail, what eyetrackingR does is:
 
 ***
 
-This analysis has two main advanatges over the ones reviewed so far:
+This analysis has two main advantages over the ones reviewed so far:
 
 1. It naturally controls the false-alarm rate while sacrificing little sensitivity. 
 2. The implementation in eyetrackingR allows you to use this method with a variety of statistical techniques (`t.test`, `wilcox.test`, `(g)lm`, and `(g)lmer`), so that continuous predictors, covariates, etc. can also be included in the model being tested. We even provide (experimental) support for using boot-splines as the test performed at each time bin.
