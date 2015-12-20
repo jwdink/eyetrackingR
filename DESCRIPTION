@@ -19,16 +19,16 @@ Depends:
 License: MIT + file LICENSE
 LazyData: true
 Imports: 
-    broom (>= 0.3.7),
+    broom (>= 0.4.0),
     dplyr (>= 0.4.3),
-    ggplot2 (>= 1.0.1),
+    ggplot2 (>= 2.0),
     lazyeval (>= 0.1.10),
     zoo (>= 1.7-12),
-    tidyr
+    tidyr (>= 0.3.1)
 Suggests: 
     pbapply,
     knitr,
-    lme4 (>= 1.1-9),
+    lme4 (>= 1.1-10),
     Matrix,
     testthat,
     rmarkdown,
