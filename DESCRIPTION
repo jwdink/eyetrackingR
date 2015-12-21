@@ -15,7 +15,7 @@ URL: http://eyetracking-r.com
 BugReports: https://github.com/jwdink/eyetrackingR/issues
 Date: 2015-11-15 15:15:02
 Depends: 
-    R (>= 3.2.1)
+    R (>= 3.2.2)
 License: MIT + file LICENSE
 LazyData: true
 Imports: 

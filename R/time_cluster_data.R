@@ -77,16 +77,19 @@ analyze_time_clusters.time_cluster_data <-function(data,
   
   # Check dots:
   if (is.null(attrs$the_dots)) attrs$the_dots <- c()
-  dots_found <- attrs$the_dots %in% names(dots)
+  dot_names <- names(dots)
+  if (attrs$test=="boot_splines") dot_names <- c(dot_names, "alpha", "within_subj")
+
+  dots_found <- attrs$the_dots %in% dot_names
   if (!all(dots_found)) {
     warning(immediate. = TRUE,
-            "Not all extra args supplied to `make_time_cluster_data` were supplied here! Missing: ",
+            "Not all extra args supplied to `make_time_cluster_data` were supplied here. Missing: ",
             paste(attrs$the_dots[!dots_found], collapse=", "))
   }
   dots_extra <- setdiff(names(dots), attrs$the_dots)
   if (length(dots_extra)>0) {
     warning(immediate. = TRUE,
-             "Not all extra args given here were supplied to `make_time_cluster_data`! Missing previously: ",
+             "Not all extra args given here were supplied to `make_time_cluster_data`. Missing previously: ",
              paste(dots_extra, collapse=", "))
   }
 
@@ -190,7 +193,6 @@ analyze_time_clusters.time_cluster_data <-function(data,
         the_args$within_subj <- TRUE
         the_args$samples <- dots$boot_samples$expr
         the_args$alpha <- attrs$alpha
-        cat("\n", the_args$alpha)
       }
       for (this_arg in names(dots)) {
         the_args[[this_arg]] <- dots[[this_arg]]$expr
@@ -550,19 +552,26 @@ summary.time_cluster_data <- function(object, ...) {
 #' @export
 #' @return A ggplot object
 plot.cluster_analysis <- function(x, ...) {
-  dat <- c(x$clusters$SumStatistic, x$null_distribution)
-  x_min <- min(dat, na.rm=TRUE) - sd(dat)
-  x_max <- max(dat, na.rm=TRUE) + sd(dat)
-  cluster_names <- as.factor(x$clusters$Cluster)
+  
   df_plot1 <- data.frame(NullDistribution = x$null_distribution)
-  df_plot2 <- data.frame(SumStat = x$clusters$SumStatistic,
-                         Cluster = cluster_names)
-  ggplot(data = df_plot1, aes(x = NullDistribution)) +
+  
+  g <- ggplot(data = df_plot1, aes(x = NullDistribution)) +
     geom_density() +
     geom_histogram(aes(y=..density..), binwidth = sd(x$null_distribution)/5, alpha=.75 ) +
-    coord_cartesian(xlim = c(x_min, x_max)) +
-    geom_vline(data = df_plot2, aes(xintercept = SumStat, color = Cluster), linetype="dashed", size=1, show.legend = TRUE) +
     xlab(paste("Distribution of summed statistics from", x$test )) + ylab("Density")
+  
+  if (nrow(x$clusters)>0) {
+    dat <- c(x$clusters$SumStatistic, x$null_distribution)
+    x_min <- min(dat, na.rm=TRUE) - sd(dat)
+    x_max <- max(dat, na.rm=TRUE) + sd(dat)
+    cluster_names <- as.factor(x$clusters$Cluster)
+    df_plot2 <- data.frame(SumStat = x$clusters$SumStatistic,
+                           Cluster = cluster_names)
+    g <- g + 
+      coord_cartesian(xlim = c(x_min, x_max)) +
+      geom_vline(data = df_plot2, aes(xintercept = SumStat, color = Cluster), linetype="dashed", size=1, show.legend = TRUE) 
+  }
+  g
 
 }
 

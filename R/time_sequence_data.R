@@ -452,7 +452,7 @@ analyze_time_bins.time_sequence_data <- function(data,
     bs_anal <- analyze_boot_splines(bs_dat)
     
     out <- select(bs_anal, 
-                  Time, Estimate = MeanDiff, StdErr = SE, Statistic, Significant)
+                  Time, Estimate = MeanDiff, StdErr = SE, Statistic, Significant, ConfLow = CI_low, ConfHigh = CI_high)
     out <- mutate(out,
                   Prob = NA, 
                   DF = NA,
