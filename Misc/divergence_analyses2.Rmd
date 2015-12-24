@@ -1,0 +1,250 @@
+---
+title: "Untitled"
+author: "Jacob Dink"
+date: "December 23, 2015"
+output: html_document
+---
+
+
+## Prelims:
+```{r}
+stopifnot(grepl(pattern = "Misc", x = getwd()))
+#devtools::install_github('jwdink/eyetrackingR')
+library(eyetrackingR)
+library(pbapply)
+library(dplyr)
+
+params_to_test_template <- expand.grid(NumSubjects = c(16,32,64),
+                                       NumItems    = c(10),
+                                       Pref        = c(.65, .75, .85),
+                                       SimNum      = 1:50)
+cluster_samples <- 500
+effect_start <- 2500
+trial_length <- 5000
+tb_size <- 100
+num_time_bins <- trial_length / tb_size
+num_no_effect_time_bins <- (effect_start/trial_length)*num_time_bins
+num_effect_time_bins    <- (1-effect_start/trial_length)*num_time_bins
+bootstrap_samples <- 1000
+```
+
+```{r}
+## Uncorrected -----------------------------------------------------------
+### T.Test
+df_t_test_uncorrected <- params_to_test_template %>% mutate(Type="Parametric (t-test)", Method = "No Correction")
+
+results_t_test_uncorrected <- readRDS("./sim_results 12-24-2015/t_test_uncorrected_results.RDS")
+
+for (i in seq_along(results_t_test_uncorrected)) {
+  model <- results_t_test_uncorrected[[i]]
+  if (!is.atomic(model)) {
+    model$Significant <- model$Prob<.05
+    # add to df:
+    df_t_test_uncorrected[i,"FABins"] <- with(model, sum(Significant[Time <  effect_start]) )
+    df_t_test_uncorrected[i,"CDBins"] <- with(model, sum(!is.na(PositiveRuns[Time >= effect_start])) )
+    df_t_test_uncorrected[i,"FirstDiscTime"] <- with(model, Time[(Time >= effect_start) & !is.na(PositiveRuns)][1] )
+  }
+}
+
+### Boot-Splines
+df_bs_uncorrected <- params_to_test_template %>% mutate(Type="Non-Parametric (w/smoothing)", Method = "No Correction")
+
+results_bs_uncorrected <- readRDS("./sim_results 12-24-2015/bs_uncorrected_results.RDS")
+
+for (i in seq_along(results_bs_uncorrected)) {
+  model <- results_bs_uncorrected[[i]]
+  if (!is.atomic(model)) {
+    # add to df:
+    df_bs_uncorrected[i,"FABins"] <- with(model, sum(Significant[Time <  effect_start]) )
+    df_bs_uncorrected[i,"CDBins"] <- with(model, sum(!is.na(PositiveRuns[Time >= effect_start])) )
+    df_bs_uncorrected[i,"FirstDiscTime"] <- with(model, Time[(Time >= effect_start) & !is.na(PositiveRuns)][1] )
+  }
+}
+
+```
+
+```{r}
+## Bonf. ------------------------------------------------------------------
+### T.Test
+df_t_test_bonf <- params_to_test_template %>% mutate(Type="Parametric (t-test)", Method = "Bonferroni Correction")
+
+results_t_test_bonf <- readRDS("./sim_results 12-24-2015/t_test_bonf_results.RDS")
+
+for (i in seq_along(results_t_test_bonf)) {
+  model <- results_t_test_bonf[[i]]
+  if (!is.atomic(model)) {
+    model$Significant <- model$Prob<.05 
+    # add to df:
+    df_t_test_bonf[i,"FABins"] <- with(model, sum(Significant[Time <  effect_start]) )
+    df_t_test_bonf[i,"CDBins"] <- with(model, sum(!is.na(PositiveRuns[Time >= effect_start])) )
+    df_t_test_bonf[i,"FirstDiscTime"] <- with(model, Time[(Time >= effect_start) & !is.na(PositiveRuns)][1] )
+  }
+}
+
+### Boot-Splines
+df_bs_bonf <- params_to_test_template %>% mutate(Type="Non-Parametric (w/smoothing)", Method = "Bonferroni Correction")
+
+results_bs_bonf <- readRDS("./sim_results 12-24-2015/bs_bonf_results.RDS")
+
+for (i in seq_along(results_bs_bonf)) {
+  model <- results_bs_bonf[[i]]
+  if (!is.atomic(model)) {
+    # add to df:
+    df_bs_bonf[i,"FABins"] <- with(model, sum(Significant[Time <  effect_start]) )
+    df_bs_bonf[i,"CDBins"] <- with(model, sum(!is.na(PositiveRuns[Time >= effect_start])) )
+    df_bs_bonf[i,"FirstDiscTime"] <- with(model, Time[(Time >= effect_start) & !is.na(PositiveRuns)][1] )
+  }
+}
+```
+
+```{r}
+## Benj-Hoch: --------------------------------------------------------------
+### T.Test
+df_t_test_fdr <- params_to_test_template %>% mutate(Type="Parametric (t-test)", Method = "Benjamini & Hochberg Correction")
+
+results_t_test_fdr <- readRDS("./sim_results 12-24-2015/t_test_fdr_results.RDS")
+
+for (i in seq_along(results_t_test_fdr)) {
+  model <- results_t_test_fdr[[i]]
+  if (!is.atomic(model)) {
+    model$Significant <- model$Prob<.05 
+    # add to df:
+    df_t_test_fdr[i,"FABins"] <- with(model, sum(Significant[Time <  effect_start]) )
+    df_t_test_fdr[i,"CDBins"] <- with(model, sum(!is.na(PositiveRuns[Time >= effect_start])) )
+    df_t_test_fdr[i,"FirstDiscTime"] <- with(model, Time[(Time >= effect_start) & !is.na(PositiveRuns)][1] )
+  }
+}
+
+### Boot-Splines
+NA
+
+```
+
+```{r}
+put_time_cluster_results_in_df <- function(analysis, df, i) {
+  
+  if (!is.atomic(analysis)) {
+    model <- get_time_clusters(analysis)
+    if (nrow(model) > 0) {
+      model <- model %>%
+        mutate(Significant = Probability < .05,
+               PreEffectTime = ifelse(effect_start-StartTime > 0, effect_start-StartTime, 0),
+               ClusterStartTimeWithinEffect = ifelse(effect_start <= StartTime, StartTime, effect_start),
+               DuringEffectTime = ifelse(EndTime >= effect_start, EndTime - ClusterStartTimeWithinEffect, 0),
+               ClusterStartTimeWithinEffect = ifelse(DuringEffectTime==0, NA, ClusterStartTimeWithinEffect)) %>%
+        filter(Significant)
+      
+      # add to df:
+      df[i,"FABins"] <- with(model, sum(PreEffectTime) / tb_size)
+      df[i,"CDBins"] <- with(model, sum(DuringEffectTime[Direction=="Positive"]) / tb_size)
+      df[i,"FirstDiscTime"] <- with(model, ifelse(sum(!is.na(ClusterStartTimeWithinEffect))>0, 
+                                                                          yes = min(ClusterStartTimeWithinEffect,na.rm=TRUE), 
+                                                                          no = NA))
+    } else {
+      df[i,"FABins"] <- 0
+      df[i,"CDBins"] <- 0
+      df[i,"FirstDiscTime"] <- NA
+    }
+  }
+  
+  return(df)
+}
+```
+
+```{r}
+## Cluster-Permutation ------------------------------------------------------
+### T.Test (High-Threshold)
+df_t_test_cluster_high <- params_to_test_template %>% 
+  mutate(Type="Parametric (t-test)", Method = "Cluster-Permutation (High Threshold)")
+results_t_test_cluster_high <- readRDS("./sim_results 12-24-2015/t_test_cl_high_thresh_results.RDS")
+for (i in seq_along(results_t_test_cluster_high)) {
+  df_t_test_cluster_high <- put_time_cluster_results_in_df(analysis = results_t_test_cluster_high[[i]], 
+                                                           df = df_t_test_cluster_high, i = i)
+}
+
+### T.Test (Low-Threshold)
+df_t_test_cluster_low <- params_to_test_template %>% 
+  mutate(Type="Parametric (t-test)", Method = "Cluster-Permutation (Low Threshold)")
+results_t_test_cluster_low <- readRDS("./sim_results 12-24-2015/t_test_cl_low_thresh_results.RDS")
+for (i in seq_along(results_t_test_cluster_low)) {
+  df_t_test_cluster_low <- put_time_cluster_results_in_df(analysis = results_t_test_cluster_low[[i]], 
+                                                           df = df_t_test_cluster_low, i = i)
+}
+
+
+### Boot-Splines (High-Threshold)
+df_bs_cluster_high <- params_to_test_template %>% 
+  mutate(Type="Non-Parametric (w/smoothing)", Method = "Cluster-Permutation (High Threshold)")
+results_bs_cluster_high <- readRDS("./sim_results 12-24-2015/bs_cl_high_thresh_results.RDS")
+for (i in seq_along(results_bs_cluster_high)) {
+  df_bs_cluster_high <- put_time_cluster_results_in_df(analysis = results_bs_cluster_high[[i]], 
+                                                           df = df_bs_cluster_high, i = i)
+}
+
+### Boot-Splines (Low-Threshold)
+df_bs_cluster_low <- params_to_test_template %>% 
+  mutate(Type="Non-Parametric (w/smoothing)", Method = "Cluster-Permutation (Low Threshold)")
+results_bs_cluster_low <- readRDS("./sim_results 12-24-2015/bs_cl_low_thresh_results.RDS")
+for (i in seq_along(results_bs_cluster_low)) {
+  df_bs_cluster_low <- put_time_cluster_results_in_df(analysis = results_bs_cluster_low[[i]], 
+                                                           df = df_bs_cluster_low, i = i)
+}
+
+```
+
+```{r}
+library(ggplot2)
+df_master <- bind_rows(df_bs_cluster_low, df_bs_cluster_high, df_t_test_cluster_low, df_t_test_cluster_high, 
+                       df_bs_bonf, df_t_test_bonf,
+                       df_bs_uncorrected, df_t_test_uncorrected,
+                       df_t_test_fdr) %>%
+  mutate(TestAtEachBin = plyr::revalue(Type, c("Non-Parametric (w/smoothing)" = "Non-Parametric \n(w/smoothing)",
+                                               "Parametric (t-test)" = "Parametric \n(t-test)")), 
+         CorrectionMethod = plyr::revalue(Method, c("Cluster-Permutation (High Threshold)" = "Cluster-Permutation \n (High Threshold)",
+                                                    "Cluster-Permutation (Low Threshold)"  = "Cluster-Permutation \n (Low Threshold)",
+                                                    "Benjamini & Hochberg Correction"      = "Benjamini & Hochberg \n Correction",
+                                                    "Bonferroni Correction"                = "Bonferroni \n Correction"))
+  )
+```
+
+```{r}
+df_master_CD <- df_master %>%
+  group_by(NumSubjects, NumItems, Pref, TestAtEachBin, CorrectionMethod) %>%
+  mutate(ProportionCD = CDBins / num_effect_time_bins) %>%
+  do(as.data.frame(mean_cl_boot(.$ProportionCD)))
+  
+ggplot(data = df_master_CD, mapping = aes(x = CorrectionMethod, y = y, group = TestAtEachBin, color=TestAtEachBin)) +
+  facet_grid(NumSubjects ~ Pref) + 
+  geom_line() + geom_point() + geom_errorbar(width=.1, aes(ymin = ymin, ymax= ymax)) +
+  ylab("Proportion Correct-Discovery")
+ggsave("plot-CD.png", width = 9, height = 3, scale= 2, dpi=112)
+```
+
+```{r}
+df_master_FWER <- df_master %>%
+  mutate(FWER = FABins > 0) %>%
+  group_by(NumSubjects, NumItems, Type, TestAtEachBin, CorrectionMethod) %>%
+  do(as.data.frame(mean_cl_boot(.$FWER))) 
+
+ggplot(data = df_master_FWER, mapping = aes(x = CorrectionMethod, y = y, group = TestAtEachBin, color=TestAtEachBin)) +
+  facet_grid(NumSubjects ~ .) +
+  geom_line() + geom_point() + geom_errorbar(width=.1, aes(ymin = ymin, ymax= ymax)) +
+  geom_hline(yintercept = .05, linetype="dashed")  +
+  ylab("Family-Wise-Error-Rate") 
+ggsave("plot-FWER.png", width = 5, height = 3, scale = 2, dpi=112)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
