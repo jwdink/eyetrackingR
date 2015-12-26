@@ -194,6 +194,7 @@ for (i in seq_along(results_bs_cluster_low)) {
 
 ```{r}
 library(ggplot2)
+pd <- position_dodge(1)
 df_master <- bind_rows(df_bs_cluster_low, df_bs_cluster_high, df_t_test_cluster_low, df_t_test_cluster_high, 
                        df_bs_bonf, df_t_test_bonf,
                        df_bs_uncorrected, df_t_test_uncorrected,
@@ -214,10 +215,10 @@ df_master_CD <- df_master %>%
   do(as.data.frame(mean_cl_boot(.$ProportionCD)))
   
 ggplot(data = df_master_CD, mapping = aes(x = CorrectionMethod, y = y, group = TestAtEachBin, color=TestAtEachBin)) +
-  facet_grid(NumSubjects ~ Pref) + 
-  geom_line() + geom_point() + geom_errorbar(width=.1, aes(ymin = ymin, ymax= ymax)) +
+  facet_grid(NumSubjects ~ Pref, labeller = "label_both") + 
+  geom_line() + geom_pointrange(aes(ymin = ymin, ymax= ymax)) +
   ylab("Proportion Correct-Discovery")
-ggsave("plot-CD.png", width = 9, height = 3, scale= 2, dpi=112)
+ggsave("plot-CD.png", width = 10, height = 5, scale= 2, dpi=144)
 ```
 
 ```{r}
@@ -227,17 +228,25 @@ df_master_FWER <- df_master %>%
   do(as.data.frame(mean_cl_boot(.$FWER))) 
 
 ggplot(data = df_master_FWER, mapping = aes(x = CorrectionMethod, y = y, group = TestAtEachBin, color=TestAtEachBin)) +
-  facet_grid(NumSubjects ~ .) +
-  geom_line() + geom_point() + geom_errorbar(width=.1, aes(ymin = ymin, ymax= ymax)) +
+  facet_grid(NumSubjects ~ ., labeller = "label_both") +
+  geom_line() + geom_pointrange(aes(ymin = ymin, ymax= ymax)) +
   geom_hline(yintercept = .05, linetype="dashed")  +
   ylab("Family-Wise-Error-Rate") 
 ggsave("plot-FWER.png", width = 5, height = 3, scale = 2, dpi=112)
 ```
 
+```{r}
+df_master_FDR <- df_master %>%
+  mutate(FDR = FABins / (FABins + CDBins) ) %>%
+  group_by(NumItems, Type, TestAtEachBin, CorrectionMethod) %>%
+  do(as.data.frame(mean_cl_boot(.$FDR))) 
 
-
-
-
+ggplot(data = df_master_FDR, mapping = aes(x = CorrectionMethod, y = y, group = TestAtEachBin, color=TestAtEachBin)) +
+  geom_line() + geom_pointrange(aes(ymin = ymin, ymax= ymax)) +
+  geom_hline(yintercept = .05, linetype="dashed")  +
+  ylab("False-Discovery-Rate") 
+ggsave("plot-FDR.png", width = 5, height = 3, scale = 2, dpi=112)
+```
 
 
 
