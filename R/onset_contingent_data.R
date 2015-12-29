@@ -64,7 +64,7 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   fixation_window_length_rows <- fixation_window_length / time_per_row
 
   ## Determine First AOI, Assign Switch Value for each timepoint
-
+  
   # Group by Ppt*Trial:
   df_grouped <- group_by_(data, .dots = list(data_options$participant_column, data_options$trial_column) )
 
@@ -74,7 +74,9 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
                                      .Distractor= interp(~na_replace_rollmean(DISTRACTOR_AOI), DISTRACTOR_AOI = as.name(distractor_aoi)),
                                      .Time      = interp(~TIME_COL, TIME_COL = time_col)
                                      ))
-
+  
+  return(df_smoothed)
+  
   # For any trials where no data for onset timepoint is available, find the closest timepoint.
   # Calculate FirstAOI
   df_first_aoi <- mutate(df_smoothed,
