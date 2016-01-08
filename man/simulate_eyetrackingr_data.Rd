@@ -29,7 +29,7 @@ which there was substantial trackloss during the trial.}
 \item{...}{Ignored}
 }
 \value{
-Prints a list of divergence-times.
+Dataframe with eye-tracking data
 }
 \description{
 This function creates an eyetrackingR dataset (i.e., already run through make_eyetrackingr_data).

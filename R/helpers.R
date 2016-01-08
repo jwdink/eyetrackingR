@@ -123,7 +123,7 @@
 #'   which there was substantial trackloss during the trial.
 #' @param ...                     Ignored
 #' @export
-#' @return Prints a list of divergence-times.
+#' @return Dataframe with eye-tracking data
 simulate_eyetrackingr_data <- function(num_participants= 16, 
                                        num_items_per_condition = 6, 
                                        trial_length = 5000, 
