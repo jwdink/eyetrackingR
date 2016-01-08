@@ -1,6 +1,7 @@
 # eyetrackingR 
 
-Changes in 0.1.1.9001:
+Changes in 0.1.2:
+
 * The `analyze_time_bins` and therefore cluster-analyses have been re-written internally. Full support for (g)lm, (g)lmer, wilcox. Support for interaction terms/predictors. Experimental support for using boot-splines within cluster analysis.
 * P-value adjustment for multiple comparisons is now supported in `analyze_time_bins`
 * Easier to use AOI as a predictor/covariate in `analyze_time_bins` and cluster analyses
@@ -8,12 +9,9 @@ Changes in 0.1.1.9001:
 * Warnings and errors are now given in the returned dataframe for `analyze_time_bins`.
 * Fixed plotting methods for time-cluster data
 * The `analyze_time_clusters` function now checks that the extra arguments passed to it are the same as the arguments passed
-
-Changes in 0.1.1.9000:
-
-* Added (experimental) support for `glm` and `glmer` in `analyze_time_bins` and therefore in cluster-analyses. Email any bug-reports to jacobwdink@gmail.com
+* Fixed small bug in make_onset_data
 * Added `simulate_eyetrackingr_data` function to generate fake data for simulations.
-* Added *very* experimental support for `boot-splines` method within cluster analysis (investigating hybrid method, not meant for serious analyses yet).
+
 
 Changes in 0.1.1:
 
