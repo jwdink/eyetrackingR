@@ -1,7 +1,8 @@
 library("eyetrackingR")
 context("Time Cluster Analysis")
 
-compare_dfs <- function(df1, df2) {
+TOL <- 0.0001
+compare_dfs <- function(df1, df2, tol=TOL) {
   stopifnot(all(dim(df1)==dim(df2)))
   
   res <- matrix(nrow = nrow(df1), ncol = ncol(df1))
@@ -12,17 +13,17 @@ compare_dfs <- function(df1, df2) {
     df1[is.na(df1)] <- 0
     df2[is.na(df2)] <- 0
     
-    # Get difference between elements
+    # check difference between elements
     if (is.numeric(df1[[col]])) {
       res[,i] <- df1[[col]] - df2[[col]]
+      if (any(res[,i]>tol)) stop("Failed on column: ", col)
     } else {
-      res[,i] <- ifelse(df1[[col]] == df2[[col]], 0, Inf)
+      res[,i] <- df1[[col]] == df2[[col]]
+      if (any(!res[,i])) stop("Failed on column: ", col)
     }
   }
-  return(res)
+  return(TRUE)
 }
-
-TOL <- 0.0001
 
 data("word_recognition")
 data <- make_eyetrackingr_data(word_recognition, 
@@ -70,7 +71,8 @@ tclust_tb_anal <- tclust_analysis_lm$time_bin_summary
 tclust_tb_anal_check <- dget("tclust_tb_anal.txt")
 
 test_that(desc = "The function analyze_time_clusters gives correct data with lm", code = {
-  expect_true(all(compare_dfs(tclust_tb_anal_check, tclust_tb_anal) < TOL))
+  res <- compare_dfs(tclust_tb_anal_check, tclust_tb_anal)
+  expect_true(res)
 })
 
 test_that(desc = "The function analyze_time_clusters gives necessary eyetrackingR class with lm", code = {

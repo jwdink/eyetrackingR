@@ -1,7 +1,8 @@
 library("eyetrackingR")
 context("Analyze Time Bins")
 
-compare_dfs <- function(df1, df2) {
+TOL <- 0.0001
+compare_dfs <- function(df1, df2, tol=TOL) {
   stopifnot(all(dim(df1)==dim(df2)))
   
   res <- matrix(nrow = nrow(df1), ncol = ncol(df1))
@@ -12,17 +13,17 @@ compare_dfs <- function(df1, df2) {
     df1[is.na(df1)] <- 0
     df2[is.na(df2)] <- 0
     
-    # Get difference between elements
+    # check difference between elements
     if (is.numeric(df1[[col]])) {
       res[,i] <- df1[[col]] - df2[[col]]
+      if (any(res[,i]>tol)) stop("Failed on column: ", col)
     } else {
-      res[,i] <- ifelse(df1[[col]] == df2[[col]], 0, Inf)
+      res[,i] <- df1[[col]] == df2[[col]]
+      if (any(!res[,i])) stop("Failed on column: ", col)
     }
   }
-  return(res)
+  return(TRUE)
 }
-
-TOL <- 0.0001
 
 data("word_recognition") 
 data <- make_eyetrackingr_data(word_recognition, 
@@ -45,7 +46,6 @@ response_window_clean$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)',
                                                   yes = 'Inanimate', 
                                                   no  = 'Animate') )
 
-
 # Within Subjects -----------------------------------------------------------------------------
 df_time_within <- make_time_sequence_data(response_window_clean, 
                                           time_bin_size = 100, 
@@ -54,7 +54,7 @@ df_time_within <- make_time_sequence_data(response_window_clean,
                                           summarize_by = "ParticipantName")
 num_time_bins <- length(unique(df_time_within$TimeBin))
 tb_within <- analyze_time_bins(df_time_within, predictor_column = "Target", test = "t.test", 
-                        paired=T, alpha = .05 / num_time_bins)
+                        paired=TRUE, alpha = .05 / num_time_bins)
 #dput(tb_within, file = "tb_output_within_subj.txt")
 tb_within_check <- dget(file = "tb_output_within_subj.txt")
 
@@ -66,7 +66,8 @@ test_that(desc = "The function analyze_time_bins has eyetrackingR attributes (wi
 })
 
 test_that(desc = "The function analyze_time_bins has correct data (within)", code = {
-  expect_true( all( compare_dfs(tb_within_check,tb_within)<TOL ) )
+  res <- compare_dfs(tb_within_check,tb_within)
+  expect_true( res )
 })
 
 # Between Subjects -----------------------------------------------------------------------------
@@ -89,7 +90,8 @@ test_that(desc = "The function analyze_time_bins has eyetrackingR attributes (be
 })
 
 test_that(desc = "The function analyze_time_bins has correct data (between)", code = {
-  expect_true( all( compare_dfs(tb_between_check,tb_between)<TOL ) )
+  res <- compare_dfs(tb_between_check,tb_between)
+  expect_true( res )
 })
 
 # Interaction Term -----------------------------------------------------------------------------
@@ -99,7 +101,8 @@ tb_interaction1 <- analyze_time_bins(df_time_within, predictor_column = "SexM:Ta
 tb_interaction1_check <- dget(file = "tb_output_interaction.txt")
 
 test_that(desc = "The function analyze_time_bins has correct data (interaction)", code = {
-  expect_true( all( compare_dfs(tb_interaction1_check,tb_interaction1)<TOL ) )
+  res <- compare_dfs(tb_interaction1_check,tb_interaction1)
+  expect_true(res)
 })
 
 # Intercept Model -----------------------------------------------------------------------------
