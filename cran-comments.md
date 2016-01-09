@@ -2,12 +2,9 @@
 * local OS X install, 3.2.3
 * win-builder (devel and release)
 
-## Resubmission:
-This submission aims to address concerns Prof. Ripley raised with certain unit tests not being portable across platforms.
+## Comment:
+This submission aims to address concerns Prof. Ripley raised with certain unit-tests not being portable across platforms.
 
-## Comment
-
-I know we've been updating this package a lot since release. This should hopefully be a relatively stable version that won't need updates for a while.
 
 ## R CMD check results
 There were no ERRORs or WARNINGs. 
