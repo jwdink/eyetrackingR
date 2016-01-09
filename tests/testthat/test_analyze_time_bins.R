@@ -1,14 +1,28 @@
 library("eyetrackingR")
 context("Analyze Time Bins")
 
-round.data.frame <- function(df, digits = 0) {
-  for (col in colnames(df)) {
-    if (is.numeric(df[[col]])) {
-      df[[col]] <- round(x = df[[col]], digits = digits)
+compare_dfs <- function(df1, df2) {
+  stopifnot(all(dim(df1)==dim(df2)))
+  
+  res <- matrix(nrow = nrow(df1), ncol = ncol(df1))
+  for (i in 1:ncol(df1)) {
+    col <- colnames(df1)[i]
+    
+    # Replace NAs with 0
+    df1[is.na(df1)] <- 0
+    df2[is.na(df2)] <- 0
+    
+    # Get difference between elements
+    if (is.numeric(df1[[col]])) {
+      res[,i] <- df1[[col]] - df2[[col]]
+    } else {
+      res[,i] <- ifelse(df1[[col]] == df2[[col]], 0, Inf)
     }
   }
-  df
+  return(res)
 }
+
+TOL <- 0.0001
 
 data("word_recognition") 
 data <- make_eyetrackingr_data(word_recognition, 
@@ -41,15 +55,18 @@ df_time_within <- make_time_sequence_data(response_window_clean,
 num_time_bins <- length(unique(df_time_within$TimeBin))
 tb_within <- analyze_time_bins(df_time_within, predictor_column = "Target", test = "t.test", 
                         paired=T, alpha = .05 / num_time_bins)
-#dput(round(tb_within,3), file = "tb_output_within_subj.txt")
+#dput(tb_within, file = "tb_output_within_subj.txt")
 tb_within_check <- dget(file = "tb_output_within_subj.txt")
 
-test_that(desc = "The function analyze_time_bins has eyetrackingR attributes and correct data (within)", code = {
+test_that(desc = "The function analyze_time_bins has eyetrackingR attributes (within)", code = {
   expect_true( all(class(tb_within) %in% c("bin_analysis", "data.frame")) )
   expect_false( is.null( attr(tb_within,"eyetrackingR") ) )
-  expect_true( all(tb_within_check == round(tb_within, 3), na.rm = TRUE) )
   expect_equal(length(which(is.na(tb_within_check$PositiveRuns))), 38)
   expect_equal(length(which(is.na(tb_within_check$NegativeRuns))), 55)
+})
+
+test_that(desc = "The function analyze_time_bins has correct data (within)", code = {
+  expect_true( all( compare_dfs(tb_within_check,tb_within)<TOL ) )
 })
 
 # Between Subjects -----------------------------------------------------------------------------
@@ -61,37 +78,28 @@ df_time_between <- make_time_sequence_data(response_window_clean,
 num_time_bins <- length(unique(df_time_between$TimeBin))
 tb_between <- analyze_time_bins(df_time_between, predictor_column = "Sex", test = "t.test", 
                                paired=FALSE, alpha = .05 )
-#dput(round(tb_between,3), file = "tb_output_between_subj.txt")
+#dput(tb_between, file = "tb_output_between_subj.txt")
 tb_between_check <- dget(file = "tb_output_between_subj.txt")
 
-test_that(desc = "The function analyze_time_bins has eyetrackingR attributes and correct data (between)", code = {
+test_that(desc = "The function analyze_time_bins has eyetrackingR attributes (between)", code = {
   expect_true( all(class(tb_between) %in% c("bin_analysis", "data.frame")) )
   expect_false( is.null( attr(tb_between,"eyetrackingR") ) )
-  expect_true( all(tb_between_check == round(tb_between, 3), na.rm = TRUE) )
   expect_equal(length(which(is.na(tb_between_check$PositiveRuns))), 55)
   expect_equal(length(which(is.na(tb_between_check$NegativeRuns))), 54)
+})
+
+test_that(desc = "The function analyze_time_bins has correct data (between)", code = {
+  expect_true( all( compare_dfs(tb_between_check,tb_between)<TOL ) )
 })
 
 # Interaction Term -----------------------------------------------------------------------------
 tb_interaction1 <- analyze_time_bins(df_time_within, predictor_column = "SexM:TargetInanimate", test = "lmer", alpha=.05,
                                      formula = Prop ~ Sex*Target + (1|ParticipantName))
-#dput(round(tb_interaction1, 3), file = "tb_output_interaction.txt")
+#dput(tb_interaction1, file = "tb_output_interaction.txt")
 tb_interaction1_check <- dget(file = "tb_output_interaction.txt")
-tb_interaction1_rounded <- round(tb_interaction1, 3)
-for (col in colnames(tb_interaction1_check)) {
-  if (is.numeric(tb_interaction1_rounded[[col]] )) {
-    count <- sum(abs(tb_interaction1_rounded[[col]] - tb_interaction1_check[[col]]), na.rm=TRUE)
-    message(col, " has summed differences of: ", count)
-  } else {
-    count <- sum(tb_interaction1_rounded[[col]] == tb_interaction1_check[[col]], na.rm=TRUE)
-    message(col, " has number of differences = ", count)
-  }
-}
 
-test_that(desc = "The function analyze_time_bins has correct data (interaction).", code = {
-  #expect_true( all(tb_interaction1_check == round(tb_interaction1, 3), na.rm = TRUE) )
-  expect_true( all(is.na(tb_interaction1$PositiveRuns)) ) 
-  expect_true( all(is.na(tb_interaction1$NegativeRuns)) ) 
+test_that(desc = "The function analyze_time_bins has correct data (interaction)", code = {
+  expect_true( all( compare_dfs(tb_interaction1_check,tb_interaction1)<TOL ) )
 })
 
 # Intercept Model -----------------------------------------------------------------------------
