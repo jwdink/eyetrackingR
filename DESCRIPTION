@@ -13,7 +13,7 @@ Description: A set of tools that address tasks along the pipeline from raw
     bootstrapping approaches.
 URL: http://eyetracking-r.com
 BugReports: https://github.com/jwdink/eyetrackingR/issues
-Date: 2016-1-08 15:15:02
+Date: 2016-1-09 15:15:02
 Depends: 
     R (>= 3.2.3)
 License: MIT + file LICENSE

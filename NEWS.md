@@ -1,6 +1,6 @@
 # eyetrackingR 
 
-Changes in 0.1.2:
+Changes in 0.1.3:
 
 * The `analyze_time_bins` and therefore cluster-analyses have been re-written internally. Full support for (g)lm, (g)lmer, wilcox. Support for interaction terms/predictors. Experimental support for using boot-splines within cluster analysis.
 * P-value adjustment for multiple comparisons is now supported in `analyze_time_bins`
@@ -11,7 +11,6 @@ Changes in 0.1.2:
 * The `analyze_time_clusters` function now checks that the extra arguments passed to it are the same as the arguments passed
 * Fixed small bug in make_onset_data
 * Added `simulate_eyetrackingr_data` function to generate fake data for simulations.
-
 
 Changes in 0.1.1:
 
