@@ -258,3 +258,4 @@ Cluster-analysis (probably correctly) says no: we should expect to get a diverge
 Maris, E., Oostenveld, R., (2007). Nonparametric statistical testing of EEG- and MEG-data. Journal of Neuroscience Methods 164 (1), 177–190.
 
 Wendt, D., Brand, T., & Kollmeier, B. (2014). An Eye-Tracking Paradigm for Analyzing the Processing Time of Sentences with Different Linguistic Complexities. PLoS ONE, 9(6), e100186. http://doi.org/10.1371/journal.pone.0100186.t003
+
