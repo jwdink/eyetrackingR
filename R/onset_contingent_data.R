@@ -216,8 +216,9 @@ plot.onset_data <- function(x, predictor_columns=NULL, ...) {
 
   # summarize by time bin:
   df_clean[[".Time"]] <- floor(df_clean[[data_options$time_column]] / smoothing_window_size) * smoothing_window_size
+  
   df_grouped <- group_by_(df_clean,
-                         .dots = c(predictor_columns, data_options$participant_column, ".Time", "FirstAOI", onset_attr$distractor_aoi, onset_attr$target_aoi))
+                         .dots = c(predictor_columns, data_options$participant_column, ".Time", "FirstAOI"))
   df_smoothed <- summarize(df_grouped, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
 
   # collapse into lines for graphing:
@@ -240,6 +241,10 @@ plot.onset_data <- function(x, predictor_columns=NULL, ...) {
   } else {
     color_factor <- predictor_columns[1]
   }
+  
+  # make FirstAOI lines consistently solid==target
+  df_plot$FirstAOI <- factor(df_plot$FirstAOI, levels=c(onset_attr$target_aoi,onset_attr$distractor_aoi))
+  
   g <- ggplot(df_plot, aes_string(x = ".Time", y = "SwitchAOI",
                                   group = "FirstAOI",
                                   color = color_factor)) +
