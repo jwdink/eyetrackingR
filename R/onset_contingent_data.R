@@ -163,10 +163,19 @@ make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_
                          .dots = c(summarize_by,
                                    "FirstAOI",
                                    predictor_columns))
+  df_summarized <- summarize(df_grouped,
+                              FirstSwitch = ifelse(sum(which(SwitchAOI)) > 0,
+                                                   min(time.rel.sent[SwitchAOI], na.rm=TRUE),
+                                                   NA
+                                              )
+                              )
+  
   df_summarized <- summarize_(df_grouped,
-                            .dots = list(FirstSwitch = interp(~TIME_COL[first(which(SwitchAOI), order_by= TIME_COL)], TIME_COL = time_col)
-                                         ))
-
+                            .dots = list(FirstSwitch = interp(~ifelse(sum(which(SwitchAOI)) > 0,
+                                                                      min(TIME_COL[SwitchAOI], na.rm=TRUE),
+                                                                      NA), TIME_COL = as.name(time_col))
+                            ))
+                              
   df_summarized <- as.data.frame(df_summarized)
   class(df_summarized) <- c('switch_data', class(df_summarized))
   attr(df_summarized, "eyetrackingR") <- list(data_options = data_options)
