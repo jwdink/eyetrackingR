@@ -2,15 +2,12 @@
 title: "Performing an onset-contingent analysis using eyetrackingR"
 author: "Jacob Dink & Brock Ferguson"
 date: "`r Sys.Date()`"
-output:
-  html_document:
-    theme: flatly
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Performing an onset-contingent analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
-<!--
-%\VignetteIndexEntry{Performing an onset-contingent analysis}
-%\VignetteEngine{knitr::rmarkdown}
-%\VignetteEncoding{UTF-8}
--->
 
 > **Our Experiment**: Each eyetrackingR vignette uses the *eyetrackingR* package to analyze real data from a simple 2-alternative forced choice (2AFC) word recognition task administered to 19- and 24-month-olds.
 > On each trial, infants were shown a picture of an animate object (e.g., a horse) and an inanimate object (e.g., a spoon). After inspecting the images, they disappeared and they heard a label referring to one of them (e.g., "The horse is nearby!"). Finally, the objects re-appeared on the screen and they were prompted to look at the target (e.g., "Look at the horse!").
