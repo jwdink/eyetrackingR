@@ -8,7 +8,7 @@ output:
 ---
 <!--
 %\VignetteIndexEntry{Performing an onset-contingent analysis}
-%\VignetteEngine{knitr::rmarkdown}
+%\VignetteEngine{rmarkdown::render}
 %\VignetteEncoding{UTF-8}
 -->
 
