@@ -2,7 +2,9 @@
 title: "Performing a growth curve analysis using eyetrackingR"
 author: "Jacob Dink & Brock Ferguson"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+output:
+  html_document:
+    theme: flatly
 ---
 <!--
 %\VignetteIndexEntry{Performing a growth curve analysis}

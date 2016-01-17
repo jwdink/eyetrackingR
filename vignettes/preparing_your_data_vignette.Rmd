@@ -2,7 +2,9 @@
 title: "Preparing your data for use with eyetrackingR"
 author: "Jacob Dink & Brock Ferguson"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+output:
+  html_document:
+    theme: flatly
 ---
 <!--
 %\VignetteIndexEntry{Preparing your data for eyetrackingR}
