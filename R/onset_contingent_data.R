@@ -32,10 +32,17 @@
 make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi, distractor_aoi = NULL) {
   ## Helper Function:
   na_replace_rollmean <- function(col) {
-    col <- ifelse(is.na(col), 0, col)
-    zoo::rollmean(col, k = fixation_window_length_rows, partial=TRUE, fill= NA, align="left")
+    if ( mean(is.na(col)) > .5 ) return(as.numeric(NA)) # if there are too many NAs, we don't know where they were looking
+    if ( any(is.na(col)) ) {
+      out <- zoo::rollapply(col, FUN = mean, na.rm=TRUE, width = fixation_window_length_rows, partial= TRUE, 
+                            fill= NA, align = "left")
+    } else {
+      out <- zoo::rollmean(col, k = fixation_window_length_rows, partial=TRUE, fill= NA, align="left")
+    }
+    return(out)
+    
   }
-
+  
   ## Prelims:
   if ( 'time_sequence_data' %in% class(data) ) {
     stop("This function should be used on your original data (after processed by `make_eyetrackingr_data`), ",
@@ -54,46 +61,46 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
     data[[distractor_aoi]] <- !data[[target_aoi]]
   }
   time_col <- as.name(data_options$time_column)
-
+  
   ## Translate TimeWindow units from time to number of rows (for rolling mean):
   df_time_per_row <- group_by_(data, .dots = c(data_options$participant_column, data_options$trial_column) )
   df_time_per_row <- summarize_(df_time_per_row,
-                               .dots = list(TimePerRow = interp(~mean(diff(TIME_COL)), TIME_COL = time_col)
-                                            ))
+                                .dots = list(TimePerRow = interp(~mean(diff(TIME_COL)), TIME_COL = time_col)
+                                ))
   time_per_row <- round(mean(df_time_per_row[["TimePerRow"]]))
   fixation_window_length_rows <- fixation_window_length / time_per_row
-
+  
   ## Determine First AOI, Assign Switch Value for each timepoint
   
   # Group by Ppt*Trial:
   df_grouped <- group_by_(data, .dots = list(data_options$participant_column, data_options$trial_column) )
-
+  
   # Create a rolling-average of 'inside-aoi' logical for target and distractor, to give a smoother estimate of fixations
   df_smoothed <- mutate_(df_grouped,
-                        .dots = list(.Target    = interp(~na_replace_rollmean(TARGET_AOI), TARGET_AOI = as.name(target_aoi)),
-                                     .Distractor= interp(~na_replace_rollmean(DISTRACTOR_AOI), DISTRACTOR_AOI = as.name(distractor_aoi)),
-                                     .Time      = interp(~TIME_COL, TIME_COL = time_col)
-                                     ))
+                         .dots = list(.Target    = interp(~na_replace_rollmean(TARGET_AOI), TARGET_AOI = as.name(target_aoi)),
+                                      .Distractor= interp(~na_replace_rollmean(DISTRACTOR_AOI), DISTRACTOR_AOI = as.name(distractor_aoi)),
+                                      .Time      = interp(~TIME_COL, TIME_COL = time_col)
+                         ))
   
   # For any trials where no data for onset timepoint is available, find the closest timepoint.
   # Calculate FirstAOI
   df_first_aoi <- mutate(df_smoothed,
-                        .ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
-                        # coerce results to character to avoid inconsistent response formats with ifelse when a match cannot be found and returns NA (logical)
-                        FirstAOI     = as.character(ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi))
+                         .ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
+                         # coerce results to character to avoid inconsistent response formats with ifelse when a match cannot be found and returns NA (logical)
+                         FirstAOI     = as.character(ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi))
   )
   df_first_aoi <- ungroup(df_first_aoi)
-
+  
   # (1) If closest timepoint was too far away from onset window, record FirstAOI as unknown
   # (2) Set FirstAOI to NA if 'FirstAOI' returned NA (but was coerced to a character string) by previous mutate()
   # (3) Create a column specifying whether they have switched away from FirstAOI
   out <- mutate(df_first_aoi,
-         FirstAOI  = ifelse(abs(.ClosestTime-onset_time) > fixation_window_length | FirstAOI == 'NA', NA, FirstAOI),
-         WhichAOI  = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
-         SwitchAOI = FirstAOI != WhichAOI)
+                FirstAOI  = ifelse(abs(.ClosestTime-onset_time) > fixation_window_length | FirstAOI == 'NA', NA, FirstAOI),
+                WhichAOI  = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
+                SwitchAOI = FirstAOI != WhichAOI)
   out <- select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
   if (mean(is.na(out$FirstAOI)) > .5) warning("Very few trials have a legitimate first AOI! Possible incorrect onset time?")
-
+  
   # Assign class information:
   out <- as.data.frame(out)
   class(out)  <- c('onset_data', class(out))
@@ -103,7 +110,7 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
                                        target_aoi = target_aoi,
                                        onset_time = onset_time,
                                        fixation_window_length = fixation_window_length))
-
+  
   return(out)
 }
 
@@ -147,39 +154,33 @@ make_switch_data <- function(data, predictor_columns, summarize_by) {
 #' @return A dataframe indicating initial AOI and time-to-switch from that AOI for each
 #'   trial/subject/item/etc.
 make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_by = NULL) {
-
+  
   data_options = attr(data, "eyetrackingR")$data_options
-
+  
   if (is.null(summarize_by)) {
     summarize_by <- c(data_options$participant_column,
-                     data_options$trial_column,
-                     data_options$item_columns)
+                      data_options$trial_column,
+                      data_options$item_columns)
   }
-
+  
   time_col <- as.name(data_options$time_column)
-
+  
   df_cleaned <- filter(data, !is.na(FirstAOI))
   df_grouped <- group_by_(data,
-                         .dots = c(summarize_by,
-                                   "FirstAOI",
-                                   predictor_columns))
-  df_summarized <- summarize(df_grouped,
-                              FirstSwitch = ifelse(sum(which(SwitchAOI)) > 0,
-                                                   min(time.rel.sent[SwitchAOI], na.rm=TRUE),
-                                                   NA
-                                              )
-                              )
+                          .dots = c(summarize_by,
+                                    "FirstAOI",
+                                    predictor_columns))
   
   df_summarized <- summarize_(df_grouped,
-                            .dots = list(FirstSwitch = interp(~ifelse(sum(which(SwitchAOI)) > 0,
-                                                                      min(TIME_COL[SwitchAOI], na.rm=TRUE),
-                                                                      NA), TIME_COL = as.name(time_col))
-                            ))
-                              
+                              .dots = list(FirstSwitch = interp(~ifelse(sum(which(SwitchAOI)) > 0,
+                                                                        min(TIME_COL[SwitchAOI], na.rm=TRUE),
+                                                                        NA), TIME_COL = as.name(time_col))
+                              ))
+  
   df_summarized <- as.data.frame(df_summarized)
   class(df_summarized) <- c('switch_data', class(df_summarized))
   attr(df_summarized, "eyetrackingR") <- list(data_options = data_options)
-
+  
   return(df_summarized)
 }
 
@@ -195,7 +196,7 @@ make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_
 #' @return A ggplot object
 
 plot.onset_data <- function(x, predictor_columns=NULL, ...) {
-
+  
   ## Prelims:
   attrs <- attr(x, "eyetrackingR")
   data_options <- attrs$data_options
@@ -203,10 +204,10 @@ plot.onset_data <- function(x, predictor_columns=NULL, ...) {
   onset_attr <- attrs$onset_contingent
   if (is.null(onset_attr)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   if (length(predictor_columns)>2) stop("Maximum two predictor columns.")
-
+  
   # set smoothing_window_size based on fixation_window_length in attr's
   smoothing_window_size <- onset_attr$fixation_window_length / 4
-
+  
   # clean out unknown first AOIs, perform median splits if necessary:
   df_clean <- x[ !is.na(x[["FirstAOI"]]) , ]
   numeric_predictor_cols <- sapply(predictor_columns, function(col) is.numeric(df_clean[[col]]))
@@ -217,33 +218,33 @@ plot.onset_data <- function(x, predictor_columns=NULL, ...) {
       message("Column '", predictor_columns[i], "' is numeric, performing median split for visualization.")
       the_median <- median(df_clean[[predictor_columns[i]]], na.rm=TRUE)
       df_clean[[predictor_columns[i]]] <- ifelse(df_clean[[predictor_columns[i]]] > the_median, 
-                                                yes = paste0("High (>",the_median,")"),
-                                                no = "Low")
+                                                 yes = paste0("High (>",the_median,")"),
+                                                 no = "Low")
     }
     df_clean[[predictor_columns[i]]] <- paste(predictor_columns[i], ":", df_clean[[predictor_columns[i]]])
   }
-
+  
   # summarize by time bin:
   df_clean[[".Time"]] <- floor(df_clean[[data_options$time_column]] / smoothing_window_size) * smoothing_window_size
   
   df_grouped <- group_by_(df_clean,
-                         .dots = c(predictor_columns, data_options$participant_column, ".Time", "FirstAOI"))
+                          .dots = c(predictor_columns, data_options$participant_column, ".Time", "FirstAOI"))
   df_smoothed <- summarize(df_grouped, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
-
+  
   # collapse into lines for graphing:
   df_summarized <- group_by_(df_smoothed, .dots = c(".Time", "FirstAOI", predictor_columns) )
   df_summarized <- summarize(df_summarized, SwitchAOI = mean(SwitchAOI, na.rm=TRUE))
-
+  
   # compute grayed area:
   df_plot <- group_by_(df_summarized, .dots = c(".Time", predictor_columns) )
   df_plot <- mutate(df_plot,
                     Max= max(SwitchAOI),
                     Min= min(SwitchAOI),
                     Top= ifelse(length(which(FirstAOI==onset_attr$distractor_aoi)), SwitchAOI[FirstAOI==onset_attr$distractor_aoi], 0)
-                    )
+  )
   df_plot$Max <- with(df_plot, ifelse(Max==Top, Max, NA))
   df_plot$Min <- with(df_plot, ifelse(Max==Top, Min, NA))
-
+  
   ## Graph:
   if (is.null(predictor_columns)) {
     color_factor <- NULL
@@ -263,12 +264,12 @@ plot.onset_data <- function(x, predictor_columns=NULL, ...) {
     ylab("Proportion Switch Looking") +
     xlab("Time") +
     guides(colour=FALSE)
-
+  
   ## Add Facets for Conditions:
   if (length(predictor_columns)>1) return(g+facet_grid(as.formula(paste(predictor_columns, collapse="~"))))
   if (length(predictor_columns)>0) return(g+facet_grid(as.formula(paste(predictor_columns, "~ ."))))
   return(g)
-
+  
 }
 
 #' Plot mean switch-from-initial-AOI times.
@@ -284,19 +285,19 @@ plot.onset_data <- function(x, predictor_columns=NULL, ...) {
 #' @return A ggplot object
 
 plot.switch_data <- function(x, predictor_columns=NULL, ...) {
-
+  
   ## Prelims:
   data_options <- attr(x, "eyetrackingR")$data_options
   if (is.null(data_options)) stop("Dataframe has been corrupted.") # <----- TO DO: fix later
   if (length(predictor_columns) > 2) {
     stop("Maximum two predictor columns.")
   }
-
+  
   ## Prepare for Graphing:
   data <- filter(x, !is.na(FirstAOI))
   df_grouped <- group_by_(data, .dots = c(data_options$participant_column, predictor_columns, "FirstAOI"))
   df_plot <- summarize(df_grouped, MeanFirstSwitch = mean(FirstSwitch))
-
+  
   ## Figure out predictor columns: 
   # color:
   if (is.null(predictor_columns)) {
@@ -320,18 +321,18 @@ plot.switch_data <- function(x, predictor_columns=NULL, ...) {
   
   ## Graph:
   g <- ggplot(df_plot, aes_string(x = "FirstAOI", y = "MeanFirstSwitch",
-                             color = color_factor)) +
+                                  color = color_factor)) +
     geom_boxplot() +
     geom_point(position = position_jitter(.1)) +
     coord_flip() +
     ylab("Mean Switch Time") +
     xlab("Onset AOI") +
     guides(colour=FALSE)
-
+  
   ## Add Facets for Conditions:
   if (length(predictor_columns)>1) return(g+facet_grid(as.formula(paste(predictor_columns, collapse="~"))))
   if (length(predictor_columns)>0) return(g+facet_grid(as.formula(paste(predictor_columns, "~ ."))))
-
+  
   return(g)
-
+  
 }
