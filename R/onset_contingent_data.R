@@ -163,12 +163,6 @@ make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_
                          .dots = c(summarize_by,
                                    "FirstAOI",
                                    predictor_columns))
-  df_summarized <- summarize(df_grouped,
-                              FirstSwitch = ifelse(sum(which(SwitchAOI)) > 0,
-                                                   min(time.rel.sent[SwitchAOI], na.rm=TRUE),
-                                                   NA
-                                              )
-                              )
   
   df_summarized <- summarize_(df_grouped,
                             .dots = list(FirstSwitch = interp(~ifelse(sum(which(SwitchAOI)) > 0,
