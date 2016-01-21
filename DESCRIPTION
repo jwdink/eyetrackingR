@@ -34,5 +34,5 @@ Suggests:
     rmarkdown,
     doMC,
     foreach
-VignetteBuilder: knitr
+VignetteBuilder: rmarkdown
 RoxygenNote: 5.0.1
