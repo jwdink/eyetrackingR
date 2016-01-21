@@ -4,8 +4,8 @@ author: "Jacob Dink & Brock Ferguson"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Estimating time windows of divergence}
   %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{Estimating time windows of divergence}
   %\VignetteEncoding{UTF-8}
 ---
 
