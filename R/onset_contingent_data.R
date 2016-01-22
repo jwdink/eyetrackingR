@@ -85,10 +85,12 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   # Calculate FirstAOI
   # For any trials where no data for onset timepoint is available, find the closest timepoint.
   df_first_aoi <- mutate(df_smoothed,
-                        .ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
-                        # coerce results to character to avoid inconsistent response formats with ifelse when a match cannot be found and returns NA (logical)
-                        FirstAOI     = as.character(ifelse(!is.na(.ClosestTime), ifelse(.Target[.Time==.ClosestTime] >= .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi), NA))
+                        .ClosestTime = ifelse(!is.na(.Target) & length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], as.integer(NA)),
+                        FirstAOI = ifelse(length(which(.Time==.ClosestTime))==1, 
+                                          yes =ifelse(.Target[.Time==.ClosestTime] >= .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi),
+                                          no  = as.character(NA))
   )
+  
   df_first_aoi <- ungroup(df_first_aoi)
 
   # (1) If closest timepoint was too far away from onset window, record FirstAOI as unknown
