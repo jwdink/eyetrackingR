@@ -31,9 +31,16 @@
 #' @return Original dataframe augmented with column indicating switch away from target AOI
 make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi, distractor_aoi = NULL) {
   ## Helper Function:
-  na_replace_rollmean <- function(col) {
-    col <- ifelse(is.na(col), 0, col)
-    zoo::rollmean(col, k = fixation_window_length_rows, partial=TRUE, fill= NA, align="left")
+  na_replace_rollmean <- function(col, fixation_window_length_rows) {
+    if ( sum(!is.na(col)) == 0 ) return(as.numeric(NA)) # no data
+    if ( any(is.na(col)) ) {
+        out <- zoo::rollapply(col, FUN = mean, na.rm = TRUE, width = fixation_window_length_rows, partial = TRUE, 
+                              fill = NA, align = "left")
+    } else {
+        out <- zoo::rollmean(col, k = fixation_window_length_rows, partial = TRUE, fill = NA, align = "left")
+    }
+    
+    return(out)
   }
 
   ## Prelims:
@@ -70,8 +77,8 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
 
   # Create a rolling-average of 'inside-aoi' logical for target and distractor, to give a smoother estimate of fixations
   df_smoothed <- mutate_(df_grouped,
-                        .dots = list(.Target    = interp(~na_replace_rollmean(TARGET_AOI), TARGET_AOI = as.name(target_aoi)),
-                                     .Distractor= interp(~na_replace_rollmean(DISTRACTOR_AOI), DISTRACTOR_AOI = as.name(distractor_aoi)),
+                        .dots = list(.Target    = interp(~na_replace_rollmean(TARGET_AOI, fixation_window_length_rows), TARGET_AOI = as.name(target_aoi)),
+                                     .Distractor= interp(~na_replace_rollmean(DISTRACTOR_AOI, fixation_window_length_rows), DISTRACTOR_AOI = as.name(distractor_aoi)),
                                      .Time      = interp(~TIME_COL, TIME_COL = time_col)
                                      ))
   
@@ -80,7 +87,7 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   df_first_aoi <- mutate(df_smoothed,
                         .ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
                         # coerce results to character to avoid inconsistent response formats with ifelse when a match cannot be found and returns NA (logical)
-                        FirstAOI     = as.character(ifelse(!is.na(.ClosestTime), ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi), NA))
+                        FirstAOI     = as.character(ifelse(!is.na(.ClosestTime), ifelse(.Target[.Time==.ClosestTime] >= .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi), NA))
   )
   df_first_aoi <- ungroup(df_first_aoi)
 
@@ -89,10 +96,10 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   # (3) Create a column specifying whether they have switched away from FirstAOI
   out <- mutate(df_first_aoi,
          FirstAOI  = ifelse(!is.na(.ClosestTime) & abs(.ClosestTime-onset_time) <= fixation_window_length, FirstAOI, NA),
-         WhichAOI  = ifelse(!is.na(.Target) & .Target == TRUE, target_aoi, ifelse(!is.na(.Distractor) & .Distractor == TRUE, distractor_aoi, NA)),
+         WhichAOI  = ifelse(!is.na(.Target) & !is.na(.Distractor) & .Target > .Distractor, target_aoi, ifelse(!is.na(.Target) & !is.na(.Distractor) & .Target < .Distractor, distractor_aoi, NA)),
          SwitchAOI = ifelse(!is.na(WhichAOI), FirstAOI != WhichAOI, NA)
     )
-  out <- select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
+  #out <- select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
   if (mean(is.na(out$FirstAOI)) > .5) warning("Very few trials have a legitimate first AOI! Possible incorrect onset time?")
 
   # Assign class information:
