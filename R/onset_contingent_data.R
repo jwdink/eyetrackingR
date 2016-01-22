@@ -54,7 +54,7 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
     data[[distractor_aoi]] <- !data[[target_aoi]]
   }
   time_col <- as.name(data_options$time_column)
-
+  
   ## Translate TimeWindow units from time to number of rows (for rolling mean):
   df_time_per_row <- group_by_(data, .dots = c(data_options$participant_column, data_options$trial_column) )
   df_time_per_row <- summarize_(df_time_per_row,
@@ -75,12 +75,12 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
                                      .Time      = interp(~TIME_COL, TIME_COL = time_col)
                                      ))
   
-  # For any trials where no data for onset timepoint is available, find the closest timepoint.
   # Calculate FirstAOI
+  # For any trials where no data for onset timepoint is available, find the closest timepoint.
   df_first_aoi <- mutate(df_smoothed,
                         .ClosestTime = ifelse(length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], NA),
                         # coerce results to character to avoid inconsistent response formats with ifelse when a match cannot be found and returns NA (logical)
-                        FirstAOI     = as.character(ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi))
+                        FirstAOI     = as.character(ifelse(!is.na(.ClosestTime), ifelse(.Target[.Time==.ClosestTime] > .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi), NA))
   )
   df_first_aoi <- ungroup(df_first_aoi)
 
@@ -88,9 +88,10 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   # (2) Set FirstAOI to NA if 'FirstAOI' returned NA (but was coerced to a character string) by previous mutate()
   # (3) Create a column specifying whether they have switched away from FirstAOI
   out <- mutate(df_first_aoi,
-         FirstAOI  = ifelse(abs(.ClosestTime-onset_time) > fixation_window_length | FirstAOI == 'NA', NA, FirstAOI),
-         WhichAOI  = ifelse(.Target > .Distractor, target_aoi, distractor_aoi),
-         SwitchAOI = FirstAOI != WhichAOI)
+         FirstAOI  = ifelse(!is.na(.ClosestTime) & abs(.ClosestTime-onset_time) <= fixation_window_length, FirstAOI, NA),
+         WhichAOI  = ifelse(!is.na(.Target) & .Target == TRUE, target_aoi, ifelse(!is.na(.Distractor) & .Distractor == TRUE, distractor_aoi, NA)),
+         SwitchAOI = ifelse(!is.na(WhichAOI), FirstAOI != WhichAOI, NA)
+    )
   out <- select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
   if (mean(is.na(out$FirstAOI)) > .5) warning("Very few trials have a legitimate first AOI! Possible incorrect onset time?")
 
