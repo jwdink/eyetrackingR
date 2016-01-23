@@ -155,6 +155,21 @@ make_eyetrackingr_data <- function(data,
     # TO DO: check if any NAs in non-trackloss rows? that is, trackloss col should exactly track is.na() for all AOIs
   }
   
+  # Check for duplicate values of Trial column within Participants
+  duplicates <- out %>%
+                group_by_(.dots = list(data_options$participant_column,
+                                       data_options$trial_column,
+                                       data_options$time_column)) %>%
+                summarise(count = n()) %>%
+                ungroup() %>%
+                filter(count > 1)
+  
+  if (nrow(duplicates) > 0) {
+    stop("It appears that `trial_column` is not unique within participants. eyetrackingR requires that each participant
+         only have a single trial with the same `trial_column` value. If you repeated items in your experiment,
+         use `item_column` to specify the name of the item, and set `trial_column` to a unique value (e.g., the trial index).")
+  }
+  
   ## Assign attribute:
   class(out) <- c("eyetrackingR", "data.frame")
   attr(out, "eyetrackingR") <- list(data_options = data_options)
