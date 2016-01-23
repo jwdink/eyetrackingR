@@ -72,8 +72,11 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
 
   ## Determine First AOI, Assign Switch Value for each timepoint
   
-  # Group by Ppt*Trial:
+  # Group by Participant*Trial:
   df_grouped <- group_by_(data, .dots = list(data_options$participant_column, data_options$trial_column) )
+  
+  # We assume data are in chronological order
+  df_grouped <- arrange_(df_grouped, .dots = list(data_options$time_column) )
 
   # Create a rolling-average of 'inside-aoi' logical for target and distractor, to give a smoother estimate of fixations
   df_smoothed <- mutate_(df_grouped,
@@ -85,10 +88,25 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   # Calculate FirstAOI
   # For any trials where no data for onset timepoint is available, find the closest timepoint.
   df_first_aoi <- mutate(df_smoothed,
-                        .ClosestTime = ifelse(!is.na(.Target) & length(which.min(abs(.Time - onset_time)))==1, .Time[which.min(abs(.Time - onset_time))], as.integer(NA)),
-                        FirstAOI = ifelse(length(which(.Time==.ClosestTime))==1, 
-                                          yes =ifelse(.Target[.Time==.ClosestTime] >= .Distractor[.Time==.ClosestTime], target_aoi, distractor_aoi),
-                                          no  = as.character(NA))
+                         # these columns were useful for debugging:
+                         #.MinTimeIndex = as.numeric(ifelse(length(which.min(abs(.Time - onset_time))) == 1, which.min(abs(.Time - onset_time)), NA)),
+                         #.MinTime = as.numeric(ifelse(.MinTimeIndex, .Time[which.min(abs(.Time - onset_time))], NA)),
+                         #.TargetAtMinTime = as.numeric(.Target[.MinTimeIndex]),
+                         #.ClosestTime = as.numeric(ifelse(!is.na(.TargetAtMinTime) & !is.na(.MinTime), .MinTime, NA)),
+                         
+                         # .ClosestTime allows this function to work if people removed trackloss from their dataset, but otherwise
+                         # it serves no purpose
+                        .ClosestTime = as.numeric(ifelse(length(which.min(abs(.Time - onset_time)))==1 & !is.na(.Target[which.min(abs(.Time - onset_time))]),
+                                                        yes = .Time[which.min(abs(.Time - onset_time))],
+                                                        no = NA)),
+                        FirstAOI = as.character(ifelse(length(which(.Time==.ClosestTime))==1, 
+                                                       yes = ifelse(.Target[which(.Time==.ClosestTime)] >= .Distractor[which(.Time==.ClosestTime)], target_aoi, distractor_aoi),
+                                                       no  = NA))
+                        
+                        # if we didn't care about datasets that have entirely removed trackloss, we could use this function:
+                        #FirstAOI = as.character(ifelse(!is.na(.Target[which(.Time == onset_time)]),
+                        #                               yes = ifelse(.Target[which(.Time == onset_time)] >= .Distractor[which(.Time == onset_time)], target_aoi, distractor_aoi),
+                        #                               NA))
   )
   
   df_first_aoi <- ungroup(df_first_aoi)
@@ -99,9 +117,11 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   out <- mutate(df_first_aoi,
          FirstAOI  = ifelse(!is.na(.ClosestTime) & abs(.ClosestTime-onset_time) <= fixation_window_length, FirstAOI, NA),
          WhichAOI  = ifelse(!is.na(.Target) & !is.na(.Distractor) & .Target > .Distractor, target_aoi, ifelse(!is.na(.Target) & !is.na(.Distractor) & .Target < .Distractor, distractor_aoi, NA)),
-         SwitchAOI = ifelse(!is.na(WhichAOI), FirstAOI != WhichAOI, NA)
+         SwitchAOI = ifelse(!is.na(WhichAOI), FirstAOI != WhichAOI, NA),
+         FirstAOI  = factor(FirstAOI),
+         WhichAOI  = factor(WhichAOI)
     )
-  out <- select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
+  #out <- select(out, -.Target, -.Distractor, -.Time, -.ClosestTime)
   if (mean(is.na(out$FirstAOI)) > .5) warning("Very few trials have a legitimate first AOI! Possible incorrect onset time?")
 
   # Assign class information:
