@@ -7,7 +7,7 @@
 #' @param data            The original (verified) data
 #' @param onset_time        When to check for participants' "starting" AOI?
 #' @param fixation_window_length       Which AOI is currently being fixated is determined by taking a rolling
-#'   average. This is the width of window for rolling average.
+#'   average of this length (ms). This is the width of window for rolling average.
 #' @param target_aoi      Which AOI is the target that should be switched *to*
 #' @param distractor_aoi  Which AOI is the distractor that should be switched *from* (default = !target_aoi)
 #'
@@ -25,7 +25,7 @@
 #'                                     rezero = FALSE)
 #' inanimate_trials <- subset(response_window, grepl('(Spoon|Bottle)', Trial))
 #' onsets <- make_onset_data(inanimate_trials, onset_time = 15500, 
-#'                           fixation_window_length = 100, target_aoi='Inanimate')
+#'                           fixation_window_length = 1, target_aoi='Inanimate')
 #' 
 #' @export
 #' @return Original dataframe augmented with column indicating switch away from target AOI
@@ -69,6 +69,11 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
                                             ))
   time_per_row <- round(mean(df_time_per_row[["TimePerRow"]]))
   fixation_window_length_rows <- fixation_window_length / time_per_row
+  
+  if (fixation_window_length_rows > 1) {
+    warning('Smoothing in make_onset_data() using fixation_window_length_rows is experimental. We
+            recommend looking closely at the output to validate it.')
+  }
 
   ## Determine First AOI, Assign Switch Value for each timepoint
   
