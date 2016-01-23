@@ -165,9 +165,12 @@ make_eyetrackingr_data <- function(data,
                 filter(count > 1)
   
   if (nrow(duplicates) > 0) {
-    stop("It appears that `trial_column` is not unique within participants. eyetrackingR requires that each participant
-         only have a single trial with the same `trial_column` value. If you repeated items in your experiment,
-         use `item_column` to specify the name of the item, and set `trial_column` to a unique value (e.g., the trial index).")
+    print(duplicates)
+    stop("It appears that `trial_column` is not unique within participants. See above for a summary ",
+         "of which participant*trials have duplicate timestamps. eyetrackingR requires that each participant ",
+         "only have a single trial with the same `trial_column` value. If you repeated items in your experiment, ",
+         "use `item_column` to specify the name of the item, and set `trial_column` to a unique value ",
+         "(e.g., the trial index).")
   }
   
   ## Assign attribute:
