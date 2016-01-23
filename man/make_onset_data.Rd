@@ -13,7 +13,7 @@ make_onset_data(data, onset_time, fixation_window_length, target_aoi,
 \item{onset_time}{When to check for participants' "starting" AOI?}
 
 \item{fixation_window_length}{Which AOI is currently being fixated is determined by taking a rolling
-average. This is the width of window for rolling average.}
+average of this length (ms). This is the width of window for rolling average.}
 
 \item{target_aoi}{Which AOI is the target that should be switched *to*}
 
@@ -41,7 +41,7 @@ response_window <- subset_by_window(data, window_start_time = 15500, window_end_
                                     rezero = FALSE)
 inanimate_trials <- subset(response_window, grepl('(Spoon|Bottle)', Trial))
 onsets <- make_onset_data(inanimate_trials, onset_time = 15500, 
-                          fixation_window_length = 100, target_aoi='Inanimate')
+                          fixation_window_length = 1, target_aoi='Inanimate')
 
 }
 

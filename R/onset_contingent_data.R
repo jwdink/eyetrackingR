@@ -33,12 +33,9 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   ## Helper Function:
   na_replace_rollmean <- function(col, fixation_window_length_rows) {
     if ( sum(!is.na(col)) == 0 ) return(as.numeric(NA)) # no data
-    if ( any(is.na(col)) ) {
-        out <- zoo::rollapply(col, FUN = mean, na.rm = TRUE, width = fixation_window_length_rows, partial = TRUE, 
-                              fill = NA, align = "left")
-    } else {
-        out <- zoo::rollmean(col, k = fixation_window_length_rows, partial = TRUE, fill = NA, align = "left")
-    }
+    
+    out <- zoo::rollapply(col, FUN = mean, na.rm = TRUE, width = fixation_window_length_rows, partial = TRUE, 
+                          fill = NA, align = "left")
     
     return(out)
   }
