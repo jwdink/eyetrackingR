@@ -3,7 +3,7 @@
 * win-builder (devel and release)
 
 ## Comment:
-This submission aims to address concerns Prof. Ripley raised with certain unit-tests not being portable across platforms.
+...I know last time I said I wouldn't be resubmitting for a while because we'd ironed out the major bugs. I was wrong. I'm sorry.
 
 
 ## R CMD check results

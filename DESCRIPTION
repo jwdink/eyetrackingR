@@ -15,11 +15,11 @@ URL: http://eyetracking-r.com
 BugReports: https://github.com/jwdink/eyetrackingR/issues
 Date: 2016-1-25 15:15:02
 Depends: 
-    R (>= 3.2.1)
+    R (>= 3.2.0)
 License: MIT + file LICENSE
 LazyData: true
 Imports: 
-    broom (>= 0.4.0),
+    broom (>= 0.3.7),
     dplyr (>= 0.4.3),
     ggplot2 (>= 2.0),
     lazyeval (>= 0.1.10),
