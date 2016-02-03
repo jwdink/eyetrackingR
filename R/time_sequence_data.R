@@ -232,20 +232,38 @@ analyze_time_bins.time_sequence_data <- function(data,
 {
   
   ## Helper:
-  .fix_unpaired = function(data, data_options, predictor_column, dv) {
-    if (!is.factor(data[[predictor_column]])) stop("Your condition column should be a factor.")
-    lvl1 <- levels(data[[predictor_column]])[1]
-    df_no_na   <- filter_(data, interp(~!is.na(DV), DV = as.name(dv)))
-    summarized_by <- c("Time", attr(data, "eyetrackingR")$summarized_by)
-    df_grouped <- group_by_(df_no_na, .dots = summarized_by)
-    df_mutated <- mutate_(df_grouped,
-                          .dots = list(PairedObs = interp(
-                             ~length(which(COND_COL == lvl1)) > 0 & 
-                              length(which(COND_COL != lvl1)) > 0,
-                            COND_COL = as.name(predictor_column)))
-    )
-    df_filtered <- filter(df_mutated, PairedObs)
-    ungroup(df_filtered)
+  .check_fix_nobs = function(data, data_options, predictor_column, test, dv, paired) {
+    
+    # if (g)lmer, don't need to do anything:
+    if (test %in% c("lmer","glmer")) return(data)
+    
+    # otherwise, need to check if within-subjects:
+    data_summarized_by <-  attr(data, "eyetrackingR")$summarized_by
+    if (test %in% c("t.test", "wilcox.test") & identical(paired, TRUE)) {
+      # if so, need to convert implicit NAs (not even in the data.frame) to explicit NAs:
+      df_completed_cases <- expand.grid(Time = unique(data[["Time"]]),
+                                        SumBy = unique(data[[attr(data, "eyetrackingR")$summarized_by]]),
+                                        Pred = unique(data[[predictor_column]])
+      )
+      colnames(df_completed_cases) <- c("Time", data_summarized_by, predictor_column )
+      save_attr <- attr(data, "eyetrackingR")
+      save_class <- class(data)
+      data <- left_join(df_completed_cases, data, by = colnames(df_completed_cases)) 
+      attr(data, "eyetrackingR") <- save_attr
+      class(data) <- save_class
+    } 
+    
+    # for lm, t.test, wilcox, need to check that there's no more than one observation per 
+    # participant per predictor-level per time bin.
+    df_grouped <- group_by_(data, .dots = c("Time", data_summarized_by, predictor_column))
+    df_summarized <- summarize(df_grouped, N = n()) %>% ungroup()
+    if (any(df_summarized$N > 1)) {
+      warning(test, " almost always requires no more than one observation per ", data_summarized_by, 
+              ", per level of ", predictor_column, ". However, your data has more than this for some time-bins. ",
+              "Did you pass additional predictors to `make_time_sequence_data` that aren't being used here?")
+      if (!quiet) print(arrange(df_summarized, N))
+    }
+    return(data)
   }
 
   # Data info:
@@ -313,13 +331,17 @@ analyze_time_bins.time_sequence_data <- function(data,
   if (test!="boot_splines") {
     if (!quiet) message("Computing ", test, " for each time bin...")
     
-    # Fix unpaired (only t.test/wilcox):
+    # Check for Number of Observations for Each Time-Bin x PPT (or whatever is summarize-by). 
+    # also, fix incomplete cases if paired = TRUE 
     paired <- eval(dots[["paired"]]$expr)
-    if (identical(paired, TRUE) & test %in% c("t.test", "wilcox.test")) {
-      # for paired t-tests, need to remove unpaired observations for each TB
-      data <- .fix_unpaired(data, data_options, predictor_column, dv)
-    }
+    data <- .check_fix_nobs(data = data, 
+                            data_options = data_options, 
+                            predictor_column = predictor_column, 
+                            test = test,
+                            dv = dv, 
+                            paired = paired)
     
+
     # Get Testing Function
     if (test %in% c("lmer","glmer")) {
       the_func <- .make_function_fail_informatively(get(test, envir = getNamespace("lme4")))
@@ -357,9 +379,10 @@ analyze_time_bins.time_sequence_data <- function(data,
     }
     
     # Run models:
+    na_action <- ifelse(identical(paired,TRUE), 'na.pass', unlist(options("na.action")))
     df_models <- data %>%
       group_by(Time) %>%
-      do(the_test(formula = formula, data = ., ... = ...)) %>%
+      do(the_test(formula = formula, data = ., na.action = na_action, ... = ...)) %>%
       as.data.frame()
     
     # Warn about warnings
