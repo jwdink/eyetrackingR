@@ -261,7 +261,7 @@ analyze_time_bins.time_sequence_data <- function(data,
       warning(test, " almost always requires no more than one observation per ", data_summarized_by, 
               ", per level of ", predictor_column, ". However, your data has more than this for some time-bins. ",
               "Did you pass additional predictors to `make_time_sequence_data` that aren't being used here?")
-      if (!quiet) print(arrange(df_summarized, N))
+      if (!quiet) print(arrange(df_summarized, -N))
     }
     return(data)
   }
