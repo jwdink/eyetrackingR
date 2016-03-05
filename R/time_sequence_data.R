@@ -344,25 +344,38 @@ analyze_time_bins.time_sequence_data <- function(data,
 
     # Get Testing Function
     if (test %in% c("lmer","glmer")) {
-      the_func <- .make_function_fail_informatively(get(test, envir = getNamespace("lme4")))
+      the_func <- get(test, envir = getNamespace("lme4"))
     } else {
-      the_func <- .make_function_fail_informatively(get(test))
+      the_func <- get(test)
     }
     
     # Create Test/Summarize function, which also catches errors:
-    the_test <- function(...) {
-      res_err_warn <- the_func(...)
-      if (test %in% c("lmer","glmer")) {
-        out <- broom::tidy(res_err_warn$res, effects = 'fixed')
-      } else {
-        out <- broom::tidy(res_err_warn$res)
-      }
+    the_test <- function(formula, data, na.action, ...) {
+      
+      warn <- err <- NULL
+      res <- withCallingHandlers(
+        tryCatch(the_func(formula = formula, data = data, na.action = na.action, ... = ...), 
+                 error=function(e) {
+                   err <<- conditionMessage(e)
+                   NULL
+                 }), 
+        warning=function(w) {
+          warn <<- append(warn, conditionMessage(w))
+          invokeRestart("muffleWarning")
+        })
+      
+      res_err_warn <- list(res=res, warn=warn, err=err)
       
       if (length(res_err_warn$err)>0) {
         df_err <- as.data.frame( do.call(cbind, as.list(res_err_warn$err)) )
         colnames(df_err) <- paste0("ErrorMsg", seq_along(res_err_warn$err))
         out <- df_err
       } else {
+        if (test %in% c("lmer","glmer")) {
+          out <- broom::tidy(res_err_warn$res, effects = 'fixed')
+        } else {
+          out <- broom::tidy(res_err_warn$res)
+        }
         # need to manually extract degrees of freedom for some tests
         # (not needed if func resulted in error)
         if (test %in% c("lm","glm")) out$parameter <- df.residual(res_err_warn$res)
