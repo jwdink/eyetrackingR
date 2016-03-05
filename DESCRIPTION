@@ -1,6 +1,6 @@
 Package: eyetrackingR
 Type: Package
-Version: 0.1.4
+Version: 0.1.5
 Title: Eye-Tracking Data Analysis
 Authors@R: c(
 	person("Jacob", "Dink", email = "jacobwdink@gmail.com", role = c("aut", "cre")),
@@ -13,7 +13,7 @@ Description: A set of tools that address tasks along the pipeline from raw
     bootstrapping approaches.
 URL: http://eyetracking-r.com
 BugReports: https://github.com/jwdink/eyetrackingR/issues
-Date: 2016-1-25 15:15:02
+Date: 2016-3-05 15:15:02
 Depends: 
     R (>= 3.2.0)
 License: MIT + file LICENSE

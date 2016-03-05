@@ -1,5 +1,8 @@
 # eyetrackingR 
 
+Changes in 0.1.5:
+* Fixes compatibility issue with latest version of `lme4` package.
+
 Changes in 0.1.4:
 * A variety of important bug-fixes for onset-contingent analysis. The rest of the package is unchanged.
 
