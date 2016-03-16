@@ -8,7 +8,8 @@
 make_time_cluster_data(data, ...)
 
 \method{make_time_cluster_data}{time_sequence_data}(data, predictor_column,
-  aoi = NULL, test, threshold = NULL, formula = NULL, ...)
+  aoi = NULL, test, threshold = NULL, formula = NULL,
+  treatment_level = NULL, ...)
 }
 \arguments{
 \item{data}{The output of the \code{make_time_sequence_data} function}
@@ -16,7 +17,7 @@ make_time_cluster_data(data, ...)
 \item{...}{Any other arguments to be passed to the selected 'test' function (e.g., paired,
 var.equal, etc.)}
 
-\item{predictor_column}{The variable whose test statistic you are interested in.}
+\item{predictor_column}{The column name containing the variable whose test statistic you are interested in.}
 
 \item{aoi}{Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
 then AOI should be a predictor/covariate in your model (so `formula` needs 
@@ -32,6 +33,14 @@ for more info). Does not support \code{wilcox.test}.}
 
 \item{formula}{What formula should be used for test? Optional (for all but \code{(g)lmer}), if unset
 uses \code{Prop ~ [predictor_column]}}
+
+\item{treatment_level}{If your predictor is a factor, regression functions like `lm` and `lmer` by default will 
+treatment-code it. One option is to sum-code this predictor yourself before entering it 
+into this function. Another is to use the `treatment_level` argument, which specifies the 
+level of the predictor. For example, you are testing a model where `Target` is a predictor, 
+which has two levels, 'Animate' and 'Inanimate'. R will code 'Animate' as the reference 
+level, and code 'Inanimate' as the treatment level. You'd therefore want to set 
+`treatment_level = Inanimate`.}
 }
 \value{
 The original data, augmented with information about clusters. Calling summary on this data will

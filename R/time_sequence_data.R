@@ -194,6 +194,13 @@ analyze_time_bins = function(data, ...) {
 #'                          to be specified).
 #' @param formula           What formula should be used for the test? Optional for all but
 #'   \code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this if you want to use a custom DV.
+#' @param treatment_level   If your predictor is a factor, regression functions like `lm` and `lmer` by default will 
+#'                          treatment-code it. One option is to sum-code this predictor yourself before entering it 
+#'                          into this function. Another is to use the `treatment_level` argument, which specifies the 
+#'                          level of the predictor. For example, you are testing a model where `Target` is a predictor, 
+#'                          which has two levels, 'Animate' and 'Inanimate'. R will code 'Animate' as the reference 
+#'                          level, and code 'Inanimate' as the treatment level. You'd therefore want to set 
+#'                          `treatment_level = Inanimate`.
 #' @param p_adjust_method   Method to adjust p.values for multiple corrections (default="none"). 
 #'                          See \code{p.adjust.methods}.
 #' @param quiet             Should messages and progress bars be suppressed? Default is to show
@@ -226,6 +233,7 @@ analyze_time_bins.time_sequence_data <- function(data,
                               alpha = NULL,
                               aoi = NULL,
                               formula = NULL,
+                              treatment_level = NULL,
                               p_adjust_method = "none",
                               quiet = FALSE,
                               ...)
@@ -443,12 +451,29 @@ analyze_time_bins.time_sequence_data <- function(data,
     if (test %in% c('t.test', 'wilcox.test')) {
       df_models_this_param <- df_models
     } else {
-      df_models_this_param <- filter(df_models, term == predictor_column)
-      if (nrow(df_models_this_param)==0) {
-        terms <- paste0("'", unique(df_models$term), "'", collapse= ", ")
-        msg <- paste0("\nThe term '", predictor_column, "' was not found in your model. \nFound instead: ", terms)
-        stop(msg)
+      terms <- paste0("'", unique(df_models$term), "'", collapse= ", ")
+      
+      if (is.null(treatment_level)) {
+        
+        if (! predictor_column %in% df_models$term)
+          stop("\nThe term '", predictor_column, "' was not found in your model.",
+               "\nThis can happen if your predictor is treatment-coded, ",
+               "in which case you should specify the `treatment_level` argument.",
+               "\nFor example, if 'Target' is treatment coded, then it becomes 'TargetInanimate'",
+               "in the model, and you should set `treatment_level = 'Inanimate'`.",
+               "\nThe terms in the model were: ", terms)
+        
+        df_models_this_param <- filter(df_models, term == predictor_column )
+        
+      } else {
+        
+        if (! paste0(predictor_column, treatment_level) %in% df_models$term )
+          stop("\nThe term '", paste0(predictor_column, treatment_level), "' was not found in your model.",
+               "\nThe terms in the model were: ", terms)
+        
+        df_models_this_param <- filter(df_models, term == paste0(predictor_column, treatment_level))
       }
+
     }
     
     # Generate Output:

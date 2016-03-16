@@ -9,7 +9,7 @@ analyze_time_bins(data, ...)
 
 \method{analyze_time_bins}{time_sequence_data}(data, predictor_column, test,
   threshold = NULL, alpha = NULL, aoi = NULL, formula = NULL,
-  p_adjust_method = "none", quiet = FALSE, ...)
+  treatment_level = NULL, p_adjust_method = "none", quiet = FALSE, ...)
 }
 \arguments{
 \item{data}{The output of the 'make_time_sequence_data' function}
@@ -36,6 +36,14 @@ to be specified).}
 
 \item{formula}{What formula should be used for the test? Optional for all but
 \code{(g)lmer}, if unset will use \code{Prop ~ [predictor_column]}. Change this if you want to use a custom DV.}
+
+\item{treatment_level}{If your predictor is a factor, regression functions like `lm` and `lmer` by default will 
+treatment-code it. One option is to sum-code this predictor yourself before entering it 
+into this function. Another is to use the `treatment_level` argument, which specifies the 
+level of the predictor. For example, you are testing a model where `Target` is a predictor, 
+which has two levels, 'Animate' and 'Inanimate'. R will code 'Animate' as the reference 
+level, and code 'Inanimate' as the treatment level. You'd therefore want to set 
+`treatment_level = Inanimate`.}
 
 \item{p_adjust_method}{Method to adjust p.values for multiple corrections (default="none"). 
 See \code{p.adjust.methods}.}

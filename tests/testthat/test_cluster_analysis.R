@@ -97,7 +97,29 @@ test_that(desc = "The function make_time_cluster_data gives necessary eyetrackin
   expect_equal( nrow(attr(tclust_data_lmer, "eyetrackingR")$clusters), 2 )
   expect_equal( ncol(attr(tclust_data_lmer, "eyetrackingR")$clusters), 5 )
 })
+set.seed(5)
 tclust_anal_lmer <- analyze_time_clusters(tclust_data_lmer, within_subj = FALSE, samples = 5)
+
+test_that(desc = "The function analyze_time_clusters yields a reasonable null distribution", code = {
+  expect_true(max(diff(tclust_anal_lmer$null_distribution))!=0 | # not all the same OR
+                all(tclust_anal_lmer$null_distribution==0) ) # all zero
+})
+
+# Cluster Analysis 2b: LMER Treatment-Coded
+
+tclust_data_lmer <- make_time_cluster_data(data = response_time,
+                                           predictor_column = "Target", 
+                                           treatment_level = "Inanimate",
+                                           test = "lmer", 
+                                           threshold = 2, 
+                                           formula = ArcSin ~ Target + Age + (1|ParticipantName) + (1|Trial) ) 
+set.seed(5)
+tclust_anal_lmer <- analyze_time_clusters(tclust_data_lmer, within_subj = TRUE, samples = 5, shuffle_by = 'Target')
+test_that(desc = "The function analyze_time_clusters yields a reasonable null distribution (treatment coded)", code = {
+  expect_true(max(diff(tclust_anal_lmer$null_distribution))!=0 |# not all the same
+              all(tclust_anal_lmer$null_distribution==0) ) # all zero
+})
+
 
 # Cluster Analysis 3: t.test, var.equal, between
 tclust_data_ttest <- make_time_cluster_data(data = response_time_by_ppt, predictor_column = "Sex", test = "t.test", 

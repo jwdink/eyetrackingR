@@ -93,15 +93,6 @@ analyze_time_clusters.time_cluster_data <-function(data,
              paste(dots_extra, collapse=", "))
   }
 
-  # Shuffle data by
-  if (is.null(shuffle_by)) {
-    shuffle_by <-attrs$predictor_column
-    if ( attrs$test %in% c("lm", "lmer") & is.numeric(data[[attrs$predictor_column]]) & within_subj) {
-      stop("If predictor column is numeric and within-subjects, you should specify a 'shuffle_by' argument. ",
-           "See the documentation for more details.")
-    }
-  }
-
   # Progress Bar / Parallel:
   if (parallel) {
     success <- c(requireNamespace("foreach", quietly = TRUE),
@@ -146,6 +137,19 @@ analyze_time_clusters.time_cluster_data <-function(data,
   if (within_subj) {
 
     # Within-Subjects
+    
+    # Shuffle data by
+    if (is.null(shuffle_by)) {
+      shuffle_by <- attrs$predictor_column
+      
+      if ( attrs$test %in% c("lm", "lmer") & is.numeric(data[[attrs$predictor_column]]) & within_subj) {
+        stop("If predictor column is numeric and within-subjects, you should specify a 'shuffle_by' argument. ",
+             "See the documentation for more details.")
+      }
+    }
+    if(! shuffle_by %in% colnames(data) ) stop("The column '", shuffle_by, "' not found in your data.")
+    
+    # Get PPTs (or whatever unit-of-analysis is being used):
     participants <-unique(data[[summarized_by]])
 
     # get a list of list of rows. outer list corresponds to participants/items, inner to conditions
@@ -187,7 +191,8 @@ analyze_time_clusters.time_cluster_data <-function(data,
         predictor_column = attrs$predictor_column,
         test = attrs$test,
         threshold = attrs$threshold,
-        formula = formula
+        formula = formula,
+        treatment_level = attrs$treatment_level
       )
       if (attrs$test=="boot_splines") {
         the_args$within_subj <- TRUE
@@ -366,7 +371,7 @@ make_time_cluster_data <-function(data, ...) {
 }
 #' @describeIn make_time_cluster_data Make data for time cluster analysis
 #' @param data   The output of the \code{make_time_sequence_data} function
-#' @param predictor_column  The variable whose test statistic you are interested in. 
+#' @param predictor_column  The column name containing the variable whose test statistic you are interested in. 
 #' @param aoi               Which AOI should be analyzed? If not specified (and dataframe has multiple AOIs), 
 #'                          then AOI should be a predictor/covariate in your model (so `formula` needs 
 #'                          to be specified).
@@ -378,6 +383,13 @@ make_time_cluster_data <-function(data, ...) {
 #' @param threshold         Time-bins with test-statistics greater than this amount will be grouped into clusters. 
 #' @param formula           What formula should be used for test? Optional (for all but \code{(g)lmer}), if unset
 #'   uses \code{Prop ~ [predictor_column]}
+#' @param treatment_level   If your predictor is a factor, regression functions like `lm` and `lmer` by default will 
+#'                          treatment-code it. One option is to sum-code this predictor yourself before entering it 
+#'                          into this function. Another is to use the `treatment_level` argument, which specifies the 
+#'                          level of the predictor. For example, you are testing a model where `Target` is a predictor, 
+#'                          which has two levels, 'Animate' and 'Inanimate'. R will code 'Animate' as the reference 
+#'                          level, and code 'Inanimate' as the treatment level. You'd therefore want to set 
+#'                          `treatment_level = Inanimate`.
 #' @param ...               Any other arguments to be passed to the selected 'test' function (e.g., paired,
 #'   var.equal, etc.)
 #'   
@@ -433,6 +445,7 @@ make_time_cluster_data.time_sequence_data <- function(data,
                                                      test,
                                                      threshold = NULL,
                                                      formula = NULL,
+                                                     treatment_level = NULL,
                                                      ...) {
   
   
@@ -459,7 +472,7 @@ make_time_cluster_data.time_sequence_data <- function(data,
 
   # Compute Time Bins:
   the_args <- list(data = data, predictor_column = predictor_column, test = test, formula = formula, 
-                   aoi = aoi, quiet = TRUE)
+                   aoi = aoi, treatment_level = treatment_level, quiet = TRUE)
   the_args[["threshold"]] <- threshold
   for (this_arg in names(dots)) {
     the_args[[this_arg]] <- dots[[this_arg]]$expr
@@ -509,7 +522,8 @@ make_time_cluster_data.time_sequence_data <- function(data,
                                               alpha = dots$alpha$expr,
                                               formula = formula,
                                               time_bin_summary = time_bin_summary,
-                                              the_dots = names(dots) )
+                                              the_dots = names(dots),
+                                              treatment_level = treatment_level)
   )
   df_timeclust
 
