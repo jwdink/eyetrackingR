@@ -169,7 +169,7 @@ This procedure involves two main steps. First, we run a test on each time bin th
 ***
 In more detail, what eyetrackingR does is:
 
-1. Run a statistical test on each time-bin of your data. This can be any valid and appropriate statistic test that quantifies the probability of the effect: t-test, wilcox.test, linear models, etc.-- whatever is appropriate for your data.
+1. Run a statistical test on each time-bin of your data. This can be any valid and appropriate statistic that quantifies the probability of the data under the null hypothesis: t-test, wilcox.test, linear models, etc.-- whatever is appropriate for your data.
 2. Take the time-bins whose test passed the threshold statistic (e.g., t > 2), and group them by adjacency. We will call these time-clusters.
 3. For each time-cluster, calculate the sum of the statistics for the time-bins inside it.
 4. Take the data and randomly shuffle it.
@@ -208,7 +208,7 @@ summary(df_timeclust)
 The above tells us there are two potential clusters. As described in the procedure above, eyetrackingR next bootstraps a "null" distribution, which can be visualized:
 
 ```{r, warning=FALSE}
-clust_analysis <- analyze_time_clusters(df_timeclust, within_subj=TRUE, paired=TRUE,
+clust_analysis <- analyze_time_clusters(df_timeclust, within_subj=TRUE, paired=TRUE,quiet = TRUE,
                                         samples=150) # in practice, you should use a lot more
 plot(clust_analysis) + theme_light()
 ```
@@ -219,13 +219,13 @@ How can we interpret these results?
 summary(clust_analysis)
 ```
 
-The probabilities listed above tell us the probability of seeing the effect of each cluster (or bigger) by chance. Of course, these probabilities aren't accurate unless we run enough iterations to get a fuller simulation of the whole null distribution (we've just ommitted this for purposes of speed).
+The probabilities listed above tell us the probability of seeing the effect of each cluster (or bigger) if the null-hypothesis were true. Of course, these probabilities aren't accurate unless we run enough iterations to get a fuller simulation of the whole null distribution (we've just ommitted this for purposes of speed).
 
-Note that we actually ended up getting virtually identical results to our initial analysis of sequential time-bins! That's because the effect here was quite large; we didn't have to worry about spuriously significant time-bins because there pretty much weren't any.
+Note that we actually ended up getting virtually identical results to our initial analysis of sequential time-bins! That's because the effect here was quite large; we didn't have to worry about spuriously significant time-bins because there probably weren't any.
 
 Let's run a quick analysis that does a better job of showing off the virtues of cluster analysis. We'll examine the hypothesis that infants with higher MCDI vocabulary scores have a baseline bias to look at the animate object. Note that this is different from the hypothesis that high-vocab infants are likely to look at the trial *target*; we are instead examining the unlikely hypothesis that high-vocab infants have a baseline preference. 
 
-This analysis is good for showing off the virtues of cluster analysis for two reasons. First, the effect is unlikely to be real, but (we will see that) sequential independent tests at each time-bin give some false-alarms. Second, this effect can't be assessed with analyses that only allow for testing two-level factors (like bootstrapping-splines), because our predictor is continuous. EyetrackingR allows us to accomplish this quite easily by using `lm` as our test instead of `t-test`.
+This analysis is good for showing off the virtues of cluster analysis for two reasons. First, the effect is unlikely to be real, but (we will see that) sequential independent tests at each time-bin give some false-alarms. Second, this effect can't be assessed with analyses that only allow for testing two-level factors (like t-tests), because our predictor is continuous. EyetrackingR allows us to accomplish this quite easily by using `lm` as our test instead of `t-test`.
 
 ```{r, warning=FALSE}
 response_time_between <- make_time_sequence_data(response_window_clean,
@@ -245,8 +245,9 @@ summary(df_timeclust_between)
 If we used the uncorrected sequential test method, we would get what appears to be a statistically significant preference for the animate object among high-vocab children early in the trial. Should we trust this as a real effect?
 
 ```{r}
-clust_analysis_between <- analyze_time_clusters(df_timeclust_between, within_subj = FALSE, 
-                                        samples=100) # in practice, you should use a lot more
+set.seed(5)
+clust_analysis_between <- analyze_time_clusters(df_timeclust_between, within_subj = FALSE, quiet = TRUE,
+                                        samples=150) # in practice, you should use a lot more
 plot(clust_analysis_between) + theme_light()
 summary(clust_analysis_between)
 ```
