@@ -1,5 +1,8 @@
 # eyetrackingR 
 
+Changes in 0.1.6:
+* Allows for treatment-coded variables in `lm` or `lmer` time-bin or cluster analysis, via the "treatment_level" argument.
+
 Changes in 0.1.5:
 * Fixes compatibility issue with latest version of `lme4` package.
 

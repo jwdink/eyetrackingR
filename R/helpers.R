@@ -81,29 +81,6 @@
     out
   }
 
-#' Run a function, return result, errors, and warnings
-#'
-#' This function is from \link{http://stackoverflow.com/a/4952908/3291744}
-#'
-#' Thanks to user Martin Morgan for this ingenious solution.
-#'
-#' @param fun function
-#' @return new version of that function
-.make_function_fail_informatively <- function(fun)
-  function(...) {
-    warn <- err <- NULL
-    res <- withCallingHandlers(
-      tryCatch(fun(...), error=function(e) {
-        err <<- conditionMessage(e)
-        NULL
-      }), warning=function(w) {
-        warn <<- append(warn, conditionMessage(w))
-        invokeRestart("muffleWarning")
-      })
-    list(res=res, warn=warn, err=err)
-  }
-
-
 #' Simulate an eyetrackingR dataset
 #' 
 #' This function creates an eyetrackingR dataset (i.e., already run through make_eyetrackingr_data).
