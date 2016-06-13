@@ -68,7 +68,7 @@ test_that(desc = "The function analyze_time_bins has necessary eyetrackingR attr
   expect_false( is.null( attr(tb1,"eyetrackingR") ) )
 })
 test_that(desc = "The function analyze_time_bins returns 3 negative runs for arbitrary 'PupilDilation' DV (with seed = 5)", code = {
-  expect_equal( length(unique(tb1$NegativeRuns)), 3)
+  expect_equal( length(unique(tb1$NegativeRuns)), 2)
 })
 
 
