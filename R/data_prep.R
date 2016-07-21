@@ -233,8 +233,30 @@ add_aoi <- function(data, aoi_dataframe,
     )
   }
   
+  stopifnot(all(c(x_col,y_col) %in% colnames(data)))
+  stopifnot(all(c(x_min_col,x_max_col, y_min_col, y_max_col) %in% colnames(aoi_dataframe)))
+  
+  if (x_col %in% c(x_min_col, x_max_col))
+    stop("The name of `x_col` cannot be the same as the name of `x_min_col` or `x_max_col`.")
+  if (y_col %in% c(y_min_col, y_max_col))
+    stop("The name of `y_col` cannot be the same as the name of `y_min_col` or `y_max_col`.")
+  
+  
   ## Join AOI info to dataset
-  df_joined <- left_join(data, aoi_dataframe)
+  if (any(colnames(data) %in% colnames(aoi_dataframe))) {
+    df_joined <- left_join(data, aoi_dataframe)
+  } else {
+    if (nrow(aoi_dataframe) > 1) {
+      stop("Your `aoi_dataframe` has more than one row, but it doesn't have any columns that match the columns in your data, so it's not clear how to map these rows onto this data.")
+    } else {
+
+      df_joined <- data
+      for (aoi_col in colnames(aoi_dataframe)) {
+        df_joined[[aoi_col]] <- aoi_dataframe[[aoi_col]]
+      }
+      
+    }
+  }
   
   ## Make AOI column
   message("Making ", aoi_name, " AOI...")
