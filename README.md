@@ -1,6 +1,16 @@
 eyetrackingR
 =====================================
 
+# ***Important Announcment***
+
+On May 11th, dplyr 0.6.0 will be released. As far as I can tell, this will break eyetrackingR. Brock and myself will need to rewrite a large amount of the codebase to fix this. Until we have time to do so, you should avoid upgrading your dplyr installation to the latest version (if you want to use eyetrackingR).
+
+If you accidentally upgrade dplyr and need to roll back so you can use eyetrackingR, go [here](https://github.com/tidyverse/dplyr/releases/tag/v0.5.0) to download the previous version of dplyr. Once you've downloaded the zip file, you can use `devtools::install(*path you downloaded the zip file to*)`, and this should install the older version.
+
+Thanks in advance for your patience.
+
+-Jacob
+
 ## Eye-tracking Data: Cleaning, Analysis, & Visualization
 
 - Jacob Dink (jacobwdink@gmail.com)
