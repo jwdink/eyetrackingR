@@ -263,7 +263,7 @@ analyze_time_bins.time_sequence_data <- function(data,
     
     # for lm, t.test, wilcox, need to check that there's no more than one observation per 
     # participant per predictor-level per time bin.
-    df_grouped <- group_by_(data, .dots = c("Time", data_summarized_by, predictor_column))
+    df_grouped <- group_by_(data, .dots = paste0("`",c("Time", data_summarized_by, predictor_column), "`"))
     df_summarized <- summarize(df_grouped, N = n()) %>% ungroup()
     if (any(df_summarized$N > 1)) {
       warning(test, " almost always requires no more than one observation per ", data_summarized_by, 
@@ -334,7 +334,7 @@ analyze_time_bins.time_sequence_data <- function(data,
   } else {
     dv <- gsub(formula[2], pattern = "()", replacement = "", fixed = TRUE)
   }
-  
+
   # Run a model for each time-bin
   if (test!="boot_splines") {
     if (!quiet) message("Computing ", test, " for each time bin...")
