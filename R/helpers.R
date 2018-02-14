@@ -201,6 +201,7 @@ reclass <- function(x, result, ...) {
 }
 
 reclass.eyetrackingR_df <- function(x, result, ...) {
+  if (is.null(result)) return(result)
   if (length(list(...))>0) warning(call. = FALSE, "Further arguments that aren't `x` and `result` were ignored.")
   class_idx <- which(class(x) == "eyetrackingR_df")
   restore_classes <- class(x)[1:class_idx]

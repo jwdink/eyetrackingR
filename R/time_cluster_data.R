@@ -109,7 +109,7 @@ analyze_time_clusters.time_cluster_data <-function(data,
     }
   }
   if (quiet) pbsapply <- sapply
-
+  
   # Arg check:
   if (is.null(formula)) {
     formula <-attrs$formula
