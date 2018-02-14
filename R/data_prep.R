@@ -333,7 +333,8 @@ subset_by_window <- function(data,
       warning("The message ", msg, 
               " does not appear *exactly* one time for participant '", ppt_vec[1], 
               "' on trial '", trial_vec[1], "'. Trial will be removed from dataset.")
-      return(Inf) # not returning NA due to bug (at time of writing) in dplyr
+      if (is.integer(time_vec)) return(NA_integer_)
+      else return(NA_real_)
     }
     return(time_vec[bool])
   }
@@ -341,20 +342,18 @@ subset_by_window <- function(data,
   # Prelims:
   orig_classes <- class(data)
   data_options <- attr(data, "eyetrackingR")$data_options
+  colname_symbols <- purrr::map(data_options[grep(names(data_options), pattern="column$")], as.name) 
   if (is.null(data_options)) {
     stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
          "Did you run `make_eyetracking_r` data on it originally?",
          "If so, this information has been removed. This can happen when using functions that ",
          "transform your data significantly, like dplyr::summarise or dplyr::select.")
   }
-  time_col <- as.name(data_options$time_column)
-  ppt_col <- as.name(data_options$participant_column)
-  trial_col <- as.name(data_options$trial_column)
   if (!(rezero | remove)) stop("If both 'rezero' and 'remove' are FALSE, then this function doesn't do anything!")
   
   # Which method?
-  start_method_num <- !(sapply(list(window_start_msg, window_start_col, window_start_time), is.null))
-  stop_method_num <- !(sapply(list(window_end_msg, window_end_col, window_end_time), is.null))
+  start_method_num <- !purrr::map_lgl( list(window_start_msg, window_start_col, window_start_time), is.null )
+  stop_method_num <- !purrr::map_lgl( list(window_end_msg, window_end_col, window_end_time), is.null )
   if ( sum(start_method_num) > 1 | sum(stop_method_num) > 1 ) {
     stop("Please use exactly one of the methods for start/stop time (msg, column, or time).")
   }
@@ -367,22 +366,17 @@ subset_by_window <- function(data,
   }
   if (which(start_method_num) == 1) {
     # Message:
+    if (!is.character(msg_col)) stop("Please enter a column name for the message column (in quotes).", call. = FALSE)
     data[[msg_col]] <- as.character(data[[msg_col]])
-    if (!is.character(msg_col)) stop("Please enter a column name for the message column (in quotes).")
-    data <- group_by_(.data = data,
-                      .dots = list(data_options$participant_column, data_options$trial_column
-                      ))
-    data <- mutate_(data, 
-                    .dots = list(.WindowStart = interp(~.safe_msg_checker(MSG_COL, START_MSG, TIME_COL, PPT_COL, TRIAL_COL), 
-                                                       MSG_COL = as.name(msg_col), 
-                                                       START_MSG = window_start_msg,
-                                                       TIME_COL = time_col,
-                                                       PPT_COL = ppt_col,
-                                                       TRIAL_COL = trial_col)
-                                                       
-                    ))
+    data <- group_by_at(.tbl = data, .vars = c(data_options$participant_column, data_options$trial_column))
+    data <- mutate(.data = data, 
+                   .WindowStart = .safe_msg_checker(msg_vec = !!as.name(msg_col),
+                                                    msg = window_start_msg,
+                                                    time_vec = !!colname_symbols$time_column,
+                                                    ppt_vec = !!colname_symbols$participant_column,
+                                                    trial_vec = !!colname_symbols$trial_column )
+    )
     data <- ungroup(data)
-    data$.WindowStart[which(is.infinite(data$.WindowStart))] <- NA # see note above
   } else if (which(start_method_num) == 2) {
     # Column:
     data$.WindowStart <- data[[window_start_col]]
@@ -398,21 +392,17 @@ subset_by_window <- function(data,
   }
   if (which(stop_method_num) == 1) {
     # Message:
+    if (!is.character(msg_col)) stop("Please enter a column name for the message column (in quotes).", call. = FALSE)
     data[[msg_col]] <- as.character(data[[msg_col]])
-    if (!is.character(msg_col)) stop("Please enter a column name for the message column (in quotes).")
-    data <- group_by_(.data = data,
-                      .dots = list(data_options$participant_column, data_options$trial_column
-                      ))
-    data <- mutate_(data, 
-                    .dots = list(.WindowEnd   = interp(~.safe_msg_checker(MSG_COL, STOP_MSG, TIME_COL, PPT_COL, TRIAL_COL), 
-                                                       MSG_COL = as.name(msg_col), 
-                                                       STOP_MSG = window_end_msg,
-                                                       TIME_COL = time_col,
-                                                       PPT_COL = ppt_col,
-                                                       TRIAL_COL = trial_col)
-                    ))
+    data <- group_by_at(.tbl = data, .vars = c(data_options$participant_column, data_options$trial_column))
+    data <- mutate(.data = data, 
+                   .WindowEnd = .safe_msg_checker(msg_vec = !!as.name(msg_col),
+                                                  msg = window_end_msg,
+                                                  time_vec = !!colname_symbols$time_column,
+                                                  ppt_vec = !!colname_symbols$participant_column,
+                                                  trial_vec = !!colname_symbols$trial_column )
+    )
     data <- ungroup(data)
-    data$.WindowEnd[which(is.infinite(data$.WindowEnd))] <- NA # see note above
   } else if (which(stop_method_num) == 2) {
     # Column:
     data$.WindowEnd <- data[[window_end_col]]
@@ -431,28 +421,24 @@ subset_by_window <- function(data,
   df_subsetted <- filter(.data = data,
                          !is.na(.WindowEnd),
                          !is.na(.WindowStart))
+  
   if (remove) {
-    df_subsetted <- filter_(.data = df_subsetted,
-                          .dots = list(interp(~TIME_COL >= .WindowStart & TIME_COL < .WindowEnd, TIME_COL = time_col)))
+    after_start <- df_subsetted[[data_options$time_column]] >= df_subsetted$.WindowStart
+    before_end <- df_subsetted[[data_options$time_column]] < df_subsetted$.WindowEnd
+    df_subsetted <- df_subsetted[which(after_start&before_end), , drop=FALSE]
   } 
   
   # Rezero
   if (rezero) {
-    df_grouped <- group_by_(.data = df_subsetted,
-                            .dots = list(data_options$participant_column, data_options$trial_column
-                            ))
-    df_rezeroed <- mutate_(.data = df_grouped,
-                           .dots = list(.NewTimeStamp = interp(~TIME_COL - .WindowStart, TIME_COL = time_col))
-                           )
+    df_grouped <- group_by_at(df_subsetted, .vars = c(data_options$participant_column, data_options$trial_column))
+    df_rezeroed <- mutate(.data = df_grouped, 
+                          !!colname_symbols$time_column := (!!colname_symbols$time_column) - .WindowStart)
     out <- ungroup(df_rezeroed)
-    out[[data_options$time_column]] <- out[[".NewTimeStamp"]]
-    out[[".NewTimeStamp"]] <- NULL
   } else {
     out <- df_subsetted
   }
 
-  out[[".WindowStart"]] <- NULL
-  out[[".WindowEnd"]] <- NULL
+  out <- select(out, -.WindowStart, -.WindowEnd)
   
   attr(out, "eyetrackingR") <- list(data_options = data_options)
   class(out) <- orig_classes
@@ -495,6 +481,7 @@ trackloss_analysis <- function(data) {
   trackloss_col <- as.name(data_options$trackloss_column)
 
   # Get Trackloss-by-Trial:
+  browser()
   df_grouped_trial <- group_by_(data, .dots = list(data_options$participant_column, data_options$trial_column))
   df_trackloss_by_trial <- mutate_(df_grouped_trial,
                                    .dots = list(SumTracklossForTrial = interp(~sum(TRACKLOSS_COL, na.rm = TRUE), TRACKLOSS_COL = trackloss_col),
