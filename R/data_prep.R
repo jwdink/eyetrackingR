@@ -478,26 +478,24 @@ trackloss_analysis <- function(data) {
          "transform your data significantly, like dplyr::summarise or dplyr::select.")
   }
   
-  trackloss_col <- as.name(data_options$trackloss_column)
-
+  colname_symbols <- purrr::map(data_options[grep(names(data_options), pattern="column$")], as.name) 
+  
   # Get Trackloss-by-Trial:
-  browser()
-  df_grouped_trial <- group_by_(data, .dots = list(data_options$participant_column, data_options$trial_column))
-  df_trackloss_by_trial <- mutate_(df_grouped_trial,
-                                   .dots = list(SumTracklossForTrial = interp(~sum(TRACKLOSS_COL, na.rm = TRUE), TRACKLOSS_COL = trackloss_col),
-                                                TotalTrialLength = interp(~length(TRACKLOSS_COL), TRACKLOSS_COL = trackloss_col),
-                                                TracklossForTrial = interp(~SumTracklossForTrial/TotalTrialLength)
-                                   ))
-
+  df_grouped_trial <- group_by_at(.tbl = data, .vars = c(data_options$participant_column, data_options$trial_column))
+  df_trackloss_by_trial <- mutate(.data = df_grouped_trial, 
+                                  SumTracklossForTrial = sum(!!colname_symbols$trackloss_column, na.rm = TRUE),
+                                  TotalTrialLength = n(),
+                                  TracklossForTrial = SumTracklossForTrial/TotalTrialLength)
+  
   # Get Trackloss-by-Participant:
-  df_grouped_ppt <- group_by_(df_trackloss_by_trial, .dots = list(data_options$participant_column))
-  df_trackloss_by_ppt <- mutate_(df_grouped_ppt,
-                                 .dots = list(SumTracklossForParticipant = interp(~sum(TRACKLOSS_COL, na.rm = TRUE), TRACKLOSS_COL = trackloss_col),
-                                              TotalParticipantLength = interp(~length(TRACKLOSS_COL), TRACKLOSS_COL = trackloss_col),
-                                              TracklossForParticipant = interp(~SumTracklossForParticipant/TotalParticipantLength)))
+  df_grouped_ppt <- group_by_at(.tbl = df_trackloss_by_trial, .vars = c(data_options$participant_column))
+  df_trackloss_by_ppt <- mutate(df_grouped_ppt,
+                                SumTracklossForParticipant = sum(!!colname_symbols$trackloss_column, na.rm = TRUE),
+                                TotalParticipantLength = n(),
+                                TracklossForParticipant = SumTracklossForParticipant/TotalParticipantLength)
 
   # Get Z-Scores:
-  df_grouped <- group_by_(df_trackloss_by_ppt, .dots = list(data_options$participant_column, data_options$trial_column))
+  df_grouped <- group_by_at(df_trackloss_by_ppt, .vars = c(data_options$participant_column, data_options$trial_column))
   df_summarized <- summarize(df_grouped,
                              Samples = mean(TotalTrialLength, na.rm = TRUE),
                              TracklossSamples = mean(SumTracklossForTrial, na.rm = TRUE),
