@@ -200,7 +200,7 @@ sd(1- trackloss_clean_subjects$TracklossForParticipant)
 
 ```{r, warning=FALSE}
 # look at the NumTrials column
-(final_summary <- describe_data(response_window_clean, 'Animate', 'ParticipantName'))
+(final_summary <- describe_data(response_window_clean, describe_column = 'Animate', group_columns = 'ParticipantName'))
 ```
 
 ### Summarize number of trials contributed

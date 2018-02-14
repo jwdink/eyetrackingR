@@ -549,10 +549,10 @@ trackloss_analysis <- function(data) {
 #' @export
 #' @return Cleaned data
 clean_by_trackloss <- function(data,
-                              participant_prop_thresh = 1,
-                              trial_prop_thresh = 1,
-                              window_start_time = -Inf, window_end_time = Inf) {
-
+                               participant_prop_thresh = 1,
+                               trial_prop_thresh = 1,
+                               window_start_time = -Inf, window_end_time = Inf) {
+  
   data_options <- attr(data, "eyetrackingR")$data_options
   if (is.null(data_options)) {
     stop("It appears your dataframe doesn't have information that eyetrackingR needs. ",
@@ -608,6 +608,7 @@ clean_by_trackloss <- function(data,
 #' @param describe_column The column to return descriptive statistics about.
 #' @param group_columns Any columns to group by when calculating descriptive statistics (e.g., participants,
 #'  conditions, etc.)
+#' @param quantiles Numeric vector of length two with quantiles to compute (default: \code{c(.025, .975)}).
 #'  
 #'
 #' @examples 
@@ -625,7 +626,7 @@ clean_by_trackloss <- function(data,
 #' @export
 #' @return A dataframe giving descriptive statistics for the \code{describe_column}, including mean, SD, var,
 #' min, max, and number of trials
-describe_data <- function(data, describe_column, group_columns) {
+describe_data <- function(data, describe_column, group_columns, quantiles = c(.025, .975)) {
 
   # Data options:
   data_options <- attr(data, "eyetrackingR")$data_options
@@ -635,27 +636,28 @@ describe_data <- function(data, describe_column, group_columns) {
          "If so, this information has been removed. This can happen when using functions that ",
          "transform your data significantly, like dplyr::summarise or dplyr::select.")
   }
-  
-  # Build Summarize Expression
-  summarize_expr <- list(Mean = interp( ~mean(DV_COL, na.rm=TRUE),  DV_COL = as.name(describe_column) ),
-                       SD   = interp( ~sd(DV_COL, na.rm=TRUE),      DV_COL = as.name(describe_column) ),
-                       Var  = interp( ~var(DV_COL, na.rm=TRUE),     DV_COL = as.name(describe_column) ),
-                       Min  = interp( ~min(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) ),
-                       Max  = interp( ~max(DV_COL, na.rm=TRUE)*1.0, DV_COL = as.name(describe_column) ),
-                       N    = ~ n()
-  )
-  if (data_options$trial_column %in% colnames(data)) {
-    summarize_expr$NumTrials = interp( ~n_distinct(TRIAL_COL), TRIAL_COL = as.name(data_options$trial_column))
-  }
 
   # Group, Summarize
-  df_grouped <- group_by_(data, .dots = as.list(group_columns))
-  df_summarized <- summarize_(df_grouped, .dots =summarize_expr )
-  class(df_summarized) <- c("eyetrackingR_data_summary", class(df_summarized))
-  attr(df_summarized, "eyetrackingR") <- list(data_options = data_options, 
-                                             describe_column = describe_column,
-                                             group_columns = group_columns)
-  return(df_summarized)
+  dc_sym <- as.name(describe_column)
+  df_grouped <- group_by_at(data, .vars = group_columns)
+  df_summarized <- summarize(df_grouped,
+                             Mean = mean(!!dc_sym, na.rm=TRUE),
+                             SD = sd(!!dc_sym, na.rm=TRUE),
+                             LowerQ = quantile(!!dc_sym, probs = quantiles[1], na.rm = TRUE),
+                             UpperQ = quantile(!!dc_sym, probs = quantiles[2], na.rm = TRUE),
+                             Min = min(!!dc_sym, na.rm=TRUE),
+                             Max = max(!!dc_sym, na.rm=TRUE),
+                             N = n() )
+  if (data_options$trial_column %in% colnames(data))
+    df_summarized <- left_join(x = df_summarized, 
+                               y = summarize(df_grouped, NumTrials = n_distinct(!!as.name(data_options$trial_column), na.rm = TRUE)),
+                               by = group_columns)
+  out <- ungroup(df_summarized)
+  class(out) <- c("eyetrackingR_data_summary", class(out))
+  attr(out, "eyetrackingR") <- list(data_options = data_options, 
+                                    describe_column = describe_column,
+                                    group_columns = group_columns)
+  return(out)
 
 }
 
