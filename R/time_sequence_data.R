@@ -102,7 +102,7 @@ make_time_sequence_data <- function (data,
                               summarize_by = summarize_by)
     })
     out <- bind_rows(list_of_dfs)
-    out <- as.data.frame(out)
+    out <- as_data_frame(out)
     class(out) <- c('time_sequence_data', class(out))
     attr(out,"eyetrackingR") <- list(
       data_options = data_options,
