@@ -41,6 +41,7 @@
 #' @param data       The data
 #' @param groups     The groups
 #' @param aoi_col    Name of AOI column
+#' @param other_dv_columns Other columns to summarize, aside from AOI column.
 #' @return dataframe Transformed dataframe
 .make_proportion_looking_summary <-
   function(data, groups, aoi_col, other_dv_columns) {
@@ -72,13 +73,13 @@
     out <- ungroup(df_summarized)
     out <- mutate(out,
                   AOI = aoi,
-                  Elog = log((SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5)),
-                  Weights = 1 / ( (1 / (SamplesInAOI + .5)) / (1 / (SamplesTotal - SamplesInAOI + .5)) ),
+                  Elog = if_else(SamplesTotal==0, NA_real_, log((SamplesInAOI + .5) / (SamplesTotal - SamplesInAOI + .5))),
+                  Weights = if_else(SamplesTotal==0, NA_real_,1 / ( (1 / (SamplesInAOI + .5)) / (1 / (SamplesTotal - SamplesInAOI + .5)) ) ),
                   Prop = SamplesInAOI / SamplesTotal,
                   LogitAdjusted = .logit_adj(Prop),
                   ArcSin = asin(sqrt(Prop))
     )
-    out
+    return(out)
   }
 
 #' Simulate an eyetrackingR dataset
