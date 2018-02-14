@@ -29,7 +29,7 @@ response_time <- make_time_sequence_data(response_window_clean, time_bin_size = 
                                          predictor_columns = c("Target") )
 
 test_that(desc = "The function make_time_sequence_data has necessary eyetrackingR attributes", code = {
-  expect_true( all(class(response_time) %in% c("time_sequence_data", "data.frame")) )
+  expect_true( all(c("time_sequence_data", "data.frame") %in% class(response_time)) )
   expect_equal( nrow(response_time), 13420 )
   expect_false( is.null( attr(response_time,"eyetrackingR") ) )
 })

@@ -128,7 +128,7 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
 
   # Assign class information:
   out <- as.data.frame(out)
-  class(out)  <- c('onset_data', class(out))
+  class(out)  <- unique(c('onset_data', 'eyetrackingR_df', class(out)))
   attr(out, 'eyetrackingR')  <- list(data_options = data_options,
                                      onset_contingent = list(
                                        distractor_aoi = distractor_aoi,
@@ -203,7 +203,7 @@ make_switch_data.onset_data <- function(data, predictor_columns=NULL, summarize_
                             ))
                               
   df_summarized <- as.data.frame(df_summarized)
-  class(df_summarized) <- c('switch_data', class(df_summarized))
+  class(df_summarized) <- unique(c('switch_data', 'eyetrackingR_df', class(df_summarized)))
   attr(df_summarized, "eyetrackingR") <- list(data_options = data_options)
 
   return(df_summarized)

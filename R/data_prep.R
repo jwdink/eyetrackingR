@@ -148,7 +148,7 @@ make_eyetrackingr_data <- function(data,
   ## Assign attribute:
   out <- arrange_at(.tbl = out, .vars = c(participant_column, trial_column, time_column))
   out <- as_data_frame(out)
-  class(out) <- c("eyetrackingR", class(out))
+  class(out) <- c("eyetrackingR_data", "eyetrackingR_df", class(out))
   attr(out, "eyetrackingR") <- list(data_options = data_options)
   return(out)
   

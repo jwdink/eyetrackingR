@@ -91,7 +91,7 @@ make_time_window_data <- function(data,
     })
     out <- bind_rows(list_of_dfs)
     out <- as.data.frame(out)
-    class(out) <- c('time_window_data', class(out))
+    class(out) <- unique(c('time_window_data', 'eyetrackingR_df', class(out)))
     attr(out,"eyetrackingR") <- list(summarized_by = summarize_by,
                                      data_options = data_options)
     return( out )
@@ -113,7 +113,7 @@ make_time_window_data <- function(data,
   out <- .make_proportion_looking_summary(data=data, groups = groups, aoi_col = aoi_col, other_dv_columns = other_dv_columns)
 
   out <- as.data.frame(out)
-  class(out) <- c('time_window_data', class(out))
+  class(out) <- unique(c('time_window_data', 'eyetrackingR_df', class(out)))
   attr(out,"eyetrackingR") <- list(summarized_by = summarize_by,
                                    data_options = data_options)
   return(out)

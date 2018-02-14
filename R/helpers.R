@@ -188,6 +188,26 @@ simulate_eyetrackingr_data <- function(num_participants= 16,
 
 
 
+#' Add the original class/attributes back onto result (usually of dplyr operation)
+#'
+#' @param x The original object, class inforamation you want to restore.
+#' @param result Some transformation of \code{x}, which may have removed its class/attributes.
+#' @param ... Ignored 
+#'
+#' @return The \code{result}, now with class/attribute information restored.
+#' @export
+reclass <- function(x, result, ...) {
+  UseMethod('reclass')
+}
+
+reclass.eyetrackingR_df <- function(x, result, ...) {
+  if (length(list(...))>0) warning(call. = FALSE, "Further arguments that aren't `x` and `result` were ignored.")
+  class_idx <- which(class(x) == "eyetrackingR_df")
+  restore_classes <- class(x)[1:class_idx]
+  class(result) <- unique(c(restore_classes, class(result)))
+  attr(result, "eyetrackingR") <- attr(x, "eyetrackingR")
+  return(result)
+}
 
 
 

@@ -513,7 +513,7 @@ make_time_cluster_data.time_sequence_data <- function(data,
 
   # Output data, add attributes w/ relevant info
   df_timeclust <- as.data.frame(df_timeclust)
-  class(df_timeclust) <-c("time_cluster_data", "time_sequence_data", class(df_timeclust))
+  class(df_timeclust) <- unique(c("time_cluster_data", "time_sequence_data", "eyetrackingR_df", class(df_timeclust)))
   attr(df_timeclust, "eyetrackingR") <- c(attrs,
                                          list(clusters = clusters,
                                               predictor_column = predictor_column,

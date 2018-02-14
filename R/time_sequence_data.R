@@ -103,7 +103,7 @@ make_time_sequence_data <- function (data,
     })
     out <- bind_rows(list_of_dfs)
     out <- as_data_frame(out)
-    class(out) <- c('time_sequence_data', class(out))
+    class(out) <- unique(c('time_sequence_data', 'eyetrackingR_df', class(out)))
     attr(out,"eyetrackingR") <- list(
       data_options = data_options,
       summarized_by = summarize_by,
@@ -154,7 +154,7 @@ make_time_sequence_data <- function (data,
   out <- left_join(df_summarized, time_codes, by='TimeBin')
 
   out <- as.data.frame(out)
-  class(out) <- c('time_sequence_data', class(out))
+  class(out) <- unique(c('time_sequence_data', 'eyetrackingR_df', class(out)))
   attr(out,"eyetrackingR") <- list(
     data_options = data_options,
     summarized_by = summarize_by,
@@ -557,7 +557,7 @@ analyze_time_bins.time_sequence_data <- function(data,
 
   # Rename Class, add attributes
   out <- as.data.frame(out)
-  class(out) <- c('bin_analysis', class(out))
+  class(out) <- unique(c('bin_analysis', 'eyetrackingR_df', class(out)))
   attr(out,"eyetrackingR") <- c(
     attr(data, "eyetrackingR"),
     list(formula= formula,

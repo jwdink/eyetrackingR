@@ -4,7 +4,8 @@
 \alias{describe_data}
 \title{Describe dataset}
 \usage{
-describe_data(data, describe_column, group_columns)
+describe_data(data, describe_column, group_columns, quantiles = c(0.025,
+  0.975))
 }
 \arguments{
 \item{data}{Data already run through \code{make_eyetrackingr_data}}
@@ -13,6 +14,8 @@ describe_data(data, describe_column, group_columns)
 
 \item{group_columns}{Any columns to group by when calculating descriptive statistics (e.g., participants,
 conditions, etc.)}
+
+\item{quantiles}{Numeric vector of length two with quantiles to compute (default: \code{c(.025, .975)}).}
 }
 \value{
 A dataframe giving descriptive statistics for the \code{describe_column}, including mean, SD, var,

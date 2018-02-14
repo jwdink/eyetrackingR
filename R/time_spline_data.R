@@ -224,7 +224,7 @@ make_boot_splines_data.time_sequence_data <- function (data,
 
   # Assign class information:
   combined_bootstrapped_data <- as.data.frame(combined_bootstrapped_data)
-  class(combined_bootstrapped_data) <- c('boot_splines_data', class(combined_bootstrapped_data))
+  class(combined_bootstrapped_data) <- unique(c('boot_splines_data', 'eyetrackingR_df', class(combined_bootstrapped_data)))
   attr(combined_bootstrapped_data, 'eyetrackingR') = list(
     bootstrapped = list(data_options = data_options,
                         within_subj = within_subj,
@@ -343,7 +343,7 @@ analyze_boot_splines.boot_splines_data <- function(data) {
   }
 
   bootstrapped_data = as.data.frame(bootstrapped_data)
-  class(bootstrapped_data) = c('boot_splines_analysis', class(bootstrapped_data))
+  class(bootstrapped_data) = unique(c('boot_splines_analysis', 'eyetrackingR_df', class(bootstrapped_data)))
   attr(bootstrapped_data, 'eyetrackingR') = list(bootstrapped = bootstrap_attr,
                                                  data_options = data_options)
 
