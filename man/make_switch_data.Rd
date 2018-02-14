@@ -31,6 +31,7 @@ Take trials split by initial-AOI, and determine how quickly participants switch 
 \itemize{
 \item \code{onset_data}: 
 }}
+
 \examples{
 data(word_recognition)
 data <- make_eyetrackingr_data(word_recognition, 
@@ -52,4 +53,3 @@ df_switch <- make_switch_data(onsets, predictor_columns = "MCDI_Total",
 plot(df_switch, "MCDI_Total")
                           
 }
-

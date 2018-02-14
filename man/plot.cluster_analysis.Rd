@@ -18,4 +18,3 @@ A ggplot object
 Plots the result of the bootstrapping cluster analysis. A histogram of the sum statistics for the
 shuffled (null) distribution, with the sum statisics for each of the clusters indicated by dashed lines.
 }
-

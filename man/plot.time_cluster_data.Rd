@@ -25,4 +25,3 @@ A ggplot object
 Plot test-statistic for each time-bin in a time-series, highlight clusters.
 Plot time_cluster_data, highlights clusters of above-threshold time-bins.
 }
-

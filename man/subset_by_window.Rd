@@ -97,4 +97,3 @@ response_window <- subset_by_window(data,
                                     remove = FALSE)
 
 }
-

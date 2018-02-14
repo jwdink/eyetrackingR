@@ -80,4 +80,3 @@ response_window_agg_by_sub <- make_time_window_data(data,
 plot(response_window_agg_by_sub, predictor_columns="Age", dv = "LogitAdjusted") 
 
 }
-

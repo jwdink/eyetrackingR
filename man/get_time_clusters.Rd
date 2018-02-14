@@ -2,8 +2,8 @@
 % Please edit documentation in R/time_cluster_data.R
 \name{get_time_clusters}
 \alias{get_time_clusters}
-\alias{get_time_clusters.cluster_analysis}
 \alias{get_time_clusters.time_cluster_data}
+\alias{get_time_clusters.cluster_analysis}
 \title{Get information about the clusters in a cluster-analysis}
 \usage{
 get_time_clusters(object)

@@ -18,4 +18,3 @@ A ggplot object
 Plots the data returned from \code{describe_data}. Like that function, this is a convenient 
 wrapper good for sanity checks.
 }
-

@@ -14,4 +14,3 @@ analyses, as well as novel non-parametric approaches to time-series data.
 \details{
 For more information and tutorials, visit \href{http://www.eyetrackingr.com}{eyetrackingR.com}.
 }
-

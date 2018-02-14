@@ -60,6 +60,7 @@ by manually specifying the formula.
 \itemize{
 \item \code{time_sequence_data}: Make data for time cluster analysis
 }}
+
 \examples{
 data(word_recognition)
 data <- make_eyetrackingr_data(word_recognition, 
@@ -104,4 +105,3 @@ time_cluster_data <- make_time_cluster_data(data = response_time,
 )
   
 }
-

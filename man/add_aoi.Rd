@@ -39,4 +39,3 @@ two dataframes are simply joined by matching any columns they have in common (ca
 there's a unique AOI for each "Trial" in the \code{aoi_dataframe}, and there's a "Trial" column in the
 \code{data} dataframe, then the unique AOI coordinates for each trial will be used.
 }
-

@@ -22,4 +22,3 @@ A ggplot object
 \description{
 Plot the result from the \code{analyze_time_bins} function, with the statistic and threshold for each bin
 }
-

@@ -20,4 +20,3 @@ A ggplot object
 \description{
 Divide trials into which AOI participants started on; plot proportion looking away from that AOI.
 }
-

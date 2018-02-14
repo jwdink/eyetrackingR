@@ -18,4 +18,3 @@ A ggplot object
 Plot the means and CIs of bootstrapped spline difference estimates and intervals
 (either within-subjects or between-subjects)
 }
-

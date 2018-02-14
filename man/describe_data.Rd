@@ -35,4 +35,3 @@ data <- make_eyetrackingr_data(word_recognition,
 describe_data(data, describe_column = "Animate", group_columns = "ParticipantName")
  
 }
-

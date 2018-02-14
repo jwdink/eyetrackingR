@@ -53,4 +53,3 @@ data_clean <- clean_by_trackloss(data,
 )
   
 }
-

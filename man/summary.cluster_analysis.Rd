@@ -17,4 +17,3 @@ Prints information about the bootstrapped null distribution, as well as informat
 \description{
 Summary Method for Cluster Analysis
 }
-

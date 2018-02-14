@@ -52,6 +52,7 @@ shuffling/resampling the data and extracting the largest cluster from each resam
 \itemize{
 \item \code{time_cluster_data}: 
 }}
+
 \examples{
 data(word_recognition)
 data <- make_eyetrackingr_data(word_recognition, 
@@ -82,4 +83,3 @@ summary(tc_analysis)
 }
   
 }
-

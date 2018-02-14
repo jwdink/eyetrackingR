@@ -27,6 +27,7 @@ from \code{boot_splines_data}. Confidence intervals are derived from the alpha a
 \itemize{
 \item \code{boot_splines_data}: 
 }}
+
 \examples{
 data(word_recognition)
 data <- make_eyetrackingr_data(word_recognition, 
@@ -56,4 +57,3 @@ boot_splines_analysis <- analyze_boot_splines(df_bootstrapped)
 summary(boot_splines_analysis)
 
 }
-

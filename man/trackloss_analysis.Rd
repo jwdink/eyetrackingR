@@ -29,4 +29,3 @@ data <- make_eyetrackingr_data(word_recognition,
 tl_analysis <- trackloss_analysis(data)
 
 }
-

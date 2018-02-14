@@ -66,6 +66,7 @@ estimates vary over time. P-values can be adjusted for multiple comparisons with
 \itemize{
 \item \code{time_sequence_data}: 
 }}
+
 \examples{
 data(word_recognition)
 data <- make_eyetrackingr_data(word_recognition, 
@@ -84,4 +85,3 @@ tb_analysis <- analyze_time_bins(response_time, predictor_column = "MCDI_Total",
 summary(tb_analysis)
   
 }
-

@@ -18,4 +18,3 @@ Prints information about each run of statistically significant time-bins, separa
 \description{
 Summary Method for Time-bin Analysis
 }
-

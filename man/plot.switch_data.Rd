@@ -21,4 +21,3 @@ A ggplot object
 Boxplot of mean switch time aggregated by subjects within each FirstAOI, potentially faceted by
 predictor_columns.
 }
-

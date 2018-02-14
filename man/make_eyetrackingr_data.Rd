@@ -22,7 +22,7 @@ make_eyetrackingr_data(data, participant_column, trackloss_column, time_column,
 \item{aoi_columns}{Names of AOIs}
 
 \item{treat_non_aoi_looks_as_missing}{This is a logical indicating how you would like to perform
-"proportion-looking" calculations, which are critical to any eyetracking analysis. If set to
+"proportion-looking" calculations, which are central to eyetrackingR's eyetracking analyses. If set to
 TRUE, any samples that are not in any of the AOIs (defined with the \code{aoi_columns} 
 argument) are treated as missing data; when it comes time for eyetrackingR to calculate 
 proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by 
@@ -65,4 +65,3 @@ data <- make_eyetrackingr_data(word_recognition,
 )
   
 }
-

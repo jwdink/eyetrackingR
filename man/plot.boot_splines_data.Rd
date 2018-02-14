@@ -17,4 +17,3 @@ A ggplot object
 \description{
 Plot the means and CIs of bootstrapped splines (either within-subjects or between-subjects)
 }
-

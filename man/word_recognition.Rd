@@ -29,4 +29,3 @@ re-appeared on the screen and they were prompted to look at the target (e.g., "L
 horse!").
 }
 \keyword{datasets}
-

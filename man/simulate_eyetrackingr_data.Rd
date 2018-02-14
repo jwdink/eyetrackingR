@@ -36,4 +36,3 @@ This function creates an eyetrackingR dataset (i.e., already run through make_ey
 This can be helpful for examining the false-alarm and sensitivity of analysis-techniques via 
 simulations.
 }
-

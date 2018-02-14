@@ -49,6 +49,7 @@ Limited to statistical test between two conditions.
 \itemize{
 \item \code{time_sequence_data}: 
 }}
+
 \examples{
 data(word_recognition)
 data <- make_eyetrackingr_data(word_recognition, 
@@ -73,4 +74,3 @@ df_bootstrapped <- make_boot_splines_data(response_time,
 
 
 }
-

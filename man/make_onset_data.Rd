@@ -44,4 +44,3 @@ onsets <- make_onset_data(inanimate_trials, onset_time = 15500,
                           fixation_window_length = 1, target_aoi='Inanimate')
 
 }
-

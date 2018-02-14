@@ -17,4 +17,3 @@ Prints a list of divergence-times.
 \description{
 Summary Method for Bootstrapped Splines Analysis
 }
-
