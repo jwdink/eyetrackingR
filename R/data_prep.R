@@ -1,31 +1,5 @@
 # Loading/Cleaning/Describing Data ------------------------------------------------------------------------
 
-#' Treat gaze data outside of all AOIs as missing
-#'
-#' Should gaze outside of any AOI be considered trackloss? 
-#'
-#' @param data The data
-#' @param data_options The data options
-#' @return Data with correct AOIs
-
-.convert_non_aoi_to_missing <- function(data, data_options) {
-  
-  # Create version of AOIs with no NAs:
-  .narepl <- function(x) ifelse(is.na(x), 0, x)
-  data_no_na <- mutate_each_(data, funs(.narepl), vars = sapply(data_options$aoi_columns, as.name))
-  
-  # Find all rows which have no AOIs in them:
-  data_no_na[[".AOISum"]] <- 0
-  for (aoi in data_options$aoi_columns) {
-    data_no_na[[".AOISum"]] <- data_no_na[[".AOISum"]] + data_no_na[[aoi]]
-  }
-
-  # Set these rows as trackloss:
-  data[[data_options$trackloss_column]] <- ifelse(data_no_na[[".AOISum"]] == 0, TRUE, data_no_na[[data_options$trackloss_column]])
-  
-  return(data)
-}
-
 #' Convert raw data for use in eyetrackingR
 #' 
 #' This should be the first function you use when using eyetrackingR for a project (potentially with
@@ -52,7 +26,7 @@
 #' @param item_columns       Column names indicating items (optional)
 #' @param aoi_columns        Names of AOIs
 #' @param treat_non_aoi_looks_as_missing This is a logical indicating how you would like to perform
-#'   "proportion-looking" calculations, which are critical to any eyetracking analysis. If set to
+#'   "proportion-looking" calculations, which are central to eyetrackingR's eyetracking analyses. If set to
 #'   TRUE, any samples that are not in any of the AOIs (defined with the \code{aoi_columns} 
 #'   argument) are treated as missing data; when it comes time for eyetrackingR to calculate 
 #'   proportion looking to an AOI, this will be calculated as "time looking to that AOI divided by 
@@ -91,7 +65,7 @@ make_eyetrackingr_data <- function(data,
       return(FALSE)
     } else {
       stop("One of your columns (", col, ") could not be converted to the correct format (TRUE/FALSE), ",
-           "please do so manually.")
+           "please do so manually.", call. = FALSE)
     }
   }
   check_then_convert <- function(x, checkfunc, convertfunc, colname) {
@@ -100,8 +74,8 @@ make_eyetrackingr_data <- function(data,
       x <- convertfunc(x)
     } 
     if (colname=="Trackloss" & any(is.na(x))) {
-      warning("Found NAs in trackloss column, these will be treated as TRACKLOSS=FALSE.")
-      x <- ifelse(is.na(x), FALSE, x)
+      warning("Found NAs in trackloss column, these will be treated as TRACKLOSS=FALSE.", immediate. = TRUE, call. = FALSE)
+      x <- if_else(is.na(x), FALSE, x)
     }
     return(x)
   }
@@ -145,24 +119,22 @@ make_eyetrackingr_data <- function(data,
   
   ## Deal with Non-AOI looks:
   if (treat_non_aoi_looks_as_missing) {
-    out <- .convert_non_aoi_to_missing(out, data_options)
+    any_aoi <- rowSums(as.matrix(out[,data_options$aoi_columns,drop=FALSE]), na.rm = TRUE) > 0
+    out[[data_options$trackloss_column]][!any_aoi] <- TRUE
   }
   
   ## Set All AOI rows with trackloss to NA:
   # this ensures that any calculations of proportion-looking will not include trackloss in the denominator
   for (aoi in data_options$aoi_columns) {
-    out[[aoi]] <- ifelse(out[[data_options$trackloss_column]], NA, out[[aoi]])
-    # TO DO: check if any NAs in non-trackloss rows? that is, trackloss col should exactly track is.na() for all AOIs
+    out[[aoi]][ out[[data_options$trackloss_column]] ] <- NA
   }
   
   # Check for duplicate values of Trial column within Participants
   duplicates <- out %>%
-                group_by_(.dots = list(data_options$participant_column,
-                                       data_options$trial_column,
-                                       data_options$time_column)) %>%
-                summarise(count = n()) %>%
-                ungroup() %>%
-                filter(count > 1)
+    group_by_at(.vars = c(data_options$participant_column, data_options$trial_column, data_options$time_column) ) %>%
+    count() %>%
+    ungroup() %>%
+    filter(n > 1)
   
   if (nrow(duplicates) > 0) {
     print(duplicates)
@@ -174,8 +146,9 @@ make_eyetrackingr_data <- function(data,
   }
   
   ## Assign attribute:
-  out <- arrange_(out, .dots = list(participant_column, trial_column, time_column))
-  class(out) <- c("eyetrackingR", "data.frame")
+  out <- arrange_at(.tbl = out, .vars = c(participant_column, trial_column, time_column))
+  out <- as_data_frame(out)
+  class(out) <- c("eyetrackingR", class(out))
   attr(out, "eyetrackingR") <- list(data_options = data_options)
   return(out)
   
