@@ -1,5 +1,10 @@
 # eyetrackingR 
 
+Changes in 0.1.7:
+* Compatible with dplyr > 0.5.0.  
+* Fixes issue described in https://github.com/jwdink/eyetrackingR/issues/57 
+* Fixes bug in add_aoi when only one AOI is added.  
+
 Changes in 0.1.6:
 * Allows for treatment-coded variables in `lm` or `lmer` time-bin or cluster analysis, via the "treatment_level" argument.
 

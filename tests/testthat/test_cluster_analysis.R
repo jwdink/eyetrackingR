@@ -58,7 +58,7 @@ tclust_data_lm <- make_time_cluster_data(data = response_time_by_ppt, predictor_
                        threshold = -2, formula = Prop ~  MCDI_Verbs + MCDI_Nouns)
 
 test_that(desc = "The function make_time_cluster_data gives necessary eyetrackingR attributes with lm", code = {
-  expect_true( all(class(tclust_data_lm) %in% c("time_cluster_data", "time_sequence_data", "data.frame")) )
+  expect_true( all( c("time_cluster_data", "time_sequence_data", "data.frame") %in% class(tclust_data_lm)) )
   expect_false( is.null( attr(tclust_data_lm,"eyetrackingR") ) )
   expect_equal( ncol(attr(tclust_data_lm, "eyetrackingR")$clusters), 5 )
   expect_equal( nrow(attr(tclust_data_lm, "eyetrackingR")$clusters), 1 )
@@ -91,7 +91,7 @@ tclust_data_lmer <- make_time_cluster_data(data = response_time,
                                            threshold = 2, 
                                            formula = ArcSin ~ Target + Age + (1|ParticipantName) + (1|Trial) ) 
 test_that(desc = "The function make_time_cluster_data gives necessary eyetrackingR attributes with lmer", code = {
-  expect_true( all(class(tclust_data_lmer) %in% c("time_cluster_data", "time_sequence_data", "data.frame")) )
+  expect_true( all(c("time_cluster_data", "time_sequence_data", "data.frame") %in% class(tclust_data_lmer)) )
   expect_equal( nrow(tclust_data_lmer), 6710 )
   expect_false( is.null( attr(tclust_data_lmer,"eyetrackingR") ) )
   expect_equal( nrow(attr(tclust_data_lmer, "eyetrackingR")$clusters), 2 )
@@ -125,7 +125,7 @@ test_that(desc = "The function analyze_time_clusters yields a reasonable null di
 tclust_data_ttest <- make_time_cluster_data(data = response_time_by_ppt, predictor_column = "Sex", test = "t.test", 
                                          var.equal=TRUE, threshold = -1.5)
 test_that(desc = "The function make_time_cluster_data gives necessary eyetrackingR attributes with t.test", code = {
-  expect_true( all(class(tclust_data_ttest) %in% c("time_cluster_data", "time_sequence_data", "data.frame")) )
+  expect_true( all(c("time_cluster_data", "time_sequence_data", "data.frame") %in% class(tclust_data_ttest)) )
   expect_equal( nrow(tclust_data_ttest), 1485 )
   expect_false( is.null( attr(tclust_data_ttest,"eyetrackingR") ) )
   expect_equal( nrow(attr(tclust_data_ttest, "eyetrackingR")$clusters), 3 )
@@ -137,13 +137,3 @@ test_that(desc = "The function analyze_time_clusters gives necessary eyetracking
   expect_true( all(class(tclust_analysis_ttest) %in% c("cluster_analysis")) )
   expect_equal( length( attr(tclust_analysis_ttest$time_bin_summary, "eyetrackingR")$negative_runs ), 2 )
 })
-
-# Cluster Analysis 4: boot-splines
-response_time_by_ppt <- dplyr::filter(response_time_by_ppt, !is.na(Prop))
-tclust_data_boot <- make_time_cluster_data(response_time_by_ppt, predictor_column = "Sex", test="boot_splines",
-                                           within_subj = FALSE, smoother = "smooth.spline", alpha=.05)
-tclust_data_boot2 <- make_time_cluster_data(response_time_by_ppt, predictor_column = "Sex", test="boot_splines",
-                                           within_subj = FALSE, bs_samples = 100, smoother = "loess", alpha=.05)
-
-
-

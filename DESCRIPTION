@@ -1,6 +1,6 @@
 Package: eyetrackingR
 Type: Package
-Version: 0.1.6
+Version: 0.1.7
 Title: Eye-Tracking Data Analysis
 Authors@R: c(
 	person("Jacob", "Dink", email = "jacobwdink@gmail.com", role = c("aut", "cre")),
@@ -15,16 +15,17 @@ URL: http://eyetracking-r.com
 BugReports: https://github.com/jwdink/eyetrackingR/issues
 Date: 2016-3-17 12:15:02
 Depends: 
-    R (>= 3.2.0)
+    R (>= 3.2.0),
+    dplyr (>= 0.7.4)
 License: MIT + file LICENSE
 LazyData: true
 Imports: 
     broom (>= 0.3.7),
-    dplyr (>= 0.4.3),
     ggplot2 (>= 2.0),
     lazyeval (>= 0.1.10),
     zoo (>= 1.7-12),
-    tidyr (>= 0.3.1)
+    tidyr (>= 0.3.1),
+    purrr (>= 0.2.4)
 Suggests: 
     pbapply,
     knitr,

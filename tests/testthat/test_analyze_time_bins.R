@@ -59,7 +59,7 @@ tb_within <- analyze_time_bins(df_time_within, predictor_column = "Target", test
 tb_within_check <- dget(file = "tb_output_within_subj.txt")
 
 test_that(desc = "The function analyze_time_bins has eyetrackingR attributes (within)", code = {
-  expect_true( all(class(tb_within) %in% c("bin_analysis", "data.frame")) )
+  expect_true( all(c("bin_analysis", "data.frame") %in% class(tb_within)) )
   expect_false( is.null( attr(tb_within,"eyetrackingR") ) )
   expect_equal(length(which(is.na(tb_within_check$PositiveRuns))), 38)
   expect_equal(length(which(is.na(tb_within_check$NegativeRuns))), 55)
@@ -83,7 +83,7 @@ tb_between <- analyze_time_bins(df_time_between, predictor_column = "Sex", test 
 tb_between_check <- dget(file = "tb_output_between_subj.txt")
 
 test_that(desc = "The function analyze_time_bins has eyetrackingR attributes (between)", code = {
-  expect_true( all(class(tb_between) %in% c("bin_analysis", "data.frame")) )
+  expect_true( all( c("bin_analysis", "data.frame") %in% class(tb_between) ) )
   expect_false( is.null( attr(tb_between,"eyetrackingR") ) )
   expect_equal(length(which(is.na(tb_between_check$PositiveRuns))), 55)
   expect_equal(length(which(is.na(tb_between_check$NegativeRuns))), 54)

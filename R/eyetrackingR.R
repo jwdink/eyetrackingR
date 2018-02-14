@@ -36,6 +36,7 @@
 #' @importFrom tidyr  gather
 #' @importFrom tidyr  spread
 #' @importFrom graphics plot
+#' @importFrom purrr map map_lgl
 #'
 #' @docType package
 #' @name eyetrackingR
@@ -44,6 +45,9 @@ NULL
 
 # Suppress unbound global variable NOTES in R CMD CHECK:
 utils::globalVariables(c('Prop',
+                         'SumTracklossForParticipant',
+                         'TotalParticipantLength',
+                         ':=',
                          'AOI',
                          'Time',
                          'SamplesInAOI',
