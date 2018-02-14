@@ -4,9 +4,11 @@ author: "Jacob Dink & Brock Ferguson"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteIndexEntry{Performing a window analysis}
   %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
 ---
 
 > **Our Experiment**: Each eyetrackingR vignette uses the *eyetrackingR* package to analyze real data from a simple 2-alternative forced choice (2AFC) word recognition task administered to 19- and 24-month-olds.
@@ -88,9 +90,9 @@ We will start out by using the ArcSin DV.
 ```{r, warning=FALSE}
 # aggregate by subject across the response window
 response_window_agg_by_sub <- make_time_window_data(response_window_clean, 
-                                             aois='Animate',
-                                             predictor_columns=c('Target','Age','MCDI_Total'),
-                                             summarize_by = "ParticipantName")
+                                                    aois='Animate',
+                                                    predictor_columns=c('Target','Age','MCDI_Total'),
+                                                    summarize_by = "ParticipantName")
 
 # take a quick peek at data
 plot(response_window_agg_by_sub, predictor_columns="Target", dv = "ArcSin")
@@ -110,7 +112,7 @@ response_window_agg_by_sub$AgeC <- response_window_agg_by_sub$Age - mean(respons
 response_window_agg_by_sub$MCDI_TotalC <- response_window_agg_by_sub$MCDI_Total - mean(response_window_agg_by_sub$MCDI_Total)
 
 model <- lm(ArcSin ~ Target*AgeC*MCDI_TotalC, data=response_window_agg_by_sub)
-broom::tidy(model)
+summary(model)
 ```
 
 This linear model shows no main effects or interactions of Target with those predictors, but confirms the large effect of Target.
@@ -175,7 +177,7 @@ The empirical-logit transformation appears to have created some problematic outl
 
 ```{r, warning=FALSE}
 model_time_window_logit <- lmer(LogitAdjusted ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), 
-                          data = response_window_agg, REML = FALSE)
+                                data = response_window_agg, REML = FALSE)
 plot(model_time_window_logit)
 drop1(model_time_window_logit,~.,test="Chi")
 est_logit <- broom::tidy(model_time_window_logit, effects="fixed")

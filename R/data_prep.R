@@ -672,8 +672,13 @@ describe_data <- function(data, describe_column, group_columns, quantiles = c(.0
 #' @return A ggplot object
 plot.eyetrackingR_data_summary <- function(x, ...) {
   attrs <- attr(x, "eyetrackingR")
-  
-  ggplot(x, aes_string(x=attrs$group_columns[1], y="Mean", group=attrs$group_columns[2])) +
+  if (length(attrs$group_columns) > 1) group_col <- attrs$group_columns[2]
+  else group_col <- NULL
+  g <- ggplot(x, aes_string(x=attrs$group_columns[1], y="Mean", group=group_col)) +
     stat_summary(fun.y='mean', geom='point') +
-    stat_summary(fun.y='mean', geom='line')
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_y_continuous(attrs$describe_column)
+  if (!is.null(group_col))
+    g <- g + stat_summary(fun.y='mean', geom='line') 
+  return(g)
 }

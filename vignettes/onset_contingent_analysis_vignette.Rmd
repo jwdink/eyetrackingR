@@ -4,9 +4,11 @@ author: "Jacob Dink & Brock Ferguson"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteIndexEntry{Performing an onset-contingent analysis}
   %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
 ---
 
 > **Our Experiment**: Each eyetrackingR vignette uses the *eyetrackingR* package to analyze real data from a simple 2-alternative forced choice (2AFC) word recognition task administered to 19- and 24-month-olds.
