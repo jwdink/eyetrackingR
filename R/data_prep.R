@@ -185,6 +185,8 @@ add_aoi <- function(data, aoi_dataframe,
                      y_min_col = "T", y_max_col = "B"
 ) {
   
+  stopifnot(is.character(aoi_name))
+  
   ## Helper
   .inside_rect = function(pt, ltrb) {
     if (is.null(dim(pt))) {
