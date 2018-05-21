@@ -338,7 +338,7 @@ subset_by_window <- function(data,
       if (is.integer(time_vec)) return(NA_integer_)
       else return(NA_real_)
     }
-    return(time_vec[bool])
+    return(time_vec[which(bool)])
   }
   
   # Prelims:
