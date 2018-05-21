@@ -235,6 +235,12 @@ add_aoi <- function(data, aoi_dataframe,
   
   ## Make AOI column
   message("Making ", aoi_name, " AOI...")
+  
+  if (nrow(df_joined) > nrow(data)) {
+    stop(call. = FALSE,
+         "There was a problem when adding the AOI to your data; please verify the 'join' message above makes sense.")
+  }
+  
   data[[aoi_name]] <- .inside_rect(pt    = cbind(df_joined[[x_col]], df_joined[[y_col]]),
                                    ltrb  = cbind(df_joined[[x_min_col]], df_joined[[y_min_col]], df_joined[[x_max_col]], df_joined[[y_max_col]])
   )
