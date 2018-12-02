@@ -1,9 +1,3 @@
-#' .get_crit_val()
-#'
-#' Get the threshold, given critical value and test. For `analyze_time_bins`
-#'
-#' @param vec Logical
-#' @return A numeric vector
 .get_threshold <- function(alpha, test, dfs, quiet) {
     if (test %in% c("lmer","glmer")) {
       if (!quiet) message("Using the normal approximation for critical value on parameter in ", test)
@@ -18,12 +12,6 @@
   return(crit_pos)
 }
 
-#' .label_consecutive()
-#'
-#' A helper function to label/enumerate runs of TRUEs in a logical vector, with NA for FALSEs
-#'
-#' @param vec Logical
-#' @return A numeric vector
 .label_consecutive <- function(vec) {
   vec = c(0,vec)
   vec[is.na(vec)] = 0
@@ -33,16 +21,6 @@
   out
 }
 
-#' .make_proportion_looking_summary()
-#'
-#' A helper function for make_time_window_data and make_time_sequence_data. Takes a dataframe, groups it, and
-#' returns proportion looking and relevant transformations
-#'
-#' @param data       The data
-#' @param groups     The groups
-#' @param aoi_col    Name of AOI column
-#' @param other_dv_columns Other columns to summarize, aside from AOI column.
-#' @return dataframe Transformed dataframe
 .make_proportion_looking_summary <-
   function(data, groups, aoi_col, other_dv_columns) {
     
