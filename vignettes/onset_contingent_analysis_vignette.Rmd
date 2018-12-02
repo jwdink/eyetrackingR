@@ -79,8 +79,7 @@ response_window_clean$TrialDistractor <- ifelse(test = response_window_clean$Tar
 Next, we can use `make_onset_data` to calculate whether, at each point in the trial, the participant has switched from their onset AOI. We can `plot` this new dataframe showing the proportion of participants who had switched from their onset AOI at each point (style adapted from Yurovsky & Frank, 2015). The size of the gap between the solid line (switching from the non-Target) and the dashed line (switching from the Target) documents infants' performance in identifying the target: Infants should switch more quickly and more frequently *to* the Target than *from* it:
 
 ```{r, warning=FALSE}
-onsets <- make_onset_data(response_window_clean, onset_time = 15500, 
-                          fixation_window_length = 1, target_aoi='TrialTarget')
+onsets <- make_onset_data(response_window_clean, onset_time = 15500, target_aoi='TrialTarget')
 # participants' ability to orient to the trial target overall:
 plot(onsets) + theme(legend.text=element_text(size=5))
 ```

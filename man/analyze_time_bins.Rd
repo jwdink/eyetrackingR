@@ -7,9 +7,10 @@
 \usage{
 analyze_time_bins(data, ...)
 
-\method{analyze_time_bins}{time_sequence_data}(data, predictor_column, test,
-  threshold = NULL, alpha = NULL, aoi = NULL, formula = NULL,
-  treatment_level = NULL, p_adjust_method = "none", quiet = FALSE, ...)
+\method{analyze_time_bins}{time_sequence_data}(data, predictor_column,
+  test, threshold = NULL, alpha = NULL, aoi = NULL, formula = NULL,
+  treatment_level = NULL, p_adjust_method = "none", quiet = FALSE,
+  ...)
 }
 \arguments{
 \item{data}{The output of the 'make_time_sequence_data' function}

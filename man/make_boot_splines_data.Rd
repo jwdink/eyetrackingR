@@ -5,12 +5,12 @@
 \alias{make_boot_splines_data.time_sequence_data}
 \title{Bootstrap resample splines for time-series data.}
 \usage{
-make_boot_splines_data(data, predictor_column, within_subj, aoi, bs_samples,
-  smoother, resolution, alpha, ...)
+make_boot_splines_data(data, predictor_column, within_subj, aoi,
+  bs_samples, smoother, resolution, alpha, ...)
 
 \method{make_boot_splines_data}{time_sequence_data}(data, predictor_column,
-  within_subj, aoi = NULL, bs_samples = 1000, smoother = "smooth.spline",
-  resolution = NULL, alpha = 0.05, ...)
+  within_subj, aoi = NULL, bs_samples = 1000,
+  smoother = "smooth.spline", resolution = NULL, alpha = 0.05, ...)
 }
 \arguments{
 \item{data}{The output of \code{time_sequence_data()}}

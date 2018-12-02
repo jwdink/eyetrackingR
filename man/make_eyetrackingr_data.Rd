@@ -4,8 +4,8 @@
 \alias{make_eyetrackingr_data}
 \title{Convert raw data for use in eyetrackingR}
 \usage{
-make_eyetrackingr_data(data, participant_column, trackloss_column, time_column,
-  trial_column, aoi_columns, treat_non_aoi_looks_as_missing,
+make_eyetrackingr_data(data, participant_column, trackloss_column,
+  time_column, trial_column, aoi_columns, treat_non_aoi_looks_as_missing,
   item_columns = NULL)
 }
 \arguments{

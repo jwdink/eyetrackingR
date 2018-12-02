@@ -24,17 +24,18 @@
 #' response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000, 
 #'                                     rezero = FALSE)
 #' inanimate_trials <- subset(response_window, grepl('(Spoon|Bottle)', Trial))
-#' onsets <- make_onset_data(inanimate_trials, onset_time = 15500, 
-#'                           fixation_window_length = 1, target_aoi='Inanimate')
+#' onsets <- make_onset_data(inanimate_trials, onset_time = 15500, target_aoi='Inanimate')
 #' 
 #' @export
 #' @return Original dataframe augmented with column indicating switch away from target AOI
-make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi, distractor_aoi = NULL) {
+make_onset_data <- function(data, onset_time, fixation_window_length = NULL, target_aoi, distractor_aoi = NULL) {
   ## Helper Function:
   na_replace_rollmean <- function(col, fixation_window_length_rows) {
     if ( sum(!is.na(col)) == 0 ) return(as.numeric(NA)) # no data
     
-    out <- zoo::rollapply(col, FUN = mean, na.rm = TRUE, width = fixation_window_length_rows, partial = TRUE, 
+    # RcppRoll::roll_mean(x = as.numeric(col), n = fixation_window_length_rows, align = 'left', fill = NA_real_)
+    # browser()
+    out <- zoo::rollapply(as.numeric(col), FUN = mean, na.rm = TRUE, width = fixation_window_length_rows, partial = TRUE, 
                           fill = NA, align = "left")
     
     return(out)
@@ -64,8 +65,13 @@ make_onset_data <- function(data, onset_time, fixation_window_length, target_aoi
   df_time_per_row <- summarize_(df_time_per_row,
                                .dots = list(TimePerRow = interp(~mean(diff(TIME_COL)), TIME_COL = time_col)
                                             ))
+
   time_per_row <- round(mean(df_time_per_row[["TimePerRow"]]))
+  if (is.null(fixation_window_length)) 
+    fixation_window_length <- time_per_row
+  
   fixation_window_length_rows <- fixation_window_length / time_per_row
+  stopifnot(fixation_window_length_rows >= 1)
   
   if (fixation_window_length_rows > 1) {
     warning('Smoothing in make_onset_data() using fixation_window_length_rows is experimental. We

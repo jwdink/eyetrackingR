@@ -5,7 +5,8 @@
 \title{make_time_sequence_data()}
 \usage{
 make_time_sequence_data(data, time_bin_size, aois = NULL,
-  predictor_columns = NULL, other_dv_columns = NULL, summarize_by = NULL)
+  predictor_columns = NULL, other_dv_columns = NULL,
+  summarize_by = NULL)
 }
 \arguments{
 \item{data}{The output of \code{make_eyetrackingr_data}}

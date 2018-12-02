@@ -4,8 +4,8 @@
 \alias{plot.time_window_data}
 \title{Plot a time-window dataset}
 \usage{
-\method{plot}{time_window_data}(x, predictor_columns = NULL, dv = "Prop",
-  ...)
+\method{plot}{time_window_data}(x, predictor_columns = NULL,
+  dv = "Prop", ...)
 }
 \arguments{
 \item{x}{The data returned by make_time_window_data()}

@@ -4,8 +4,8 @@
 \alias{make_onset_data}
 \title{Make onset-contingent data.}
 \usage{
-make_onset_data(data, onset_time, fixation_window_length, target_aoi,
-  distractor_aoi = NULL)
+make_onset_data(data, onset_time, fixation_window_length = NULL,
+  target_aoi, distractor_aoi = NULL)
 }
 \arguments{
 \item{data}{The original (verified) data}
@@ -40,7 +40,6 @@ data <- make_eyetrackingr_data(word_recognition,
 response_window <- subset_by_window(data, window_start_time = 15500, window_end_time = 21000, 
                                     rezero = FALSE)
 inanimate_trials <- subset(response_window, grepl('(Spoon|Bottle)', Trial))
-onsets <- make_onset_data(inanimate_trials, onset_time = 15500, 
-                          fixation_window_length = 1, target_aoi='Inanimate')
+onsets <- make_onset_data(inanimate_trials, onset_time = 15500, target_aoi='Inanimate')
 
 }

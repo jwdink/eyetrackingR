@@ -4,8 +4,8 @@
 \alias{plot.time_sequence_data}
 \title{Plot time-sequence data}
 \usage{
-\method{plot}{time_sequence_data}(x, predictor_column = NULL, dv = "Prop",
-  model = NULL, ...)
+\method{plot}{time_sequence_data}(x, predictor_column = NULL,
+  dv = "Prop", model = NULL, ...)
 }
 \arguments{
 \item{x}{Your data from \code{make_time_sequence_data}. Will be collapsed by
