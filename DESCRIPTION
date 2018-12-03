@@ -1,6 +1,6 @@
 Package: eyetrackingR
 Type: Package
-Version: 0.1.7
+Version: 0.1.8
 Title: Eye-Tracking Data Analysis
 Authors@R: c(
 	person("Jacob", "Dink", email = "jacobwdink@gmail.com", role = c("aut", "cre")),
@@ -13,7 +13,7 @@ Description: A set of tools that address tasks along the pipeline from raw
     bootstrapping approaches.
 URL: http://eyetracking-r.com
 BugReports: https://github.com/jwdink/eyetrackingR/issues
-Date: 2018-2-14 12:15:02
+Date: 2018-12-03
 Depends: 
     R (>= 3.2.0),
     dplyr (>= 0.7.4)

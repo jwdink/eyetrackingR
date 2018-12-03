@@ -1,5 +1,8 @@
 # eyetrackingR 
 
+Changes in 0.1.8:
+* Fixes a bug in make_onset_data.
+
 Changes in 0.1.7:
 * Compatible with dplyr > 0.5.0.  
 * Fixes issue described in https://github.com/jwdink/eyetrackingR/issues/57 
