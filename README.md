@@ -1,6 +1,10 @@
 eyetrackingR
 =====================================
 
+## Warning: Unmaintained
+
+This package has not been updated in several years and is no longer actively maintained. There are several outstanding issues. If anyone is interested in taking over package maintenance, please reach out.
+
 ## Recent Updates:
 
 EyetrackingR is now compatible with dplyr > 0.5.0.
