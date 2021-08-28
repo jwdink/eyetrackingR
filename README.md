@@ -1,13 +1,11 @@
 eyetrackingR
 =====================================
 
-## Warning: Unmaintained
+## !! Warning: Unmaintained
 
 This package has not been updated in several years and is no longer actively maintained. There are several outstanding issues. If anyone is interested in taking over package maintenance, please reach out.
 
-## Recent Updates:
-
-EyetrackingR is now compatible with dplyr > 0.5.0.
+Update (Aug 27, 2021): @samhforbes is now maintaining [a fork of eyetrackingR](https://github.com/samhforbes/eyetrackingr) on Github that will soon become the source repository for the CRAN `eyetrackingR` package.
 
 ## Eye-tracking Data: Cleaning, Analysis, & Visualization
 
